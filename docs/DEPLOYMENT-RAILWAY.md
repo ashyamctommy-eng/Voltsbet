@@ -10,19 +10,10 @@ against the NOWPayments and M-Pesa **sandboxes**.
 
 ## Step 1 — Push the code to GitHub
 
-1. Create a repo: `github.com/new` → name it e.g. `voltbet` (private is fine).
-2. From your computer:
-   ```bash
-   cd voltbet-sportsbook/app          # the project folder from the zip
-   git init
-   git add -A
-   git commit -m "VoltBet initial"
-   git branch -M main
-   git remote add origin https://github.com/YOU/voltbet.git
-   git push -u origin main
-   ```
-   > `.gitignore` already excludes `node_modules`, `.next`, `prisma/dev.db` — never
-   > commit the dev database or any keys.
+> ✅ **Already done** (2026-08-16): repo `baristamcdough-hash/voltbet` (private),
+> branch **`master`**. If you ever clone it fresh: `git clone https://github.com/baristamcdough-hash/voltbet.git`
+> `.gitignore` excludes `node_modules`, `.next`, `prisma/dev.db` — never commit
+> the dev database or any keys.
 
 ## Step 2 — Create the Railway project
 
@@ -31,6 +22,9 @@ against the NOWPayments and M-Pesa **sandboxes**.
    fail because there's no database yet — fix that next, then redeploy.
 
 ## Step 3 — Add PostgreSQL + env vars
+
+> ✅ The schema (`prisma/schema.prisma`) is already on **PostgreSQL** with a fresh
+> init migration (`20260816180000_init_postgres`) — no code change needed.
 
 1. **Variables** tab → add:
    | Name | Value |
@@ -49,6 +43,8 @@ against the NOWPayments and M-Pesa **sandboxes**.
    ```
    npx prisma migrate deploy && npx prisma db seed && next start
    ```
+   > `prisma migrate deploy` runs the Postgres init migration (idempotent —
+   > safe to keep on every deploy, the seed is idempotent too).
 2. Deploy. When it finishes, open the service URL → you should see VoltBet.
    - First deploy only: tables are created + demo data seeded.
    - You can remove `&& npx prisma db seed` later (the seed is idempotent anyway).
