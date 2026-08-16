@@ -1,13 +1,14 @@
 // VoltBet — sportsbook platform schema
-// Dev: SQLite. Production (Railway/VPS): change provider to "postgresql"
-// and set DATABASE_URL to your Postgres connection string.
+// Production: PostgreSQL (Railway plugin or any Postgres host).
+// For local dev you can point DATABASE_URL at a local Postgres instance,
+// or switch the provider back to "sqlite" with url = "file:./dev.db".
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
