@@ -1,0 +1,415 @@
+// VoltBet — sportsbook platform schema
+// Dev: SQLite. Production (Railway/VPS): change provider to "postgresql"
+// and set DATABASE_URL to your Postgres connection string.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────── Identity & Access ───────────────────────────
+
+model User {
+  id           String    @id @default(cuid())
+  fullName     String
+  username     String    @unique
+  email        String    @unique
+  phone        String    @unique
+  passwordHash String
+  country      String?
+  languageCode String    @default("en")
+  currencyCode String    @default("KES")
+  displayCurrencyCode String? // wallet stays in currencyCode; this only affects display (spec §23)
+  role         String    @default("CUSTOMER") // CUSTOMER | SUPER_ADMIN | SPORTS_MANAGER | FINANCE_MANAGER | SUPPORT_MANAGER | CONTENT_MANAGER
+  status       String    @default("ACTIVE")   // status-engine key (type=USER)
+  verified     Boolean   @default(false)
+  referralCode String?   @unique
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  wallet       Wallet?
+  sessions     Session[]
+  bets         Bet[]
+  transactions Transaction[]
+  deposits     Deposit[]
+  withdrawals  Withdrawal[]
+  notifications Notification[]
+
+  @@index([role])
+  @@index([status])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ip        String?
+  userAgent String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ────────────────────────────── Sports data ──────────────────────────────
+
+model Sport {
+  id        String  @id @default(cuid())
+  name      String
+  slug      String  @unique
+  icon      String? // emoji or image URL
+  sortOrder Int     @default(0)
+  active    Boolean @default(true)
+  isPopular Boolean @default(false)
+
+  competitions Competition[]
+  games       Game[]
+}
+
+model Competition {
+  id        String  @id @default(cuid())
+  sportId   String
+  sport     Sport   @relation(fields: [sportId], references: [id], onDelete: Cascade)
+  name      String
+  country   String?
+  logo      String?
+  sortOrder Int     @default(0)
+  active    Boolean @default(true)
+
+  games Game[]
+
+  @@index([sportId])
+}
+
+model Team {
+  id      String  @id @default(cuid())
+  name    String
+  sportId String?
+  country String?
+  logo    String?
+
+  @@index([name])
+}
+
+// ──────────────────────────────── Games ──────────────────────────────────
+
+model Game {
+  id              String   @id @default(cuid())
+  sportId         String
+  sport           Sport    @relation(fields: [sportId], references: [id], onDelete: Cascade)
+  competitionId   String?
+  competition     Competition? @relation(fields: [competitionId], references: [id], onDelete: SetNull)
+  competitionName String? // denormalized so manual games don't require a competition row
+
+  homeName   String
+  awayName   String
+  homeLogo   String?
+  awayLogo   String?
+  startAt    DateTime
+
+  // Live control
+  status       String  @default("SCHEDULED") // status-engine key (type=GAME)
+  homeScore    Int     @default(0)
+  awayScore    Int     @default(0)
+  halfHomeScore Int?
+  halfAwayScore Int?
+  period       String? // e.g. "1H", "2H", "Q3"
+  clock        String? // e.g. "67:42"
+
+  source     String  @default("MANUAL") // MANUAL | API
+  externalId String? @unique // API sync dedup
+  featured   Boolean @default(false)
+  live       Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  markets    Market[]
+  selections BetSelection[]
+
+  @@index([sportId, startAt])
+  @@index([status])
+  @@index([startAt])
+}
+
+model Market {
+  id          String  @id @default(cuid())
+  gameId      String
+  game        Game    @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  name        String // "Match Result", "Over/Under 2.5" ...
+  key         String  @default("CUSTOM") // MATCH_RESULT | DOUBLE_CHANCE | OVER_UNDER | BTTS | CORRECT_SCORE | HT_RESULT | DRAW_NO_BET | CUSTOM
+  description String?
+  status      String  @default("OPEN") // status-engine key (type=MARKET): OPEN | SUSPENDED | CLOSED | SETTLED
+  settlementMethod String?
+  sortOrder   Int     @default(0)
+
+  outcomes  Outcome[]
+  selections BetSelection[]
+
+  @@index([gameId])
+}
+
+model Outcome {
+  id        String  @id @default(cuid())
+  marketId  String
+  market    Market  @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  name      String // "Manchester United" | "Over 2.5" | "Yes"
+  label     String? // "1" | "X" | "2" | "Over" | "Yes" ...
+  odds      Decimal @default(1)
+  status    String  @default("ACTIVE") // ACTIVE | SUSPENDED
+  settled   Boolean @default(false)
+  result    String? // WON | LOST | VOID | null
+  sortOrder Int     @default(0)
+
+  selections BetSelection[]
+
+  @@index([marketId])
+}
+
+// ──────────────────────────────── Betting ────────────────────────────────
+
+model Bet {
+  id           String   @id @default(cuid())
+  code         String   @unique // human-friendly bet code, e.g. "VB-8F3K2A"
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type         String   @default("SINGLE") // SINGLE | MULTIPLE
+  stake        Decimal
+  totalOdds    Decimal
+  potentialWin Decimal
+  status       String   @default("OPEN") // status-engine key (type=BET): OPEN | WON | LOST | VOID
+  settledAt    DateTime?
+  createdAt    DateTime @default(now())
+
+  selections BetSelection[]
+
+  @@index([userId, createdAt])
+  @@index([status])
+}
+
+model BetSelection {
+  id              String  @id @default(cuid())
+  betId           String
+  bet             Bet     @relation(fields: [betId], references: [id], onDelete: Cascade)
+  gameId          String
+  game            Game    @relation(fields: [gameId], references: [id], onDelete: Restrict)
+  marketId        String
+  market          Market  @relation(fields: [marketId], references: [id], onDelete: Restrict)
+  outcomeId       String
+  outcome         Outcome @relation(fields: [outcomeId], references: [id], onDelete: Restrict)
+  marketName      String
+  outcomeName     String
+  label           String?
+  oddsAtPlacement Decimal
+  result          String? // WON | LOST | VOID | null
+  settled         Boolean @default(false)
+
+  @@index([betId])
+  @@index([outcomeId])
+  @@index([gameId])
+}
+
+// ─────────────────────────────── Wallet & Money ──────────────────────────
+
+model Wallet {
+  id           String  @id @default(cuid())
+  userId       String  @unique
+  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balance      Decimal @default(0)
+  bonusBalance Decimal @default(0)
+  currencyCode String  @default("KES")
+  updatedAt    DateTime @updatedAt
+}
+
+model Transaction {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type         String // DEPOSIT | WITHDRAWAL | BET_STAKE | BET_WIN | BET_REFUND | BONUS | ADJUSTMENT
+  amount       Decimal
+  currencyCode String
+  prevBalance  Decimal
+  newBalance   Decimal
+  reason       String?
+  reference    String? // bet code, deposit id, etc.
+  createdById  String? // admin who performed an adjustment
+  createdAt    DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([type])
+}
+
+model Deposit {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider       String   @default("MANUAL") // NOWPAYMENTS | MANUAL | ...
+  method         String   @default("CRYPTO") // CRYPTO | FIAT
+  amount         Decimal // amount in user's wallet currency
+  currencyCode   String
+  status         String   @default("PAYMENT_CREATED") // status-engine key (type=DEPOSIT)
+  cryptoCurrency String? // BTC, USDT, ETH ...
+  network        String?
+  paymentAddress String?
+  txHash         String?
+  fiatValue      Decimal?
+  exchangeRate   Decimal?
+  expiresAt      DateTime?
+  confirmedAt    DateTime?
+  metadata       String? // JSON blob (provider payload)
+  createdAt      DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([status])
+}
+
+model Withdrawal {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount      Decimal
+  currencyCode String
+  method      String   @default("CRYPTO") // CRYPTO | MPESA
+  destination String
+  status      String   @default("PENDING") // status-engine key (type=WITHDRAWAL)
+  adminNote   String?
+  metadata    String? // JSON blob (provider refs: payoutId, conversationId …)
+  processedAt DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([status])
+}
+
+model Currency {
+  code       String  @id // KES, USD ...
+  name       String
+  symbol     String
+  decimals   Int     @default(2)
+  rate       Decimal @default(1) // base-currency units per 1 unit of this currency
+  isDefault  Boolean @default(false)
+  active     Boolean @default(true)
+  sortOrder  Int     @default(0)
+}
+
+// ───────────────────────────── Language / i18n ───────────────────────────
+
+model Language {
+  code      String @id
+  name      String
+  isDefault Boolean @default(false)
+  active    Boolean @default(true)
+  sortOrder Int    @default(0)
+}
+
+model Translation {
+  id      String @id @default(cuid())
+  langCode String
+  key     String
+  value   String
+
+  @@unique([langCode, key])
+}
+
+// ────────────────────────────── Content ──────────────────────────────────
+
+model Banner {
+  id          String  @id @default(cuid())
+  title       String?
+  description String?
+  image       String
+  ctaText     String?
+  ctaUrl      String?
+  active      Boolean @default(true)
+  sortOrder   Int     @default(0)
+  createdAt   DateTime @default(now())
+}
+
+model Promotion {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  image       String?
+  bonusType   String? // WELCOME_BONUS | DEPOSIT_BONUS | FREE_BET | ACCA_PROMO | EVENT
+  bonusValue  Decimal?
+  startAt     DateTime?
+  endAt       DateTime?
+  terms       String?
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+}
+
+model Testimonial {
+  id        String   @id @default(cuid())
+  name      String
+  avatar    String?
+  rating    Int      @default(5)
+  text      String
+  status    String   @default("APPROVED") // PENDING | APPROVED | HIDDEN
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String? // null = broadcast announcement
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      String   @default("GENERAL") // GENERAL | DEPOSIT | WITHDRAWAL | BET_RESULT | PROMOTION | ANNOUNCEMENT
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ────────────────────────── Status engine & settings ─────────────────────
+
+model StatusType {
+  id             String @id @default(cuid())
+  type           String // USER | BET | GAME | MARKET | DEPOSIT | WITHDRAWAL | PAYMENT
+  key            String
+  name           String
+  description    String?
+  color          String?
+  icon           String?
+  active         Boolean @default(true)
+  sortOrder      Int    @default(0)
+  allowedActions String? // JSON array of action names, e.g. ["bet","deposit","withdraw"]
+  blockedActions String? // JSON array
+
+  @@unique([type, key])
+}
+
+model Setting {
+  key   String @id
+  value String // JSON
+}
+
+// ──────────────────────────────── Audit ──────────────────────────────────
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  adminId   String?
+  adminName String?
+  action    String // CREATE | UPDATE | SETTLE | LOGIN_FAILED ...
+  entity    String // GAME | MARKET | OUTCOME | USER | ...
+  entityId  String?
+  userId    String?
+  gameId    String?
+  ip        String?
+  prevValue String? // JSON
+  newValue  String? // JSON
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([adminId])
+  @@index([createdAt])
+}

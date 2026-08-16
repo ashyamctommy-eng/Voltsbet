@@ -1,0 +1,156 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-brand: var(--vb-primary, #00e676);
+  --color-brand-dark: color-mix(in srgb, var(--vb-primary, #00e676) 80%, black);
+  --color-brand-light: color-mix(in srgb, var(--vb-primary, #00e676) 18%, transparent);
+  --color-accent: var(--vb-accent, #7c3aed);
+  --color-accent-light: color-mix(in srgb, var(--vb-accent, #7c3aed) 18%, transparent);
+  --color-surface: var(--vb-secondary, #0b1220);
+  --color-card: #111a2e;
+  --color-card2: #16213a;
+  --color-line: #1e2a44;
+  --color-line2: #2a3a5e;
+  --color-ink: #e6edf7;
+  --color-ink2: #93a4c4;
+  --color-ink3: #5d6f94;
+  --color-good: #22c55e;
+  --color-bad: #ef4444;
+  --color-warn: #f59e0b;
+  --color-info: #3b82f6;
+}
+
+:root {
+  --vb-primary: #00e676;
+  --vb-secondary: #0b1220;
+  --vb-accent: #7c3aed;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--vb-secondary, #0b1220);
+  color: #e6edf7;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Cards & surfaces ─────────────────────────────────────── */
+.card {
+  background: linear-gradient(180deg, #131e36 0%, #10182c 100%);
+  border: 1px solid var(--color-line);
+  border-radius: 0.9rem;
+}
+.card-hover {
+  transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+.card-hover:hover {
+  border-color: var(--color-line2);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
+}
+
+/* ── Buttons ──────────────────────────────────────────────── */
+.btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors duration-150 select-none;
+}
+.btn-primary {
+  background: var(--vb-primary, #00e676);
+  color: #052e16;
+}
+.btn-primary:hover { filter: brightness(1.08); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-accent {
+  background: var(--vb-accent, #7c3aed);
+  color: #fff;
+}
+.btn-accent:hover { filter: brightness(1.12); }
+.btn-ghost {
+  border: 1px solid var(--color-line2);
+  color: var(--color-ink);
+  background: transparent;
+}
+.btn-ghost:hover { background: rgba(255, 255, 255, 0.04); }
+.btn-danger { background: var(--color-bad); color: #fff; }
+.btn-danger:hover { filter: brightness(1.1); }
+.btn-sm { @apply px-2.5 py-1.5 text-xs; }
+
+/* ── Inputs ───────────────────────────────────────────────── */
+.input {
+  @apply w-full rounded-lg border border-line bg-[#0d1526] px-3 py-2.5 text-sm text-ink outline-none transition-colors;
+}
+.input:focus { border-color: var(--vb-primary, #00e676); }
+.input::placeholder { color: var(--color-ink3); }
+.label { @apply mb-1.5 block text-xs font-medium text-ink2; }
+
+/* ── Odds buttons (classic sportsbook) ─────────────────────── */
+.odds-btn {
+  @apply relative flex h-11 flex-1 items-center justify-center rounded-lg text-sm font-bold transition-all duration-100 select-none;
+  background: #0d1a2c;
+  border: 1px solid var(--color-line2);
+  color: #dbe7ff;
+}
+.odds-btn:hover { border-color: var(--vb-primary, #00e676); color: var(--vb-primary, #00e676); }
+.odds-btn.selected {
+  background: var(--vb-primary, #00e676);
+  border-color: var(--vb-primary, #00e676);
+  color: #052e16;
+}
+.odds-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: #0a1120;
+  border-color: var(--color-line);
+  color: var(--color-ink3);
+}
+
+/* ── Misc ─────────────────────────────────────────────────── */
+.skeleton {
+  background: linear-gradient(90deg, #101a30 25%, #16233f 50%, #101a30 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: 0.6rem;
+}
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.live-dot {
+  @apply inline-block h-2 w-2 rounded-full bg-red-500;
+  animation: pulse-dot 1.2s infinite;
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #243250; border-radius: 8px; }
+
+.divider { border-top: 1px solid var(--color-line); }
+
+/* toast animations */
+@keyframes toast-in {
+  from { transform: translateY(12px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.toast-item { animation: toast-in 0.2s ease; }
+
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.sheet-up { animation: sheet-up 0.22s ease; }
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.fade-in { animation: fade-in 0.15s ease; }
