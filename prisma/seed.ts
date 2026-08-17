@@ -6,6 +6,7 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
+import { teamLogo } from "../src/lib/team-logos";
 
 const prisma = new PrismaClient();
 
@@ -406,6 +407,7 @@ async function main() {
         competitionId: opts.comp ? compMap[opts.comp] : null,
         competitionName: opts.comp,
         homeName: opts.home, awayName: opts.away,
+        homeLogo: teamLogo(opts.home), awayLogo: teamLogo(opts.away),
         startAt: opts.start, featured: opts.featured ?? false, live: opts.live ?? false,
         status: opts.status ?? "SCHEDULED",
         homeScore: opts.hs ?? 0, awayScore: opts.as ?? 0,

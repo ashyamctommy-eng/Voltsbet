@@ -10,6 +10,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import { TheOddsApi, OddsProvider, ApiGame } from "@/lib/providers/odds-api";
+import { teamLogo } from "@/lib/team-logos";
 
 export const PROVIDERS: Record<string, () => OddsProvider> = {
   "the-odds-api": () => new TheOddsApi(),
@@ -50,7 +51,7 @@ export async function syncGames(providerId = "the-odds-api") {
     if (!sport) continue;
 
     const existing = await prisma.game.findUnique({ where: { externalId: game.externalId } });
-    const payload = await buildPayload(game, sport.id);
+    const payload = await buildPayload(game, sport.id, existing ?? undefined);
 
     if (existing) {
       await prisma.game.update({ where: { id: existing.id }, data: payload.game });
@@ -85,13 +86,21 @@ export async function syncGames(providerId = "the-odds-api") {
   return { created, updated, scoreUpdates, gamesSynced: games.length };
 }
 
-async function buildPayload(game: ApiGame, sportId: string) {
+async function buildPayload(
+  game: ApiGame,
+  sportId: string,
+  existing?: { homeLogo: string | null; awayLogo: string | null },
+) {
   return {
     game: {
       sportId,
       competitionName: game.competitionName ?? null,
       homeName: game.homeName,
       awayName: game.awayName,
+      // Logo from the curated dictionary when known; otherwise keep whatever
+      // admin set manually, else null (UI falls back to initials).
+      homeLogo: teamLogo(game.homeName) ?? existing?.homeLogo ?? null,
+      awayLogo: teamLogo(game.awayName) ?? existing?.awayLogo ?? null,
       startAt: game.startAt,
       status: "SCHEDULED",
       source: "API",
