@@ -27,8 +27,7 @@ export type ApiGame = {
   }[];
 };
 
-export type ApiScore = {
-  externalId: string;
+export type ApiScore = {  externalId: string;
   status: "live" | "finished" | "cancelled" | "postponed" | "scheduled";
   homeScore?: number;
   awayScore?: number;
@@ -47,6 +46,9 @@ export interface OddsProvider {
 // The Odds API implementation (no SDK needed — plain fetch).
 // Requires env: ODDS_API_KEY  (leave empty to keep using manual/seed games)
 // ─────────────────────────────────────────────────────────────────────────
+
+import { applyMarginGrid } from "../margin";
+import { getSettings } from "../settings";
 
 export class TheOddsApi implements OddsProvider {
   id = "the-odds-api";
@@ -85,7 +87,10 @@ export class TheOddsApi implements OddsProvider {
           markets.push({
             key: m.key === "h2h" ? "MATCH_RESULT" : m.key === "totals" ? "OVER_UNDER" : m.key,
             name: m.key === "h2h" ? "Match Result" : m.key === "totals" ? "Over/Under" : m.key,
-            outcomes: m.outcomes.map((o) => ({ name: o.name, odds: o.price })),
+            outcomes: applyMarginGrid(
+              m.outcomes.map((o) => ({ name: o.name, odds: o.price })),
+              (await getSettings()).oddsMarginPercent,
+            ),
           });
         }
         games.push({

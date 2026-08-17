@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { ApiError } from "@/lib/api";
+import { awardReferralBonusIfFirstDeposit } from "@/lib/referral";
 
 /**
  * Shared payment-confirmation logic. Every provider (demo webhook,
@@ -65,6 +66,10 @@ export async function confirmDeposit(depositId: string, opts: { txHash?: string;
         message: `${amount} ${deposit.currencyCode} was credited to your balance.`,
       },
     });
+
+    // First-deposit referral reward for whoever referred this user
+    await awardReferralBonusIfFirstDeposit(tx, deposit);
+
     return { prev, next, amount };
   });
 

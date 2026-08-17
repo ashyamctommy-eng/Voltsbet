@@ -5,6 +5,9 @@ import { getCurrentUser } from "@/lib/auth";
 import { convert, formatMoney } from "@/lib/currency";
 import { userBlockReason } from "@/lib/statuses";
 import { formatDateTime, statusColor } from "@/lib/odds";
+import { getSettings } from "@/lib/settings";
+import CopyButton from "@/components/CopyButton";
+import { IconGift } from "@/components/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +15,8 @@ export default async function AccountDashboard() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const [wallet, openBets, transactions, bettingLockReason] = await Promise.all([
+  const [s, wallet, openBets, transactions, bettingLockReason] = await Promise.all([
+    getSettings(),
     prisma.wallet.findUnique({ where: { userId: user.id } }),
     prisma.bet.findMany({
       where: { userId: user.id, status: "OPEN" },
@@ -59,6 +63,32 @@ export default async function AccountDashboard() {
         <Stat label="Verified" value={user.verified ? "Yes" : "No"} accent={user.verified} />
         <Stat label="Currency" value={walletCur} />
       </div>
+
+      {/* Referral */}
+      {user.referralCode && (
+        <section className="card relative overflow-hidden p-5">
+          <div className="absolute -left-8 -top-10 h-32 w-32 rounded-full bg-brand/10 blur-xl" />
+          <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="flex items-center gap-2 font-bold">
+                <IconGift className="h-5 w-5 text-brand" /> Refer &amp; Earn
+              </h2>
+              <p className="mt-1 text-sm text-ink2">
+                Share your link — when a friend makes their first deposit, you earn a bonus.
+              </p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <code className="rounded-lg border border-line bg-[#0d1526] px-3 py-1.5 font-mono text-sm text-brand">
+                  {user.referralCode}
+                </code>
+                <CopyButton
+                  text={`${s.appUrl ? s.appUrl.replace(/\/$/, "") : ""}/register?ref=${user.referralCode}`}
+                  label="Copy link"
+                />
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Open bets */}
       <section>

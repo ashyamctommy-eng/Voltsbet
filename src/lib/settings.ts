@@ -40,6 +40,17 @@ export type SiteSettings = {
   appUrl: string; // public base URL for callback URLs
   heroTitle: string;
   heroSubtitle: string;
+  // Odds & risk
+  oddsMarginPercent: number; // overround added on top of feed odds (e.g. 6 = 6%)
+  maxLiabilityPerMarket: number; // max exposure (potential payout) per market
+  // Referrals
+  referralEnabled: boolean;
+  referralBonusPercent: number; // % of referee's first deposit credited to referrer
+  referralBonusCap: number; // max bonus per referee
+  referralMinDeposit: number; // referee deposit must be >= this to trigger
+  // Automation
+  settlementDelayMinutes: number; // settle finished games only after this many minutes
+  cronSecret: string; // bearer token for /api/cron/* endpoints
 };
 
 const DEFAULTS: SiteSettings = {
@@ -82,6 +93,14 @@ const DEFAULTS: SiteSettings = {
   appUrl: "",
   heroTitle: "Bet on the games you love",
   heroSubtitle: "Fast odds, instant crypto deposits, live betting.",
+  oddsMarginPercent: 6,
+  maxLiabilityPerMarket: 500000,
+  referralEnabled: true,
+  referralBonusPercent: 10,
+  referralBonusCap: 500,
+  referralMinDeposit: 0,
+  settlementDelayMinutes: 10,
+  cronSecret: "",
 };
 
 let cache: SiteSettings | null = null;
@@ -136,6 +155,14 @@ export async function getSettings(): Promise<SiteSettings> {
   s.appUrl = raw["app.url"] ?? s.appUrl;
   s.heroTitle = raw["home.heroTitle"] ?? s.heroTitle;
   s.heroSubtitle = raw["home.heroSubtitle"] ?? s.heroSubtitle;
+  s.oddsMarginPercent = Number(raw["odds.marginPercent"] ?? s.oddsMarginPercent);
+  s.maxLiabilityPerMarket = Number(raw["betting.maxLiabilityPerMarket"] ?? s.maxLiabilityPerMarket);
+  s.referralEnabled = (raw["referral.enabled"] ?? String(DEFAULTS.referralEnabled)) === "true";
+  s.referralBonusPercent = Number(raw["referral.bonusPercent"] ?? s.referralBonusPercent);
+  s.referralBonusCap = Number(raw["referral.bonusCap"] ?? s.referralBonusCap);
+  s.referralMinDeposit = Number(raw["referral.minDeposit"] ?? s.referralMinDeposit);
+  s.settlementDelayMinutes = Number(raw["settlement.delayMinutes"] ?? s.settlementDelayMinutes);
+  s.cronSecret = raw["cron.secret"] ?? s.cronSecret;
   cache = s;
   return s;
 }

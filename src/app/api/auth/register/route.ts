@@ -61,7 +61,9 @@ export const POST = handle(async (req: NextRequest) => {
       country: d.country,
       languageCode: langCode,
       currencyCode: walletCurrency,
-      referralCode: d.referralCode || null,
+      // own unique share code + the referrer's code they entered (if any)
+      referralCode: generateReferralCode(),
+      referredByCode: d.referralCode.trim() ? d.referralCode.trim().toUpperCase() : null,
       wallet: { create: { balance: "0", currencyCode: walletCurrency } },
     },
   });
@@ -83,3 +85,11 @@ export const POST = handle(async (req: NextRequest) => {
 
   return ok({ user: { id: user.id, username: user.username, email: user.email } });
 });
+
+/** Fresh unique share code like VOLT-K7X2QP (retries on the 1-in-a-billion collision). */
+function generateReferralCode(): string {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I
+  const part = () =>
+    Array.from({ length: 6 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join("");
+  return `VOLT-${part()}`;
+}

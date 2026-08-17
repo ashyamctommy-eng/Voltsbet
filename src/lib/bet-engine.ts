@@ -116,6 +116,26 @@ export async function placeBet(user: User, input: PlaceBetInput) {
     throw new ApiError(400, `Maximum payout is ${settings.maxPayout}. Reduce your stake or selections.`, "PAYOUT_CAP");
   }
 
+  // 6b. Liability limit per market — reject bets that push exposure past the cap
+  if (settings.maxLiabilityPerMarket > 0) {
+    const marketIds = [...new Set(outcomes.map((o) => o.market.id))];
+    const openBets = await prisma.bet.findMany({
+      where: {
+        status: "OPEN",
+        selections: { some: { outcome: { marketId: { in: marketIds } } } },
+      },
+      select: { potentialWin: true },
+    });
+    const currentExposure = openBets.reduce((acc, b) => acc + Number(b.potentialWin), 0);
+    if (currentExposure + potentialWin > settings.maxLiabilityPerMarket) {
+      throw new ApiError(
+        400,
+        `This bet would exceed the liability limit for the market (${settings.maxLiabilityPerMarket.toLocaleString()}). Reduce your stake or pick another market.`,
+        "LIABILITY_CAP",
+      );
+    }
+  }
+
   // 7. Wallet check + atomic debit
   const code = betCode();
   const bet = await prisma.$transaction(async (tx) => {

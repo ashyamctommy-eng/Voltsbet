@@ -4,12 +4,17 @@ import { handle, ok, ApiError } from "@/lib/api";
 import { verifyPassword, createSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { rateLimit } from "@/lib/rate-limit";
+import { verifyTotp } from "@/lib/2fa";
 
 const schema = z.object({
   identifier: z.string().min(1, "Enter your username or email"),
   password: z.string().min(1, "Enter your password"),
   remember: z.boolean().optional().default(false),
+  totp: z.string().optional().default(""),
 });
+
+const MAX_FAILED = 5;
+const LOCK_MINUTES = 15;
 
 export const POST = handle(async (req: NextRequest) => {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0] ?? "unknown";
@@ -19,7 +24,7 @@ export const POST = handle(async (req: NextRequest) => {
   const body = await req.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success) throw new ApiError(400, parsed.error.issues[0].message, "VALIDATION");
-  const { identifier, password, remember } = parsed.data;
+  const { identifier, password, remember, totp } = parsed.data;
 
   const id = identifier.toLowerCase().trim();
   const user = await prisma.user.findFirst({
@@ -33,11 +38,35 @@ export const POST = handle(async (req: NextRequest) => {
     throw new ApiError(401, "Invalid username/email or password.", "BAD_CREDENTIALS");
   };
 
-  if (!user || !(await verifyPassword(parsed.data.password, user.passwordHash))) {
+  // ── Brute-force lockout (per account) ──────────────────────
+  if (user && user.lockedUntil && user.lockedUntil > new Date()) {
+    const mins = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60_000);
+    throw new ApiError(423, `Too many failed attempts. Account locked for ${mins} more minutes.`, "ACCOUNT_LOCKED");
+  }
+
+  if (!user || !(await verifyPassword(password, user.passwordHash))) {
+    if (user) {
+      const failed = user.failedLogins + 1;
+      const lockedUntil = failed >= MAX_FAILED ? new Date(Date.now() + LOCK_MINUTES * 60_000) : null;
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { failedLogins: lockedUntil ? 0 : failed, ...(lockedUntil ? { lockedUntil } : {}) },
+      });
+    }
     return badLogin();
   }
 
-  await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+  // ── 2FA (non-customer roles) ───────────────────────────────
+  if (user.totpEnabled && user.totpSecret) {
+    if (!totp || !verifyTotp(user.totpSecret, totp)) {
+      throw new ApiError(400, "2FA code required or invalid — enter the 6-digit code from your authenticator app.", "TOTP_REQUIRED");
+    }
+  }
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { lastLoginAt: new Date(), failedLogins: 0, lockedUntil: null },
+  });
   await createSession(user.id, {
     ip,
     userAgent: req.headers.get("user-agent") ?? undefined,

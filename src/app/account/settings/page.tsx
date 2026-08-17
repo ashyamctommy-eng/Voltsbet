@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/client";
 import { useToast } from "@/components/BetSlipContext";
 import { formatDateTime } from "@/lib/odds";
+import TwoFactorCard from "@/components/TwoFactorCard";
 
 type ProfileData = {
   user: {
+    role: string; referralCode: string | null;
     fullName: string; username: string; email: string; phone: string; country: string;
     languageCode: string; currencyCode: string; displayCurrencyCode: string;
     status: string; verified: boolean; createdAt: string;
@@ -81,10 +83,12 @@ export default function SettingsPage() {
         />
       </div>
 
+      {/* 2FA (staff accounts only) */}
+      {profile.user.role !== "CUSTOMER" && <TwoFactorCard />}
+
       {/* Preferences */}
       <div className="card space-y-4 p-6">
-        <h3 className="font-bold">Display Preferences</h3>
-        <div>
+        <h3 className="font-bold">Display Preferences</h3>        <div>
           <label className="label" htmlFor="cur">Display currency</label>
           <select id="cur" className="input" value={displayCurrency} onChange={(e) => setDisplayCurrency(e.target.value)}>
             {currencies.map((c) => (

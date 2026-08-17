@@ -1,6 +1,6 @@
 import { prisma } from "./prisma";
 import { ApiError, auditLog } from "./api";
-import type { User } from "@prisma/client";
+export type SettleActor = { id: string; username: string };
 
 /**
  * Settlement engine — driven by admins (manual games) or the API sync layer.
@@ -9,7 +9,7 @@ import type { User } from "@prisma/client";
  * Multiples rule (documented MVP behavior): any void selection voids the whole
  * accumulator with a full stake refund; a single lost leg loses the bet.
  */
-export async function settleOutcome(admin: User, outcomeId: string, result: "WON" | "LOST" | "VOID") {
+export async function settleOutcome(admin: SettleActor, outcomeId: string, result: "WON" | "LOST" | "VOID") {
   const outcome = await prisma.outcome.findUnique({
     where: { id: outcomeId },
     include: { market: { include: { game: true } } },
@@ -130,7 +130,7 @@ export async function settleOutcome(admin: User, outcomeId: string, result: "WON
 }
 
 /** Reopen a settlement — only allowed if no bet has been settled by it. */
-export async function reopenOutcome(admin: User, outcomeId: string) {
+export async function reopenOutcome(admin: SettleActor, outcomeId: string) {
   const outcome = await prisma.outcome.findUnique({
     where: { id: outcomeId },
     include: { market: true },
@@ -164,7 +164,7 @@ export async function reopenOutcome(admin: User, outcomeId: string) {
 
 /** Manually credit/debit a user balance (finance/admin), always with a transaction record + audit. */
 export async function adjustBalance(
-  admin: User,
+  admin: SettleActor,
   userId: string,
   amount: number,
   reason: string

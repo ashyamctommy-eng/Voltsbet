@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/client";
 import { useToast } from "@/components/BetSlipContext";
-import { IconWhatsApp, IconTelegram, IconCoins, IconSmartphone, IconGear, IconGlobe, IconPencil } from "@/components/icons";
+import { IconWhatsApp, IconTelegram, IconCoins, IconSmartphone, IconGear, IconGlobe, IconGift2, IconPencil } from "@/components/icons";
 
 type FieldType = "text" | "password" | "number" | "toggle" | "select";
 type Field = {
@@ -35,6 +35,35 @@ const GROUPS: { title: string; anchor: string; icon: React.ReactNode; fields: Fi
       { key: "betting.minStake", label: "Minimum stake", type: "number" },
       { key: "betting.maxStake", label: "Maximum stake", type: "number" },
       { key: "betting.maxPayout", label: "Maximum payout", type: "number" },
+    ],
+  },
+  {
+    title: "Odds & Risk",
+    anchor: "odds-risk",
+    icon: <IconGear className="h-4 w-4" />,
+    fields: [
+      { key: "odds.marginPercent", label: "Odds margin %", type: "number", hint: "Overround added to feed odds — this is your edge. 0 = pass through, 6 = 6% book" },
+      { key: "betting.maxLiabilityPerMarket", label: "Max liability per market", type: "number", hint: "Reject bets that push exposure past this cap" },
+    ],
+  },
+  {
+    title: "Referrals",
+    anchor: "referrals",
+    icon: <IconGift2 className="h-4 w-4" />,
+    fields: [
+      { key: "referral.enabled", label: "Referral program enabled", type: "toggle" },
+      { key: "referral.bonusPercent", label: "Bonus % of referee's first deposit", type: "number" },
+      { key: "referral.bonusCap", label: "Max bonus per referee", type: "number" },
+      { key: "referral.minDeposit", label: "Min referee deposit to trigger", type: "number" },
+    ],
+  },
+  {
+    title: "Automation",
+    anchor: "automation",
+    icon: <IconGear className="h-4 w-4" />,
+    fields: [
+      { key: "settlement.delayMinutes", label: "Settle finished games after (minutes)", type: "number", hint: "Delay so late score corrections don't cause bad settlements" },
+      { key: "cron.secret", label: "Cron secret", type: "password", hint: "Bearer token for /api/cron/settle — call from any scheduler every ~10 min" },
     ],
   },
   {

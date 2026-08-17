@@ -28,7 +28,12 @@ model User {
   role         String    @default("CUSTOMER") // CUSTOMER | SUPER_ADMIN | SPORTS_MANAGER | FINANCE_MANAGER | SUPPORT_MANAGER | CONTENT_MANAGER
   status       String    @default("ACTIVE")   // status-engine key (type=USER)
   verified     Boolean   @default(false)
-  referralCode String?   @unique
+  referralCode String?   @unique // the user's OWN share code (generated at registration)
+  referredByCode String? // the code this user entered when signing up (who referred them)
+  failedLogins Int       @default(0)
+  lockedUntil  DateTime? // brute-force lockout expiry (login attempts)
+  totpSecret   String?   // TOTP secret (2FA, non-customer roles)
+  totpEnabled  Boolean   @default(false)
   lastLoginAt  DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt

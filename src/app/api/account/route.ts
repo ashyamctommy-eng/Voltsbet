@@ -25,6 +25,8 @@ export const GET = handle(async () => {
   return ok({
     user: {
       id: user.id,
+      role: user.role,
+      referralCode: user.referralCode,
       fullName: user.fullName,
       username: user.username,
       email: user.email,

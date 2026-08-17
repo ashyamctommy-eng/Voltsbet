@@ -92,7 +92,7 @@ export async function requireAdmin(resource: Resource): Promise<User> {
 
 /** Log an admin action to the immutable audit trail. */
 export async function auditLog(opts: {
-  admin: User;
+  admin: { id: string; username: string };
   action: string;
   entity: string;
   entityId?: string;
