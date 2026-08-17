@@ -473,3 +473,11 @@ export function IconSend({ className }: IconProps) {
     </Svg>
   );
 }
+
+export function IconFlame({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M12 2c.5 3-1.5 4.5-3 6.5C7.2 10.7 6 12.6 6 15a6 6 0 0 0 12 0c0-1.8-.8-3.4-1.9-4.8-.3 1-.9 1.7-1.7 2.2.4-2.4-.5-6.4-2.4-10.4Z" />
+    </Svg>
+  );
+}

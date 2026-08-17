@@ -83,8 +83,8 @@ export default function SettingsPage() {
         />
       </div>
 
-      {/* 2FA (staff accounts only) */}
-      {profile.user.role !== "CUSTOMER" && <TwoFactorCard />}
+      {/* 2FA — any user can enable it */}
+      <TwoFactorCard />
 
       {/* Preferences */}
       <div className="card space-y-4 p-6">

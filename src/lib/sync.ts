@@ -11,6 +11,7 @@
 import { prisma } from "@/lib/prisma";
 import { TheOddsApi, OddsProvider, ApiGame } from "@/lib/providers/odds-api";
 import { teamLogo } from "@/lib/team-logos";
+import { deriveDoubleChance, deriveDrawNoBet } from "@/lib/derived-markets";
 
 export const PROVIDERS: Record<string, () => OddsProvider> = {
   "the-odds-api": () => new TheOddsApi(),
@@ -138,6 +139,48 @@ async function upsertMarkets(gameId: string, game: ApiGame) {
           key: m.key,
           sortOrder: i,
           outcomes: { create: m.outcomes.map((o, j) => ({ name: o.name, label: o.label ?? null, odds: o.odds.toFixed(2), sortOrder: j })) },
+        },
+      });
+    }
+
+    // Derive extra bettable markets from any 3-way h2h (Double Chance, Draw No Bet)
+    if (m.key === "MATCH_RESULT" || m.key === "h2h") {
+      await upsertDerived(gameId, m, game.homeName, game.awayName);
+    }
+  }
+}
+
+/** Upsert a derived market (DOUBLE_CHANCE / DRAW_NO_BET) from an h2h market. */
+async function upsertDerived(
+  gameId: string,
+  source: { key: string; name: string; outcomes: { name: string; label?: string | null; odds: number }[] },
+  homeName: string,
+  awayName: string,
+) {
+  const derived: { key: string; name: string; outcomes: { name: string; odds: string }[] | null }[] = [
+    { key: "DOUBLE_CHANCE", name: "Double Chance", outcomes: deriveDoubleChance(source.outcomes, homeName, awayName) },
+    { key: "DRAW_NO_BET", name: "Draw No Bet", outcomes: deriveDrawNoBet(source.outcomes, homeName, awayName) },
+  ];
+  for (const d of derived) {
+    if (!d.outcomes) continue; // not a 3-way market (e.g. NBA moneyline)
+    const existing = await prisma.market.findFirst({ where: { gameId, key: d.key }, include: { outcomes: true } });
+    if (existing) {
+      for (const o of d.outcomes) {
+        const outcome = existing.outcomes.find((x) => x.name === o.name);
+        if (outcome) {
+          await prisma.outcome.update({ where: { id: outcome.id }, data: { odds: o.odds, status: "ACTIVE" } });
+        } else {
+          await prisma.outcome.create({ data: { marketId: existing.id, name: o.name, odds: o.odds } });
+        }
+      }
+    } else {
+      await prisma.market.create({
+        data: {
+          gameId,
+          name: d.name,
+          key: d.key,
+          sortOrder: 10,
+          outcomes: { create: d.outcomes.map((o, j) => ({ name: o.name, odds: o.odds, sortOrder: j })) },
         },
       });
     }

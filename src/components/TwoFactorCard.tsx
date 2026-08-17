@@ -47,7 +47,7 @@ export default function TwoFactorCard() {
     <div className="card p-5">
       <h3 className="font-bold">Two-Factor Authentication (2FA)</h3>
       <p className="mt-1 text-sm text-ink2">
-        Extra security for staff logins — you'll enter a 6-digit code from your authenticator app after your password.
+        Extra security for your account — you'll enter a 6-digit code from your authenticator app after your password.
       </p>
 
       {state.enabled ? (

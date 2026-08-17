@@ -205,3 +205,14 @@ html[data-theme="light"] .skeleton {
   0%, 100% { transform: translateY(0) rotate(-4deg); }
   50% { transform: translateY(-6px) rotate(4deg); }
 }
+
+/* ── Flame flicker (Refer nav icon) ────────────────────────── */
+.flame-icon {
+  animation: flame-flicker 1.4s ease-in-out infinite;
+  transform-origin: 50% 90%;
+}
+@keyframes flame-flicker {
+  0%, 100% { transform: scale(1) rotate(-2deg); }
+  30% { transform: scale(1.12) rotate(2deg); }
+  60% { transform: scale(0.94) rotate(-1deg); }
+}

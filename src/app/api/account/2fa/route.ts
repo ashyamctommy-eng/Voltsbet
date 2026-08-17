@@ -5,14 +5,13 @@ import { prisma } from "@/lib/prisma";
 import { generateTotpSecret, verifyTotp, otpauthUrl } from "@/lib/2fa";
 
 /**
- * 2FA enrollment/management for admin & staff accounts (customers don't get it).
+ * 2FA enrollment/management — available to any user (TOTP via authenticator app).
  * GET  → status + enrollment QR (secret persisted until enabled)
  * POST → enable with a verified 6-digit code
  * DELETE → disable
  */
 export const GET = handle(async () => {
   const user = await requireUser();
-  if (user.role === "CUSTOMER") throw new ApiError(403, "2FA is for staff accounts only.", "FORBIDDEN");
 
   let secret = user.totpSecret;
   if (!user.totpEnabled && !secret) {
@@ -34,7 +33,6 @@ export const GET = handle(async () => {
 export const POST = handle(async (req: NextRequest) => {
   await verifyCsrf(req);
   const user = await requireUser();
-  if (user.role === "CUSTOMER") throw new ApiError(403, "2FA is for staff accounts only.", "FORBIDDEN");
   if (user.totpEnabled) throw new ApiError(409, "2FA is already enabled.", "ALREADY_ENABLED");
   if (!user.totpSecret) throw new ApiError(400, "Request a QR code first.", "NO_SECRET");
 
@@ -51,7 +49,6 @@ export const POST = handle(async (req: NextRequest) => {
 export const DELETE = handle(async (req: NextRequest) => {
   await verifyCsrf(req);
   const user = await requireUser();
-  if (user.role === "CUSTOMER") throw new ApiError(403, "Forbidden.", "FORBIDDEN");
 
   await prisma.user.update({
     where: { id: user.id },

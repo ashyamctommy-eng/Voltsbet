@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useBetSlip } from "@/components/BetSlipContext";
 import BetslipBar from "@/components/BetslipBar";
-import { IconHome, IconLightning, IconDice, IconTv } from "@/components/icons";
+import { IconHome, IconSearch, IconFlame, IconTv } from "@/components/icons";
 
 export default function MobileNav({ loggedIn, liveCount = 0 }: { loggedIn: boolean; liveCount?: number }) {
   const pathname = usePathname();
@@ -13,9 +13,9 @@ export default function MobileNav({ loggedIn, liveCount = 0 }: { loggedIn: boole
 
   const tabs = [
     { href: "/", label: "Home", Icon: IconHome, active: pathname === "/" },
-    { href: "/vfootball", label: "vFootball", Icon: IconLightning, active: pathname.startsWith("/vfootball") },
+    { href: "/search", label: "Search", Icon: IconSearch, active: pathname.startsWith("/search") },
     null, // center betslip slot
-    { href: "/casino", label: "Casino", Icon: IconDice, active: pathname.startsWith("/casino") },
+    { href: "/account", label: "Refer", Icon: IconFlame, active: pathname.startsWith("/account"), flame: true },
     { href: "/live", label: "Live", Icon: IconTv, active: pathname.startsWith("/live"), badge: liveCount },
   ];
 
@@ -50,7 +50,7 @@ export default function MobileNav({ loggedIn, liveCount = 0 }: { loggedIn: boole
               }`}
             >
               <span className="relative">
-                <t.Icon className="h-5 w-5" />
+                <t.Icon className={`h-5 w-5 ${t.flame ? "flame-icon text-orange-400" : ""}`} />
                 {!!t.badge && (
                   <span className="absolute -right-2.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
                     {t.badge}
