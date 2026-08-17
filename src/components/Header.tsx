@@ -5,6 +5,19 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/client";
 import { useToast } from "@/components/BetSlipContext";
+import Drawer from "@/components/Drawer";
+import {
+  IconMenu,
+  IconSearch,
+  IconFootball,
+  IconBasketball,
+  IconTennis,
+  IconDice,
+  IconPlane,
+  IconLive,
+  IconController,
+  IconTv,
+} from "@/components/icons";
 
 export type HeaderUser = {
   username: string;
@@ -13,27 +26,42 @@ export type HeaderUser = {
   unreadNotifications: number;
 } | null;
 
-const SPORT_LINKS = [
-  { label: "Football", slug: "football" },
-  { label: "Basketball", slug: "basketball" },
-  { label: "Tennis", slug: "tennis" },
-  { label: "Other Sports", slug: "other" },
+const CATEGORY_TABS = [
+  { label: "Football", href: "/sports/football", Icon: IconFootball },
+  { label: "Basketball", href: "/sports/basketball", Icon: IconBasketball },
+  { label: "Tennis", href: "/sports/tennis", Icon: IconTennis },
+  { label: "Casino", href: "/casino", Icon: IconDice },
+  { label: "Aviator", href: "/casino", Icon: IconPlane },
+  { label: "Live", href: "/live", Icon: IconLive },
+  { label: "Esports", href: "/sports/esports", Icon: IconController },
+  { label: "Cricket", href: "/sports/cricket", Icon: IconTv },
+];
+
+const DESKTOP_NAV = [
+  { label: "Home", href: "/", exact: true },
+  { label: "Sports", href: "/sports" },
+  { label: "Live", href: "/live" },
+  { label: "Promotions", href: "/promotions" },
+  { label: "Results", href: "/results" },
 ];
 
 export default function Header({ user, siteName }: { user: HeaderUser; siteName: string }) {
   const pathname = usePathname();
   const router = useRouter();
   const { push } = useToast();
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [sportsOpen, setSportsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close overlays on route change
+  useEffect(() => {
+    setDrawerOpen(false);
+    setMenuOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     function onClick(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false);
-        setSportsOpen(false);
-      }
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
     }
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
@@ -53,54 +81,60 @@ export default function Header({ user, siteName }: { user: HeaderUser; siteName:
   }
 
   return (
-    <header className="sticky top-0 z-40 border-b border-line bg-[#0b1220]/90 backdrop-blur-md">
-      <div className="mx-auto flex h-16 max-w-[1600px] items-center gap-3 px-4">
+    <header className="sticky top-0 z-40 border-b border-line bg-[#0d1726]/95 backdrop-blur-md">
+      {/* ── Top row: hamburger + logo · login/signup ─────────── */}
+      <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-2 px-3 sm:gap-3 sm:px-4">
+        <button
+          onClick={() => setDrawerOpen(true)}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-ink transition-colors hover:bg-white/5 hover:text-ink1"
+          aria-label="Open menu"
+        >
+          <IconMenu className="h-6 w-6" />
+        </button>
+
         <Link href="/" className="flex shrink-0 items-center gap-2">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand text-base font-black text-[#052e16]">
             V
           </span>
-          <span className="text-lg font-extrabold tracking-tight">
-            {siteName}
-          </span>
+          <span className="text-base font-extrabold tracking-tight sm:text-lg">{siteName}</span>
         </Link>
 
         {/* Desktop nav */}
         <nav className="ml-4 hidden items-center gap-1 lg:flex">
-          <Link href="/" className={isActive("/") && pathname === "/" ? activeLink : link}>Home</Link>
-          <Link href="/sports" className={isActive("/sports") ? activeLink : link}>Sports</Link>
-          <Link href="/live" className={isActive("/live") ? activeLink : link}>
-            <span className="flex items-center gap-1.5">
-              <span className="live-dot" /> Live
-            </span>
-          </Link>
-          {SPORT_LINKS.map((s) => (
-            <Link key={s.slug} href={`/sports/${s.slug}`} className={link}>
-              {s.label}
+          {DESKTOP_NAV.map((n) => (
+            <Link
+              key={n.href}
+              href={n.href}
+              className={
+                n.exact ? (pathname === n.href ? activeLink : link) : isActive(n.href) ? activeLink : link
+              }
+            >
+              {n.label}
             </Link>
           ))}
-          <Link href="/promotions" className={isActive("/promotions") ? activeLink : link}>Promotions</Link>
-          <Link href="/results" className={isActive("/results") ? activeLink : link}>Results</Link>
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
-          <SearchBox />
+          <div className="hidden md:block">
+            <SearchBox />
+          </div>
 
           {user ? (
             <div className="relative" ref={menuRef}>
               <button
-                className="flex items-center gap-2 rounded-lg border border-line px-3 py-1.5 text-sm font-semibold hover:border-line2"
-                onClick={() => { setMenuOpen((v) => !v); setSportsOpen(false); }}
+                className="flex items-center gap-2 rounded-lg border border-line px-2.5 py-1.5 text-sm font-semibold hover:border-line2 sm:px-3"
+                onClick={() => setMenuOpen((v) => !v)}
               >
                 <span className="hidden h-6 w-6 items-center justify-center rounded-full bg-accent text-xs font-bold text-white sm:flex">
                   {user.username.slice(0, 1).toUpperCase()}
                 </span>
-                <span className="max-w-[90px] truncate">{user.username}</span>
+                <span className="max-w-[70px] truncate sm:max-w-[90px]">{user.username}</span>
                 {user.unreadNotifications > 0 && (
                   <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-bad px-1 text-[10px] font-bold text-white">
                     {user.unreadNotifications}
                   </span>
                 )}
-                <span className="text-[10px] text-ink3">▾</span>
+                <span className="hidden text-[10px] text-ink3 sm:inline">▾</span>
               </button>
 
               {menuOpen && (
@@ -142,18 +176,73 @@ export default function Header({ user, siteName }: { user: HeaderUser; siteName:
               )}
             </div>
           ) : (
-            <div className="hidden items-center gap-2 sm:flex">
-              <Link href="/login" className="btn btn-ghost btn-sm">Log In</Link>
-              <Link href="/register" className="btn btn-primary btn-sm">Register</Link>
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <Link href="/login" className="btn btn-ghost btn-sm !px-3">Login</Link>
+              <Link href="/register" className="btn btn-primary btn-sm !px-3">Sign Up</Link>
             </div>
           )}
         </div>
       </div>
+
+      {/* ── Category scrollbar ─────────────────────────────── */}
+      <div className="border-t border-line bg-[#0d1726]/60">
+        <div className="no-scrollbar mx-auto flex max-w-[1600px] items-stretch gap-1 overflow-x-auto px-2 sm:px-4">
+          {CATEGORY_TABS.map(({ label, href, Icon }) => {
+            const active = pathname === href || (href !== "/live" && isActive(href)) || (href === "/live" && isActive("/live"));
+            return (
+              <Link
+                key={label}
+                href={href}
+                className={`flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2.5 text-xs font-bold transition-colors sm:text-sm ${
+                  active
+                    ? "border-brand text-brand"
+                    : "border-transparent text-ink2 hover:text-ink"
+                }`}
+              >
+                <Icon className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
+                {label}
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Full-width search (mobile) ─────────────────────── */}
+      <div className="border-t border-line/60 px-3 py-2 md:hidden">
+        <MobileSearch />
+      </div>
+
+      {/* ── Sliding side drawer ────────────────────────────── */}
+      <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
     </header>
   );
 }
 
-// ── Search box (debounced, instant results) ──────────────────
+// ── Mobile search (navigates to /search on submit) ───────────
+function MobileSearch() {
+  const router = useRouter();
+  const [q, setQ] = useState("");
+  return (
+    <form
+      className="relative"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (q.trim().length > 0) router.push(`/search?q=${encodeURIComponent(q.trim())}`);
+      }}
+    >
+      <IconSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink3" />
+      <input
+        className="input !rounded-full !py-2.5 !pl-9 text-sm"
+        placeholder="Search teams, leagues..."
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        aria-label="Search"
+      />
+    </form>
+  );
+}
+
+// ── Desktop search (debounced, instant results) ──────────────
 function SearchBox() {
   const [q, setQ] = useState("");
   const [results, setResults] = useState<{ games: any[]; sports: any[] } | null>(null);
@@ -178,10 +267,10 @@ function SearchBox() {
   }, []);
 
   return (
-    <div className="relative hidden md:block" ref={boxRef}>
+    <div className="relative" ref={boxRef}>
       <input
-        className="input w-44 py-2 transition-all focus:w-64 lg:w-56"
-        placeholder="Search…"
+        className="input w-40 py-2 transition-all focus:w-56 lg:w-52"
+        placeholder="Search teams, leagues..."
         value={q}
         onChange={(e) => setQ(e.target.value)}
         onFocus={() => setFocused(true)}

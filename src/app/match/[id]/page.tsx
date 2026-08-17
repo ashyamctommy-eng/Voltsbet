@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import OddsButton from "@/components/OddsButton";
 import { formatDateTime, fmtOdds } from "@/lib/odds";
+import TeamLogo from "@/components/TeamLogo";
 
 export const dynamic = "force-dynamic";
 
@@ -36,14 +37,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
 
           <div className="mt-4 flex flex-col items-center justify-center gap-4 sm:flex-row sm:gap-10">
             <div className="flex w-40 flex-col items-center gap-2 text-center">
-              {game.homeLogo ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={game.homeLogo} alt="" className="h-14 w-14 rounded-full bg-white/10 object-contain" />
-              ) : (
-                <span className="flex h-14 w-14 items-center justify-center rounded-full bg-white/5 text-lg font-bold text-ink2">
-                  {game.homeName.slice(0, 2).toUpperCase()}
-                </span>
-              )}
+              <TeamLogo name={game.homeName} src={game.homeLogo} className="h-14 w-14" />
               <span className="font-bold">{game.homeName}</span>
             </div>
 
@@ -78,14 +72,7 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
             </div>
 
             <div className="flex w-40 flex-col items-center gap-2 text-center">
-              {game.awayLogo ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={game.awayLogo} alt="" className="h-14 w-14 rounded-full bg-white/10 object-contain" />
-              ) : (
-                <span className="flex h-14 w-14 items-center justify-center rounded-full bg-white/5 text-lg font-bold text-ink2">
-                  {game.awayName.slice(0, 2).toUpperCase()}
-                </span>
-              )}
+              <TeamLogo name={game.awayName} src={game.awayLogo} className="h-14 w-14" />
               <span className="font-bold">{game.awayName}</span>
             </div>
           </div>

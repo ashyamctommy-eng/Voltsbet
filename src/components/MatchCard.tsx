@@ -1,5 +1,6 @@
 import Link from "next/link";
 import OddsButton from "@/components/OddsButton";
+import TeamLogo from "@/components/TeamLogo";
 import { formatDateTime } from "@/lib/odds";
 
 type MarketLite = {
@@ -29,9 +30,22 @@ type GameLite = {
   markets: MarketLite[];
 };
 
-export default function MatchCard({ game, showCompetition = true }: { game: GameLite; showCompetition?: boolean }) {
+export default function MatchCard({
+  game,
+  showCompetition = true,
+  preferMarkets,
+}: {
+  game: GameLite;
+  showCompetition?: boolean;
+  /** Restrict which market keys the card may use as its main market (e.g. "1x2" filter). */
+  preferMarkets?: string[];
+}) {
   const live = game.status === "LIVE" || game.status === "HALF_TIME";
-  const mainMarket = game.markets.find((m) => m.status === "OPEN" && m.outcomes.some((o) => o.status === "ACTIVE"));
+  const candidates = game.markets.filter((m) => m.status === "OPEN" && m.outcomes.some((o) => o.status === "ACTIVE"));
+  const mainMarket =
+    (preferMarkets ? candidates.find((m) => preferMarkets.includes(m.key)) : undefined) ??
+    candidates.find((m) => m.key === "h2h" || m.key === "MATCH_RESULT") ??
+    candidates[0];
   const odds = mainMarket?.outcomes.filter((o) => o.status === "ACTIVE").slice(0, 3) ?? [];
 
   return (
@@ -115,14 +129,7 @@ export default function MatchCard({ game, showCompetition = true }: { game: Game
 function TeamName({ name, logo, align = "left" }: { name: string; logo?: string | null; align?: "left" | "right" }) {
   return (
     <span className={`flex min-w-0 items-center gap-2 ${align === "right" ? "flex-row-reverse" : ""}`}>
-      {logo ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={logo} alt="" className="h-6 w-6 shrink-0 rounded-full bg-white/10 object-contain" />
-      ) : (
-        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/5 text-[10px] font-bold text-ink3">
-          {name.slice(0, 2).toUpperCase()}
-        </span>
-      )}
+      <TeamLogo name={name} src={logo} className="h-7 w-7" />
       <span className={`truncate text-sm font-semibold ${align === "right" ? "text-right" : ""}`}>{name}</span>
     </span>
   );

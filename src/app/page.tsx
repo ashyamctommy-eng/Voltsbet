@@ -2,22 +2,23 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import BannerCarousel from "@/components/BannerCarousel";
-import MatchCard from "@/components/MatchCard";
+import CasinoHero from "@/components/CasinoHero";
+import MatchFeed from "@/components/MatchFeed";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const [s, banners, featuredGames, popularSports, promotions, testimonials] = await Promise.all([
+  const [s, banners, games, popularSports, promotions, testimonials] = await Promise.all([
     getSettings(),
     prisma.banner.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
     prisma.game.findMany({
-      where: { featured: true, status: { notIn: ["FINISHED", "CANCELLED"] } },
+      where: { status: { notIn: ["FINISHED", "CANCELLED"] } },
       include: {
         sport: true,
         markets: { include: { outcomes: true }, orderBy: { sortOrder: "asc" } },
       },
       orderBy: [{ live: "desc" }, { startAt: "asc" }],
-      take: 4,
+      take: 50,
     }),
     prisma.sport.findMany({
       where: { active: true },
@@ -35,15 +36,23 @@ export default async function HomePage() {
 
   return (
     <div className="mx-auto max-w-[1600px] px-4">
-      {/* Hero */}
-      <section className="pt-6">
-        <BannerCarousel
-          banners={banners.map((b) => ({ id: b.id, title: b.title, description: b.description, image: b.image, ctaText: b.ctaText, ctaUrl: b.ctaUrl }))}
-        />
-      </section>
+      {/* Featured casino / aviator hero */}
+      <CasinoHero />
+
+      {/* Match feed with time + market filters */}
+      <MatchFeed games={games} />
+
+      {/* Admin banners */}
+      {banners.length > 0 && (
+        <section className="mt-10">
+          <BannerCarousel
+            banners={banners.map((b) => ({ id: b.id, title: b.title, description: b.description, image: b.image, ctaText: b.ctaText, ctaUrl: b.ctaUrl }))}
+          />
+        </section>
+      )}
 
       {/* Popular sports */}
-      <section className="mt-8">
+      <section className="mt-10">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-bold">Popular Sports</h2>
           <Link href="/sports" className="text-sm font-semibold text-brand hover:underline">All sports →</Link>
@@ -61,25 +70,6 @@ export default async function HomePage() {
             </Link>
           ))}
         </div>
-      </section>
-
-      {/* Featured matches */}
-      <section className="mt-10">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-bold">Featured Matches</h2>
-          <Link href="/live" className="flex items-center gap-1.5 text-sm font-semibold text-brand hover:underline">
-            <span className="live-dot" /> Live now
-          </Link>
-        </div>
-        {featuredGames.length === 0 ? (
-          <div className="card p-10 text-center text-ink3">No featured matches right now — check back soon.</div>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {featuredGames.map((g) => (
-              <MatchCard key={g.id} game={g} />
-            ))}
-          </div>
-        )}
       </section>
 
       {/* Promotions */}

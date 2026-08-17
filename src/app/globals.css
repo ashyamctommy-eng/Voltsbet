@@ -154,3 +154,45 @@ body {
   to { opacity: 1; }
 }
 .fade-in { animation: fade-in 0.15s ease; }
+
+/* ── Light theme (toggled from the drawer) ─────────────────── */
+html[data-theme="light"] {
+  color-scheme: light;
+  --vb-secondary: #f2f5fa;
+  --color-surface: #ffffff;
+  --color-card: #ffffff;
+  --color-card2: #edf2f9;
+  --color-line: #dbe3ef;
+  --color-line2: #b9c7dd;
+  --color-ink: #0f1b33;
+  --color-ink2: #43536f;
+  --color-ink3: #7a8aa8;
+}
+html[data-theme="light"] body {
+  background: #f2f5fa;
+  color: #0f1b33;
+}
+html[data-theme="light"] .card {
+  background: linear-gradient(180deg, #ffffff 0%, #f4f7fc 100%);
+}
+html[data-theme="light"] .input {
+  background: #ffffff;
+  border-color: var(--color-line2);
+}
+html[data-theme="light"] .odds-btn {
+  background: #ffffff;
+}
+html[data-theme="light"] .odds-btn:disabled {
+  background: #edf2f9;
+  border-color: var(--color-line);
+}
+html[data-theme="light"] .skeleton {
+  background: linear-gradient(90deg, #e8eef7 25%, #f5f8fd 50%, #e8eef7 75%);
+  background-size: 200% 100%;
+}
+
+/* ── Drawer / sheet helpers ────────────────────────────────── */
+@keyframes slide-in-left {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}

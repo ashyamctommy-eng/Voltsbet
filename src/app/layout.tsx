@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { convert, formatMoney } from "@/lib/currency";
 import { BetSlipProvider, ToastProvider } from "@/components/BetSlipContext";
+import { ThemeProvider } from "@/components/ThemeProvider";
 import Header, { HeaderUser } from "@/components/Header";
 import Footer from "@/components/Footer";
 import MobileNav from "@/components/MobileNav";
@@ -48,16 +49,18 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       }
     >
       <body className="min-h-screen">
-        <ToastProvider>
-          <BetSlipProvider>
-            <Header user={headerUser} siteName={s.siteName} />
-            <main className="min-h-[60vh] pb-20 xl:pb-0">{children}</main>
-            <Footer />
-            <MobileNav loggedIn={!!user} />
-            <SupportWidgets />
-            <BetSlip />
-          </BetSlipProvider>
-        </ToastProvider>
+        <ThemeProvider>
+          <ToastProvider>
+            <BetSlipProvider>
+              <Header user={headerUser} siteName={s.siteName} />
+              <main className="min-h-[60vh] pb-20 xl:pb-0">{children}</main>
+              <Footer />
+              <MobileNav loggedIn={!!user} />
+              <SupportWidgets />
+              <BetSlip />
+            </BetSlipProvider>
+          </ToastProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -179,6 +179,9 @@ const LOGOS: Record<string, string> = {
 
 const ALIASES: Record<string, string> = {
   bournemouth: "afcbournemouth", // Odds API omits "AFC"; ESPN includes it
+  lalakers: "losangeleslakers", // colloquial name used in seed/UI
+  mcfc: "manchestercity",
+  utd: "manchesterunited",
 };
 
 /** Normalize a team name for dictionary lookup (mirrors the generator's norm()). */
