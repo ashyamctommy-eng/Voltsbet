@@ -39,6 +39,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     { resource: "testimonials", href: "/admin/testimonials", label: "Testimonials", Icon: IconStar },
     { resource: "banners", href: "/admin/banners", label: "Banners", Icon: IconImage },
     { resource: "notifications", href: "/admin/notifications", label: "Announcements", Icon: IconBell },
+    { resource: "crypto", href: "/admin/settings#payments", label: "Payments", Icon: IconCoins },
     { resource: "settings", href: "/admin/settings", label: "Website Settings", Icon: IconGear },
     { resource: "audit", href: "/admin/audit", label: "Audit Logs", Icon: IconScroll },
   ];

@@ -14,9 +14,10 @@ type Field = {
   hint?: string;
 };
 
-const GROUPS: { title: string; icon: React.ReactNode; fields: Field[] }[] = [
+const GROUPS: { title: string; anchor: string; icon: React.ReactNode; fields: Field[] }[] = [
   {
     title: "Branding",
+    anchor: "branding",
     icon: <IconPencil className="h-4 w-4" />,
     fields: [
       { key: "site.name", label: "Site name", type: "text" },
@@ -28,6 +29,7 @@ const GROUPS: { title: string; icon: React.ReactNode; fields: Field[] }[] = [
   },
   {
     title: "Betting",
+    anchor: "betting",
     icon: <IconGear className="h-4 w-4" />,
     fields: [
       { key: "betting.minStake", label: "Minimum stake", type: "number" },
@@ -37,6 +39,7 @@ const GROUPS: { title: string; icon: React.ReactNode; fields: Field[] }[] = [
   },
   {
     title: "Support & Social (sliding menu)",
+    anchor: "support",
     icon: <IconWhatsApp className="h-4 w-4" />,
     fields: [
       { key: "support.whatsapp", label: "WhatsApp number", type: "text", hint: "International format, e.g. 254712345678" },
@@ -51,6 +54,7 @@ const GROUPS: { title: string; icon: React.ReactNode; fields: Field[] }[] = [
   },
   {
     title: "Crypto Payments (NOWPayments)",
+    anchor: "payments",
     icon: <IconCoins className="h-4 w-4" />,
     fields: [
       { key: "crypto.provider", label: "Provider", type: "select", options: ["", "NOWPAYMENTS"] },
@@ -67,6 +71,7 @@ const GROUPS: { title: string; icon: React.ReactNode; fields: Field[] }[] = [
   },
   {
     title: "M-Pesa (Daraja)",
+    anchor: "mpesa",
     icon: <IconSmartphone className="h-4 w-4" />,
     fields: [
       { key: "mpesa.enabled", label: "M-Pesa enabled", type: "toggle" },
@@ -82,6 +87,7 @@ const GROUPS: { title: string; icon: React.ReactNode; fields: Field[] }[] = [
   },
   {
     title: "App & Homepage",
+    anchor: "app",
     icon: <IconGlobe className="h-4 w-4" />,
     fields: [
       { key: "app.url", label: "Public app URL", type: "text", hint: "e.g. https://yourapp.up.railway.app — used for webhook callbacks" },
@@ -102,12 +108,19 @@ export default function AdminSettings() {
 
   const set = (key: string, value: string) => setSettings((s) => ({ ...s, [key]: value }));
 
-  const jump = (title: string) => {
-    document.getElementById(`section-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`)?.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
+  const jump = (anchor: string) => {
+    document.getElementById(`section-${anchor}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
+
+  // Jump to a section when arriving with a hash (e.g. #payments from sidebar)
+  useEffect(() => {
+    const h = window.location.hash.replace("#", "");
+    if (h) {
+      const t = setTimeout(() => jump(h), 350);
+      return () => clearTimeout(t);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -134,7 +147,7 @@ export default function AdminSettings() {
             <button
               key={g.title}
               type="button"
-              onClick={() => jump(g.title)}
+              onClick={() => jump(g.anchor)}
               className="flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold text-ink2 transition-colors hover:bg-white/5 hover:text-ink"
             >
               <span className="text-brand">{g.icon}</span>
@@ -145,7 +158,7 @@ export default function AdminSettings() {
       </div>
 
       {GROUPS.map((g) => (
-        <div key={g.title} id={`section-${g.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`} className="scroll-mt-40 card p-5">
+        <div key={g.title} id={`section-${g.anchor}`} className="scroll-mt-40 card p-5">
           <h3 className="flex items-center gap-2 font-bold">
             <span className="text-brand">{g.icon}</span>
             {g.title}
