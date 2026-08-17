@@ -16,11 +16,15 @@ export const PROVIDERS: Record<string, () => OddsProvider> = {
 };
 
 // Map provider sport keys → local sport slugs. Extend per your feed.
+// Keys verified against the live API (2026-08): The Odds API renamed several
+// keys (soccer_la_liga → soccer_spain_la_liga, etc.). Tennis is now
+// tournament-specific (tennis_atp_cincinnati_open, …) and cricket_ipl only
+// exists during its season — add them back when in season, as needed.
 const SPORT_KEY_MAP: Record<string, string> = {
-  soccer_epl: "football", soccer_la_liga: "football", soccer_serie_a: "football",
-  soccer_bundesliga: "football", soccer_fifa_world_cup: "football",
-  basketball_nba: "basketball", tennis_atp: "tennis", tennis_wta: "tennis",
-  baseball_mlb: "baseball", icehockey_nhl: "ice-hockey", cricket_ipl: "cricket",
+  soccer_epl: "football", soccer_spain_la_liga: "football",
+  soccer_italy_serie_a: "football", soccer_germany_bundesliga: "football",
+  basketball_nba: "basketball",
+  baseball_mlb: "baseball", icehockey_nhl: "ice-hockey",
 };
 
 export async function syncGames(providerId = "the-odds-api") {
