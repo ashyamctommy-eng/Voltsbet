@@ -59,6 +59,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <ToastProvider>
             <BetSlipProvider>
               <DrawerProvider
+                isStaff={!!user && user.role !== "CUSTOMER"}
                 support={{
                   whatsappEnabled: s.whatsappEnabled,
                   whatsapp: s.whatsapp,

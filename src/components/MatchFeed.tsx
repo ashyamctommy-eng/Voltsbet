@@ -30,8 +30,9 @@ type FeedGame = {
 
 const TIME_TABS = [
   { id: "highlights", label: "Highlights" },
-  { id: "upcoming", label: "Upcoming" },
   { id: "today", label: "Today" },
+  { id: "tomorrow", label: "Tomorrow" },
+  { id: "upcoming", label: "Upcoming" },
 ] as const;
 
 const MARKET_FILTERS = [
@@ -49,13 +50,17 @@ export default function MatchFeed({ games }: { games: FeedGame[] }) {
 
   const filtered = useMemo(() => {
     const now = new Date();
-    const isToday = (d: Date) =>
-      d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+    const day = (offset: number) => {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset);
+      return { from: d.getTime(), to: d.getTime() + 86400_000 };
+    };
+    const sameDay = (t: number, offset: number) => t >= day(offset).from && t < day(offset).to;
 
     let list = games;
     if (timeFilter === "highlights") list = list.filter((g) => g.live || g.featured || g.status === "LIVE");
-    if (timeFilter === "upcoming") list = list.filter((g) => !g.live && new Date(g.startAt) > now);
-    if (timeFilter === "today") list = list.filter((g) => isToday(new Date(g.startAt)));
+    if (timeFilter === "today") list = list.filter((g) => sameDay(new Date(g.startAt).getTime(), 0));
+    if (timeFilter === "tomorrow") list = list.filter((g) => sameDay(new Date(g.startAt).getTime(), 1));
+    if (timeFilter === "upcoming") list = list.filter((g) => new Date(g.startAt).getTime() >= day(2).from);
 
     return [...list].sort((a, b) =>
       Number(b.live) - Number(a.live) || new Date(a.startAt).getTime() - new Date(b.startAt).getTime(),

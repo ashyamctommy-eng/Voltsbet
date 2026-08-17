@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { useTheme } from "@/components/ThemeProvider";
 import {
   IconLive,
-  IconLightning,
   IconArrowDown,
   IconArrowUp,
   IconTicket,
@@ -17,6 +16,12 @@ import {
   IconCrown,
   IconWhatsApp,
   IconTelegram,
+  IconCalendar,
+  IconUsers,
+  IconDownload,
+  IconUpload,
+  IconCoins,
+  IconGear,
 } from "@/components/icons";
 
 export type SupportLinks = {
@@ -26,14 +31,25 @@ export type SupportLinks = {
   telegram: string;
 };
 
+type MenuItem = { href: string; label: string; Icon: (p: { className?: string }) => React.ReactNode; color: string; badge?: string };
+
 /* Color-coded menu items (matches the SafiBets drawer hierarchy) */
-const MENU_ITEMS = [
+const CUSTOMER_ITEMS: MenuItem[] = [
   { href: "/live", label: "Live Games", Icon: IconLive, color: "text-red-400", badge: "LIVE" },
-  { href: "/vfootball", label: "vFootball", Icon: IconLightning, color: "text-green-400" },
   { href: "/account/deposit", label: "Deposit", Icon: IconArrowDown, color: "text-green-400" },
   { href: "/account/withdraw", label: "Withdraw", Icon: IconArrowUp, color: "text-sky-300" },
   { href: "/account/bets", label: "My Bets", Icon: IconTicket, color: "text-sky-100" },
   { href: "/account", label: "Refer & Earn", Icon: IconGift, color: "text-purple-400" },
+];
+
+/* Staff drawer — admin features, not customer features */
+const STAFF_ITEMS: MenuItem[] = [
+  { href: "/admin/games", label: "Manage Games", Icon: IconCalendar, color: "text-green-400" },
+  { href: "/admin/users", label: "Users Management", Icon: IconUsers, color: "text-sky-300" },
+  { href: "/admin/deposits", label: "Crypto Transactions", Icon: IconDownload, color: "text-amber-300" },
+  { href: "/admin/withdrawals", label: "Withdrawals", Icon: IconUpload, color: "text-sky-100" },
+  { href: "/admin/settings#payments", label: "Payments", Icon: IconCoins, color: "text-purple-400" },
+  { href: "/admin/settings", label: "Website Settings", Icon: IconGear, color: "text-ink2" },
 ];
 
 const TOP_LEAGUES = [
@@ -46,15 +62,18 @@ export default function Drawer({
   open,
   onClose,
   support,
+  isStaff = false,
 }: {
   open: boolean;
   onClose: () => void;
   support: SupportLinks;
+  isStaff?: boolean;
 }) {
   const pathname = usePathname();
   const { theme, toggle } = useTheme();
   const showWhatsApp = support.whatsappEnabled && !!support.whatsapp;
   const showTelegram = support.telegramEnabled && !!support.telegram;
+  const items = isStaff ? STAFF_ITEMS : CUSTOMER_ITEMS;
 
   return (
     <div className={`fixed inset-0 z-[70] ${open ? "" : "pointer-events-none"}`} aria-hidden={!open}>
@@ -95,9 +114,9 @@ export default function Drawer({
         <div className="flex-1 overflow-y-auto pb-6">
           {/* Sports section */}
           <nav className="px-3 pt-4">
-            <h3 className="px-2 pb-2 text-sm font-black text-white">Sports</h3>
+            <h3 className="px-2 pb-2 text-sm font-black text-white">{isStaff ? "Admin" : "Sports"}</h3>
             <div className="space-y-1.5">
-              {MENU_ITEMS.map(({ href, label, Icon, color, badge }) => {
+              {items.map(({ href, label, Icon, color, badge }) => {
                 const active = pathname === href || pathname.startsWith(href + "/");
                 return (
                   <Link
@@ -120,7 +139,8 @@ export default function Drawer({
             </div>
           </nav>
 
-          {/* Top leagues */}
+          {/* Top leagues (customer drawer only) */}
+          {!isStaff && (
           <div className="mt-6 px-3">
             <h3 className="flex items-center gap-2 px-2 pb-2 text-sm font-black text-white">
               <IconCrown className="h-4 w-4 text-warn" /> Top Leagues
@@ -142,6 +162,7 @@ export default function Drawer({
               ))}
             </div>
           </div>
+          )}
 
           {/* Community & support */}
           <div className="mt-6 px-3">

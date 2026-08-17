@@ -17,15 +17,17 @@ export function useDrawer() {
 export function DrawerProvider({
   children,
   support,
+  isStaff = false,
 }: {
   children: React.ReactNode;
   support: SupportLinks;
+  isStaff?: boolean;
 }) {
   const [isOpen, setOpen] = useState(false);
   return (
     <DrawerCtx.Provider value={{ open: () => setOpen(true) }}>
       {children}
-      <Drawer open={isOpen} onClose={() => setOpen(false)} support={support} />
+      <Drawer open={isOpen} onClose={() => setOpen(false)} support={support} isStaff={isStaff} />
     </DrawerCtx.Provider>
   );
 }
