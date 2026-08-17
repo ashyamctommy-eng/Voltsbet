@@ -102,6 +102,13 @@ export default function AdminSettings() {
 
   const set = (key: string, value: string) => setSettings((s) => ({ ...s, [key]: value }));
 
+  const jump = (title: string) => {
+    document.getElementById(`section-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`)?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  };
+
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -120,8 +127,25 @@ export default function AdminSettings() {
         </span>
       </div>
 
+      {/* Sticky section quick-nav */}
+      <div className="sticky top-16 z-30 -mx-1 px-1 py-2">
+        <div className="no-scrollbar flex gap-1.5 overflow-x-auto rounded-2xl border border-line bg-[#0d1726]/95 p-1.5 backdrop-blur-md">
+          {GROUPS.map((g) => (
+            <button
+              key={g.title}
+              type="button"
+              onClick={() => jump(g.title)}
+              className="flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold text-ink2 transition-colors hover:bg-white/5 hover:text-ink"
+            >
+              <span className="text-brand">{g.icon}</span>
+              {g.title.replace(" (NOWPayments)", "").replace(" (Daraja)", "")}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {GROUPS.map((g) => (
-        <div key={g.title} className="card p-5">
+        <div key={g.title} id={`section-${g.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`} className="scroll-mt-40 card p-5">
           <h3 className="flex items-center gap-2 font-bold">
             <span className="text-brand">{g.icon}</span>
             {g.title}

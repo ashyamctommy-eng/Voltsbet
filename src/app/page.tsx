@@ -2,7 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import BannerCarousel from "@/components/BannerCarousel";
-import CasinoHero from "@/components/CasinoHero";
+import MatchSlideshow from "@/components/MatchSlideshow";
 import MatchFeed from "@/components/MatchFeed";
 
 export const dynamic = "force-dynamic";
@@ -36,8 +36,8 @@ export default async function HomePage() {
 
   return (
     <div className="mx-auto max-w-[1600px] px-4">
-      {/* Featured casino / aviator hero */}
-      <CasinoHero />
+      {/* Live / upcoming match slideshow */}
+      <MatchSlideshow games={games} />
 
       {/* Match feed with time + market filters */}
       <MatchFeed games={games} />

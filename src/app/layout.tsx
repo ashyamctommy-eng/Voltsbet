@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { convert, formatMoney } from "@/lib/currency";
 import { BetSlipProvider, ToastProvider } from "@/components/BetSlipContext";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { DrawerProvider } from "@/components/DrawerProvider";
 import Header, { HeaderUser } from "@/components/Header";
 import Footer from "@/components/Footer";
 import MobileNav from "@/components/MobileNav";
@@ -52,21 +53,21 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <ThemeProvider>
           <ToastProvider>
             <BetSlipProvider>
-              <Header
-                user={headerUser}
-                siteName={s.siteName}
+              <DrawerProvider
                 support={{
                   whatsappEnabled: s.whatsappEnabled,
                   whatsapp: s.whatsapp,
                   telegramEnabled: s.telegramEnabled,
                   telegram: s.telegram,
                 }}
-              />
-              <main className="min-h-[60vh] pb-20 xl:pb-0">{children}</main>
-              <Footer />
-              <MobileNav loggedIn={!!user} />
-              <SupportWidgets />
-              <BetSlip />
+              >
+                <Header user={headerUser} siteName={s.siteName} />
+                <main className="min-h-[60vh] pb-20 xl:pb-0">{children}</main>
+                <Footer />
+                <MobileNav loggedIn={!!user} />
+                <SupportWidgets />
+                <BetSlip />
+              </DrawerProvider>
             </BetSlipProvider>
           </ToastProvider>
         </ThemeProvider>

@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/client";
 import { useToast } from "@/components/BetSlipContext";
-import Drawer, { SupportLinks } from "@/components/Drawer";
+import { useDrawer } from "@/components/DrawerProvider";
 import {
   IconMenu,
   IconSearch,
@@ -30,8 +30,6 @@ const CATEGORY_TABS = [
   { label: "Football", href: "/sports/football", Icon: IconFootball },
   { label: "Basketball", href: "/sports/basketball", Icon: IconBasketball },
   { label: "Tennis", href: "/sports/tennis", Icon: IconTennis },
-  { label: "Casino", href: "/casino", Icon: IconDice },
-  { label: "Aviator", href: "/casino", Icon: IconPlane },
   { label: "Live", href: "/live", Icon: IconLive },
   { label: "Esports", href: "/sports/esports", Icon: IconController },
   { label: "Cricket", href: "/sports/cricket", Icon: IconTv },
@@ -48,22 +46,19 @@ const DESKTOP_NAV = [
 export default function Header({
   user,
   siteName,
-  support,
 }: {
   user: HeaderUser;
   siteName: string;
-  support: SupportLinks;
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const { push } = useToast();
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const { open: openDrawer } = useDrawer();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close overlays on route change
   useEffect(() => {
-    setDrawerOpen(false);
     setMenuOpen(false);
   }, [pathname]);
 
@@ -93,7 +88,7 @@ export default function Header({
       {/* ── Top row: hamburger + logo · login/signup ─────────── */}
       <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-2 px-3 sm:gap-3 sm:px-4">
         <button
-          onClick={() => setDrawerOpen(true)}
+          onClick={openDrawer}
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-ink transition-colors hover:bg-white/5 hover:text-ink1"
           aria-label="Open menu"
         >
@@ -219,9 +214,6 @@ export default function Header({
       <div className="border-t border-line/60 px-3 py-2 md:hidden">
         <MobileSearch />
       </div>
-
-      {/* ── Sliding side drawer ────────────────────────────── */}
-      <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} support={support} />
     </header>
   );
 }

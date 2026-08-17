@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useTheme } from "@/components/ThemeProvider";
 import {
   IconLive,
-  IconLightning,
+  IconFootball,
   IconArrowDown,
   IconArrowUp,
   IconTicket,
@@ -15,7 +15,6 @@ import {
   IconSun,
   IconChevronRight,
   IconCrown,
-  IconDice,
   IconWhatsApp,
   IconTelegram,
 } from "@/components/icons";
@@ -32,7 +31,7 @@ const SPORT_LINKS = [
   { href: "/account/deposit", label: "Deposit", Icon: IconArrowDown },
   { href: "/account/withdraw", label: "Withdraw", Icon: IconArrowUp },
   { href: "/account/bets", label: "My Bets", Icon: IconTicket },
-  { href: "/vfootball", label: "vFootball", Icon: IconLightning },
+  { href: "/sports", label: "Sports", Icon: IconFootball },
   { href: "/account", label: "Refer & Earn", Icon: IconGift },
 ];
 
@@ -144,7 +143,7 @@ export default function Drawer({
           <div className="mt-6 border-t border-line px-3 pt-4">
             <div className="space-y-1">
               <Link href="/promotions" onClick={onClose} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink2 hover:bg-white/5 hover:text-ink">
-                <IconDice className="h-5 w-5" /> Promotions
+                <IconGift className="h-5 w-5" /> Promotions
               </Link>
               <Link href="/responsible-gambling" onClick={onClose} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink2 hover:bg-white/5 hover:text-ink">
                 <IconHelp className="h-5 w-5" /> Help &amp; Support

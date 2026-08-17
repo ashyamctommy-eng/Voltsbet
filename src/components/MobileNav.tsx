@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useBetSlip } from "@/components/BetSlipContext";
-import { IconHome, IconLightning, IconDice, IconTv } from "@/components/icons";
+import { IconHome, IconArrowDown, IconFootball, IconTv } from "@/components/icons";
 
 export default function MobileNav({ loggedIn }: { loggedIn: boolean }) {
   const pathname = usePathname();
@@ -12,9 +12,9 @@ export default function MobileNav({ loggedIn }: { loggedIn: boolean }) {
 
   const tabs = [
     { href: "/", label: "Home", Icon: IconHome, active: pathname === "/" },
-    { href: "/vfootball", label: "vFootball", Icon: IconLightning, active: pathname.startsWith("/vfootball") },
+    { href: "/account/deposit", label: "Deposit", Icon: IconArrowDown, active: pathname.startsWith("/account/deposit") },
     null, // center betslip slot
-    { href: "/casino", label: "Casino", Icon: IconDice, active: pathname.startsWith("/casino") },
+    { href: "/sports", label: "Sports", Icon: IconFootball, active: pathname === "/sports" || pathname.startsWith("/sports/") },
     { href: "/live", label: "Live", Icon: IconTv, active: pathname.startsWith("/live"), live: true },
   ];
 
