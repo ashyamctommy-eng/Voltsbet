@@ -79,6 +79,7 @@ const GROUPS: { title: string; anchor: string; icon: React.ReactNode; fields: Fi
       { key: "support.telegramEnabled", label: "Show Telegram button", type: "toggle" },
       { key: "support.telegramPosition", label: "Telegram position", type: "select", options: ["bottom-left", "bottom-right"] },
       { key: "support.email", label: "Support email", type: "text" },
+      { key: "support.phone", label: "Support phone (Call Us)", type: "text", hint: "Shown in the support modal" },
     ],
   },
   {

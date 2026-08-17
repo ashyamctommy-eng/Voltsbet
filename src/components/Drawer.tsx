@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useTheme } from "@/components/ThemeProvider";
 import {
   IconLive,
-  IconFootball,
+  IconLightning,
   IconArrowDown,
   IconArrowUp,
   IconTicket,
@@ -26,13 +26,14 @@ export type SupportLinks = {
   telegram: string;
 };
 
-const SPORT_LINKS = [
-  { href: "/live", label: "Live Games", Icon: IconLive },
-  { href: "/account/deposit", label: "Deposit", Icon: IconArrowDown },
-  { href: "/account/withdraw", label: "Withdraw", Icon: IconArrowUp },
-  { href: "/account/bets", label: "My Bets", Icon: IconTicket },
-  { href: "/sports", label: "Sports", Icon: IconFootball },
-  { href: "/account", label: "Refer & Earn", Icon: IconGift },
+/* Color-coded menu items (matches the SafiBets drawer hierarchy) */
+const MENU_ITEMS = [
+  { href: "/live", label: "Live Games", Icon: IconLive, color: "text-red-400", badge: "LIVE" },
+  { href: "/vfootball", label: "vFootball", Icon: IconLightning, color: "text-green-400" },
+  { href: "/account/deposit", label: "Deposit", Icon: IconArrowDown, color: "text-green-400" },
+  { href: "/account/withdraw", label: "Withdraw", Icon: IconArrowUp, color: "text-sky-300" },
+  { href: "/account/bets", label: "My Bets", Icon: IconTicket, color: "text-sky-100" },
+  { href: "/account", label: "Refer & Earn", Icon: IconGift, color: "text-purple-400" },
 ];
 
 const TOP_LEAGUES = [
@@ -59,9 +60,7 @@ export default function Drawer({
     <div className={`fixed inset-0 z-[70] ${open ? "" : "pointer-events-none"}`} aria-hidden={!open}>
       {/* Backdrop */}
       <div
-        className={`absolute inset-0 bg-black/60 backdrop-blur-[2px] transition-opacity duration-200 ${
-          open ? "opacity-100" : "opacity-0"
-        }`}
+        className={`absolute inset-0 bg-black/60 backdrop-blur-[2px] transition-opacity duration-200 ${open ? "opacity-100" : "opacity-0"}`}
         onClick={onClose}
       />
 
@@ -76,9 +75,7 @@ export default function Drawer({
       >
         {/* Header */}
         <div className="flex items-center gap-3 border-b border-line px-4 py-4">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand text-lg font-black text-[#052e16]">
-            V
-          </span>
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand text-lg font-black text-[#052e16]">V</span>
           <div className="min-w-0">
             <div className="truncate text-base font-extrabold tracking-tight">VoltBet</div>
             <div className="text-[10px] font-semibold uppercase tracking-wider text-ink3">Menu</div>
@@ -96,97 +93,99 @@ export default function Drawer({
 
         {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto pb-6">
-          {/* Sports links */}
-          <nav className="px-3 pt-3">
-            {SPORT_LINKS.map(({ href, label, Icon }) => {
-              const active = pathname === href || pathname.startsWith(href + "/");
-              return (
-                <Link
-                  key={label}
-                  href={href}
-                  onClick={onClose}
-                  className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition-colors ${
-                    active ? "bg-brand/10 text-brand" : "text-ink2 hover:bg-white/5 hover:text-ink"
-                  }`}
-                >
-                  <Icon className="h-5 w-5" />
-                  {label}
-                  <IconChevronRight className="ml-auto h-4 w-4 text-ink3" />
-                </Link>
-              );
-            })}
+          {/* Sports section */}
+          <nav className="px-3 pt-4">
+            <h3 className="px-2 pb-2 text-sm font-black text-white">Sports</h3>
+            <div className="space-y-1.5">
+              {MENU_ITEMS.map(({ href, label, Icon, color, badge }) => {
+                const active = pathname === href || pathname.startsWith(href + "/");
+                return (
+                  <Link
+                    key={label}
+                    href={href}
+                    onClick={onClose}
+                    className={`flex items-center gap-3 rounded-xl bg-[#131d2e] px-3.5 py-3 text-sm font-bold transition-transform active:scale-[0.98] ${
+                      color
+                    } ${active ? "ring-1 ring-brand/40" : ""}`}
+                  >
+                    <Icon className="h-5 w-5" />
+                    {label}
+                    {badge && (
+                      <span className="ml-auto rounded-md bg-red-500 px-1.5 py-0.5 text-[9px] font-black text-white">{badge}</span>
+                    )}
+                    <IconChevronRight className="ml-auto h-4 w-4 opacity-40" />
+                  </Link>
+                );
+              })}
+            </div>
           </nav>
 
           {/* Top leagues */}
-          <div className="mt-5 px-3">
-            <div className="flex items-center gap-2 px-3 pb-2">
-              <IconCrown className="h-4 w-4 text-warn" />
-              <span className="text-[11px] font-bold uppercase tracking-wider text-ink3">Top Leagues</span>
+          <div className="mt-6 px-3">
+            <h3 className="flex items-center gap-2 px-2 pb-2 text-sm font-black text-white">
+              <IconCrown className="h-4 w-4 text-warn" /> Top Leagues
+            </h3>
+            <div className="space-y-1.5">
+              {TOP_LEAGUES.map((l) => (
+                <Link
+                  key={l.name}
+                  href={l.href}
+                  onClick={onClose}
+                  className="flex items-center gap-3 rounded-xl bg-[#131d2e] px-3.5 py-3 text-sm font-semibold text-ink2 transition-colors hover:text-ink"
+                >
+                  <span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-white/5">
+                    <l.Flag className="h-4 w-5" />
+                  </span>
+                  {l.name}
+                  <IconChevronRight className="ml-auto h-4 w-4 opacity-40" />
+                </Link>
+              ))}
             </div>
-            {TOP_LEAGUES.map((l) => (
-              <Link
-                key={l.name}
-                href={l.href}
-                onClick={onClose}
-                className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink2 transition-colors hover:bg-white/5 hover:text-ink"
-              >
-                <span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-white/5">
-                  <l.Flag className="h-4 w-5" />
-                </span>
-                {l.name}
-                <IconChevronRight className="ml-auto h-4 w-4 text-ink3" />
-              </Link>
-            ))}
           </div>
 
-          {/* Footer links */}
-          <div className="mt-6 border-t border-line px-3 pt-4">
-            <div className="space-y-1">
-              <Link href="/promotions" onClick={onClose} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink2 hover:bg-white/5 hover:text-ink">
-                <IconGift className="h-5 w-5" /> Promotions
-              </Link>
-              <Link href="/responsible-gambling" onClick={onClose} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink2 hover:bg-white/5 hover:text-ink">
+          {/* Community & support */}
+          <div className="mt-6 px-3">
+            <h3 className="px-2 pb-2 text-sm font-black text-white">Community &amp; Support</h3>
+            <div className="space-y-1.5">
+              {showWhatsApp && (
+                <a
+                  href={`https://wa.me/${support.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent("Hello! I need help.")}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={onClose}
+                  className="flex items-center gap-3 rounded-xl bg-[#131d2e] px-3.5 py-3 text-sm font-bold text-green-400"
+                >
+                  <IconWhatsApp className="h-5 w-5" /> WhatsApp
+                  <IconChevronRight className="ml-auto h-4 w-4 opacity-40" />
+                </a>
+              )}
+              {showTelegram && (
+                <a
+                  href={support.telegram}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={onClose}
+                  className="flex items-center gap-3 rounded-xl bg-[#131d2e] px-3.5 py-3 text-sm font-bold text-sky-400"
+                >
+                  <IconTelegram className="h-5 w-5" /> Telegram
+                  <IconChevronRight className="ml-auto h-4 w-4 opacity-40" />
+                </a>
+              )}
+              <Link
+                href="/responsible-gambling"
+                onClick={onClose}
+                className="flex items-center gap-3 rounded-xl bg-[#131d2e] px-3.5 py-3 text-sm font-bold text-ink2"
+              >
                 <IconHelp className="h-5 w-5" /> Help &amp; Support
+                <IconChevronRight className="ml-auto h-4 w-4 opacity-40" />
               </Link>
             </div>
           </div>
         </div>
 
-        {/* Pinned bottom: social (admin-configured) + theme toggle */}
+        {/* Pinned bottom: theme toggle */}
         <div className="border-t border-line px-4 py-4">
-          {(showWhatsApp || showTelegram) && (
-            <div className="mb-3 flex items-center gap-3 rounded-xl bg-white/5 px-4 py-3">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-ink3">Connect</span>
-              <div className="ml-auto flex items-center gap-2">
-                {showWhatsApp && (
-                  <a
-                    href={`https://wa.me/${support.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent("Hello! I need help.")}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label="WhatsApp"
-                    title="WhatsApp"
-                    className="flex h-9 w-9 items-center justify-center rounded-full bg-[#25D366] text-white transition-transform hover:scale-110"
-                  >
-                    <IconWhatsApp className="h-5 w-5" />
-                  </a>
-                )}
-                {showTelegram && (
-                  <a
-                    href={support.telegram}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label="Telegram"
-                    title="Telegram"
-                    className="flex h-9 w-9 items-center justify-center rounded-full bg-[#229ED9] text-white transition-transform hover:scale-110"
-                  >
-                    <IconTelegram className="h-5 w-5" />
-                  </a>
-                )}
-              </div>
-            </div>
-          )}
-
-          <div className="flex items-center justify-between rounded-xl bg-white/5 px-4 py-3">
+          <div className="flex items-center justify-between rounded-xl bg-[#131d2e] px-4 py-3">
             <span className="flex items-center gap-2 text-sm font-semibold text-ink2">
               {theme === "dark" ? <IconMoon className="h-5 w-5" /> : <IconSun className="h-5 w-5" />}
               Dark Theme
@@ -196,15 +195,9 @@ export default function Drawer({
               aria-checked={theme === "dark"}
               aria-label="Toggle dark theme"
               onClick={toggle}
-              className={`relative h-6 w-11 rounded-full transition-colors ${
-                theme === "dark" ? "bg-brand" : "bg-line2"
-              }`}
+              className={`relative h-6 w-11 rounded-full transition-colors ${theme === "dark" ? "bg-brand" : "bg-line2"}`}
             >
-              <span
-                className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
-                  theme === "dark" ? "left-[22px]" : "left-0.5"
-                }`}
-              />
+              <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${theme === "dark" ? "left-[22px]" : "left-0.5"}`} />
             </button>
           </div>
           <p className="mt-3 text-center text-[10px] text-ink3">18+ · Play responsibly</p>
@@ -215,7 +208,6 @@ export default function Drawer({
 }
 
 /* ── Simplified league flags (SVG) ─────────────────────────── */
-
 function EnglandFlag({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 60 40" className={className} aria-hidden>

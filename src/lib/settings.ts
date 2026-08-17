@@ -18,6 +18,7 @@ export type SiteSettings = {
   telegramEnabled: boolean;
   telegramPosition: string;
   supportEmail: string;
+  supportPhone: string; // displayed in the support modal (Call Us)
   cryptoProvider: string;
   cryptoApiKey: string;
   cryptoIpnSecret: string;
@@ -71,6 +72,7 @@ const DEFAULTS: SiteSettings = {
   telegramEnabled: false,
   telegramPosition: "bottom-left",
   supportEmail: "",
+  supportPhone: "0704 526 454",
   cryptoProvider: "",
   cryptoApiKey: "",
   cryptoIpnSecret: "",
@@ -131,6 +133,7 @@ export async function getSettings(): Promise<SiteSettings> {
   s.telegramEnabled = raw["support.telegramEnabled"] === "true";
   s.telegramPosition = raw["support.telegramPosition"] ?? s.telegramPosition;
   s.supportEmail = raw["support.email"] ?? s.supportEmail;
+  s.supportPhone = raw["support.phone"] ?? s.supportPhone;
   s.cryptoProvider = raw["crypto.provider"] ?? s.cryptoProvider;
   s.cryptoApiKey = raw["crypto.apiKey"] ?? s.cryptoApiKey;
   s.cryptoIpnSecret = raw["crypto.ipnSecret"] ?? s.cryptoIpnSecret;

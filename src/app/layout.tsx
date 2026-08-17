@@ -10,7 +10,7 @@ import { DrawerProvider } from "@/components/DrawerProvider";
 import Header, { HeaderUser } from "@/components/Header";
 import Footer from "@/components/Footer";
 import MobileNav from "@/components/MobileNav";
-import SupportWidgets from "@/components/SupportWidgets";
+import SupportWidget from "@/components/SupportWidget";
 import BetSlip from "@/components/BetSlip";
 
 export const metadata: Metadata = {
@@ -20,7 +20,11 @@ export const metadata: Metadata = {
 export const viewport: Viewport = { themeColor: "#0b1220", width: "device-width", initialScale: 1 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const [s, user] = await Promise.all([getSettings(), getCurrentUser()]);
+  const [s, user, liveGames] = await Promise.all([
+    getSettings(),
+    getCurrentUser(),
+    prisma.game.count({ where: { status: { in: ["LIVE", "HALF_TIME"] } } }),
+  ]);
 
   let headerUser: HeaderUser = null;
   if (user) {
@@ -33,6 +37,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     headerUser = {
       username: user.username,
       role: user.role,
+      currencyCode: displayCur,
       balanceLabel: await formatMoney(balance, displayCur, { compact: true }),
       unreadNotifications: unread,
     };
@@ -64,8 +69,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <Header user={headerUser} siteName={s.siteName} />
                 <main className="min-h-[60vh] pb-20 xl:pb-0">{children}</main>
                 <Footer />
-                <MobileNav loggedIn={!!user} />
-                <SupportWidgets />
+                <MobileNav loggedIn={!!user} liveCount={liveGames} />
+                <SupportWidget
+                  support={{
+                    phone: s.supportPhone,
+                    whatsappEnabled: s.whatsappEnabled,
+                    whatsapp: s.whatsapp,
+                    telegramEnabled: s.telegramEnabled,
+                    telegram: s.telegram,
+                  }}
+                />
                 <BetSlip />
               </DrawerProvider>
             </BetSlipProvider>

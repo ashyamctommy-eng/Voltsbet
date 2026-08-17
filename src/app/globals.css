@@ -196,3 +196,12 @@ html[data-theme="light"] .skeleton {
   from { transform: translateX(-100%); }
   to { transform: translateX(0); }
 }
+
+/* ── Animated gift badge (cashback promo slide) ────────────── */
+.gift-badge {
+  animation: gift-bounce 1.6s ease-in-out infinite;
+}
+@keyframes gift-bounce {
+  0%, 100% { transform: translateY(0) rotate(-4deg); }
+  50% { transform: translateY(-6px) rotate(4deg); }
+}
