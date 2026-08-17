@@ -3,6 +3,93 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/client";
 import { useToast } from "@/components/BetSlipContext";
+import { IconWhatsApp, IconTelegram, IconCoins, IconSmartphone, IconGear, IconGlobe, IconPencil } from "@/components/icons";
+
+type FieldType = "text" | "password" | "number" | "toggle" | "select";
+type Field = {
+  key: string;
+  label: string;
+  type: FieldType;
+  options?: string[];
+  hint?: string;
+};
+
+const GROUPS: { title: string; icon: React.ReactNode; fields: Field[] }[] = [
+  {
+    title: "Branding",
+    icon: <IconPencil className="h-4 w-4" />,
+    fields: [
+      { key: "site.name", label: "Site name", type: "text" },
+      { key: "site.tagline", label: "Tagline", type: "text" },
+      { key: "branding.primaryColor", label: "Primary color", type: "text", hint: "Hex, e.g. #00e676" },
+      { key: "branding.secondaryColor", label: "Background color", type: "text", hint: "Hex, e.g. #0b1220" },
+      { key: "branding.accentColor", label: "Accent color", type: "text", hint: "Hex, e.g. #7c3aed" },
+    ],
+  },
+  {
+    title: "Betting",
+    icon: <IconGear className="h-4 w-4" />,
+    fields: [
+      { key: "betting.minStake", label: "Minimum stake", type: "number" },
+      { key: "betting.maxStake", label: "Maximum stake", type: "number" },
+      { key: "betting.maxPayout", label: "Maximum payout", type: "number" },
+    ],
+  },
+  {
+    title: "Support & Social (sliding menu)",
+    icon: <IconWhatsApp className="h-4 w-4" />,
+    fields: [
+      { key: "support.whatsapp", label: "WhatsApp number", type: "text", hint: "International format, e.g. 254712345678" },
+      { key: "support.whatsappMessage", label: "WhatsApp default message", type: "text" },
+      { key: "support.whatsappEnabled", label: "Show WhatsApp button", type: "toggle" },
+      { key: "support.whatsappPosition", label: "WhatsApp position", type: "select", options: ["bottom-left", "bottom-right"] },
+      { key: "support.telegram", label: "Telegram URL", type: "text", hint: "e.g. https://t.me/voltbet" },
+      { key: "support.telegramEnabled", label: "Show Telegram button", type: "toggle" },
+      { key: "support.telegramPosition", label: "Telegram position", type: "select", options: ["bottom-left", "bottom-right"] },
+      { key: "support.email", label: "Support email", type: "text" },
+    ],
+  },
+  {
+    title: "Crypto Payments (NOWPayments)",
+    icon: <IconCoins className="h-4 w-4" />,
+    fields: [
+      { key: "crypto.provider", label: "Provider", type: "select", options: ["", "NOWPAYMENTS"] },
+      { key: "crypto.apiKey", label: "API key (create payments)", type: "password" },
+      { key: "crypto.ipnSecret", label: "IPN secret (webhook HMAC)", type: "password" },
+      { key: "crypto.payoutApiKey", label: "Payout API key (withdrawals)", type: "password" },
+      { key: "crypto.minDeposit", label: "Minimum deposit", type: "number" },
+      { key: "crypto.maxDeposit", label: "Maximum deposit", type: "number" },
+      { key: "crypto.confirmations", label: "Required confirmations", type: "number" },
+      { key: "crypto.expirationMinutes", label: "Payment expiration (minutes)", type: "number" },
+      { key: "crypto.currencies", label: "Supported cryptos", type: "text", hint: 'JSON array, e.g. ["BTC","USDT"]' },
+      { key: "crypto.rates", label: "Crypto rates (KES per 1 coin)", type: "text", hint: 'JSON object, e.g. {"BTC":8500000,"USDT":129}' },
+    ],
+  },
+  {
+    title: "M-Pesa (Daraja)",
+    icon: <IconSmartphone className="h-4 w-4" />,
+    fields: [
+      { key: "mpesa.enabled", label: "M-Pesa enabled", type: "toggle" },
+      { key: "mpesa.env", label: "Environment", type: "select", options: ["sandbox", "production"] },
+      { key: "mpesa.consumerKey", label: "Consumer key", type: "password" },
+      { key: "mpesa.consumerSecret", label: "Consumer secret", type: "password" },
+      { key: "mpesa.passkey", label: "Lipa na M-Pesa passkey", type: "password" },
+      { key: "mpesa.shortcode", label: "Paybill shortcode", type: "text", hint: "Sandbox: 174379" },
+      { key: "mpesa.initiatorName", label: "B2C initiator name", type: "text", hint: "Sandbox default: testapi" },
+      { key: "mpesa.securityCredential", label: "B2C security credential", type: "password", hint: "Generate via scripts/gen-mpesa-credential.ts" },
+      { key: "mpesa.callbackSecret", label: "Webhook URL secret", type: "password", hint: "Keep random; don't rotate mid-test" },
+    ],
+  },
+  {
+    title: "App & Homepage",
+    icon: <IconGlobe className="h-4 w-4" />,
+    fields: [
+      { key: "app.url", label: "Public app URL", type: "text", hint: "e.g. https://yourapp.up.railway.app — used for webhook callbacks" },
+      { key: "home.heroTitle", label: "Hero title", type: "text" },
+      { key: "home.heroSubtitle", label: "Hero subtitle", type: "text" },
+    ],
+  },
+];
 
 export default function AdminSettings() {
   const { push } = useToast();
@@ -13,77 +100,7 @@ export default function AdminSettings() {
     apiFetch<{ settings: Record<string, string> }>("/api/admin/settings").then((r) => r.ok && setSettings(r.data.settings));
   }, []);
 
-  const groups: { title: string; keys: [string, string][] }[] = [
-    {
-      title: "Branding",
-      keys: [
-        ["site.name", "Site name"],
-        ["site.tagline", "Tagline"],
-        ["branding.primaryColor", "Primary color (hex)"],
-        ["branding.secondaryColor", "Background color (hex)"],
-        ["branding.accentColor", "Accent color (hex)"],
-      ],
-    },
-    {
-      title: "Betting",
-      keys: [
-        ["betting.minStake", "Minimum stake"],
-        ["betting.maxStake", "Maximum stake"],
-        ["betting.maxPayout", "Maximum payout"],
-      ],
-    },
-    {
-      title: "Support",
-      keys: [
-        ["support.whatsapp", "WhatsApp number"],
-        ["support.whatsappMessage", "WhatsApp default message"],
-        ["support.whatsappEnabled", "WhatsApp button enabled (true/false)"],
-        ["support.whatsappPosition", "WhatsApp position (bottom-left / bottom-right)"],
-        ["support.telegram", "Telegram URL"],
-        ["support.telegramText", "Telegram button text"],
-        ["support.telegramEnabled", "Telegram button enabled (true/false)"],
-        ["support.telegramPosition", "Telegram position (bottom-left / bottom-right)"],
-        ["support.email", "Support email"],
-      ],
-    },
-    {
-      title: "Crypto Payments (NOWPayments)",
-      keys: [
-        ["crypto.provider", "Provider (NOWPAYMENTS)"],
-        ["crypto.apiKey", "API key (create payments)"],
-        ["crypto.ipnSecret", "IPN secret (webhook HMAC)"],
-        ["crypto.payoutApiKey", "Payout API key (withdrawals)"],
-        ["crypto.minDeposit", "Minimum deposit"],
-        ["crypto.maxDeposit", "Maximum deposit"],
-        ["crypto.confirmations", "Required confirmations"],
-        ["crypto.expirationMinutes", "Payment expiration (minutes)"],
-        ["crypto.currencies", "Supported cryptos (JSON array)"],
-        ["crypto.rates", "Crypto rates in KES per 1 coin (JSON, for deposit estimates)"],
-      ],
-    },
-    {
-      title: "M-Pesa (Daraja)",
-      keys: [
-        ["mpesa.enabled", "M-Pesa enabled (true/false)"],
-        ["mpesa.env", "Environment (sandbox / production)"],
-        ["mpesa.consumerKey", "Consumer key"],
-        ["mpesa.consumerSecret", "Consumer secret"],
-        ["mpesa.passkey", "Lipa na M-Pesa passkey"],
-        ["mpesa.shortcode", "Paybill shortcode (e.g. 174379 sandbox)"],
-        ["mpesa.initiatorName", "B2C initiator name"],
-        ["mpesa.securityCredential", "B2C security credential (generated — see docs)"],
-        ["mpesa.callbackSecret", "Webhook URL secret (keep random)"],
-        ["app.url", "Public app URL for webhooks (e.g. https://yourapp.up.railway.app)"],
-      ],
-    },
-    {
-      title: "Homepage",
-      keys: [
-        ["home.heroTitle", "Hero title"],
-        ["home.heroSubtitle", "Hero subtitle"],
-      ],
-    },
-  ];
+  const set = (key: string, value: string) => setSettings((s) => ({ ...s, [key]: value }));
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -96,24 +113,68 @@ export default function AdminSettings() {
 
   return (
     <form onSubmit={save} className="max-w-3xl space-y-5">
-      <h2 className="text-lg font-bold">Website Settings</h2>
-      {groups.map((g) => (
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-bold">Website Settings</h2>
+        <span className="hidden items-center gap-1.5 text-xs text-ink3 sm:flex">
+          <IconTelegram className="h-4 w-4" /> Sliding-menu social links &amp; payment keys live here
+        </span>
+      </div>
+
+      {GROUPS.map((g) => (
         <div key={g.title} className="card p-5">
-          <h3 className="font-bold">{g.title}</h3>
-          <div className="mt-3 space-y-3">
-            {g.keys.map(([key, label]) => (
-              <div key={key}>
-                <label className="label">{label}</label>
-                <input
-                  className="input font-mono text-xs"
-                  value={settings[key] ?? ""}
-                  onChange={(e) => setSettings((s) => ({ ...s, [key]: e.target.value }))}
-                />
-              </div>
-            ))}
+          <h3 className="flex items-center gap-2 font-bold">
+            <span className="text-brand">{g.icon}</span>
+            {g.title}
+          </h3>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            {g.fields.map((f) => {
+              const value = settings[f.key] ?? "";
+              if (f.type === "toggle") {
+                const on = value === "true";
+                return (
+                  <div key={f.key} className="flex items-center justify-between rounded-xl border border-line bg-[#0d1526] px-4 py-3">
+                    <span className="text-sm font-medium text-ink2">{f.label}</span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={on}
+                      onClick={() => set(f.key, on ? "false" : "true")}
+                      className={`relative h-6 w-11 rounded-full transition-colors ${on ? "bg-brand" : "bg-line2"}`}
+                    >
+                      <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${on ? "left-[22px]" : "left-0.5"}`} />
+                    </button>
+                  </div>
+                );
+              }
+              if (f.type === "select") {
+                return (
+                  <div key={f.key}>
+                    <label className="label">{f.label}</label>
+                    <select className="input" value={value} onChange={(e) => set(f.key, e.target.value)}>
+                      {(f.options ?? []).map((o) => (
+                        <option key={o} value={o}>{o === "" ? "— none —" : o}</option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              }
+              return (
+                <div key={f.key}>
+                  <label className="label">{f.label}</label>
+                  <input
+                    className="input font-mono text-xs"
+                    type={f.type === "password" ? "password" : f.type === "number" ? "number" : "text"}
+                    value={value}
+                    onChange={(e) => set(f.key, e.target.value)}
+                  />
+                  {f.hint && <p className="mt-1 text-[11px] text-ink3">{f.hint}</p>}
+                </div>
+              );
+            })}
           </div>
         </div>
       ))}
+
       <button className="btn btn-primary px-8" disabled={loading}>{loading ? "Saving…" : "Save All Settings"}</button>
     </form>
   );

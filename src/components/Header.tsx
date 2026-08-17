@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/client";
 import { useToast } from "@/components/BetSlipContext";
-import Drawer from "@/components/Drawer";
+import Drawer, { SupportLinks } from "@/components/Drawer";
 import {
   IconMenu,
   IconSearch,
@@ -45,7 +45,15 @@ const DESKTOP_NAV = [
   { label: "Results", href: "/results" },
 ];
 
-export default function Header({ user, siteName }: { user: HeaderUser; siteName: string }) {
+export default function Header({
+  user,
+  siteName,
+  support,
+}: {
+  user: HeaderUser;
+  siteName: string;
+  support: SupportLinks;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const { push } = useToast();
@@ -213,7 +221,7 @@ export default function Header({ user, siteName }: { user: HeaderUser; siteName:
       </div>
 
       {/* ── Sliding side drawer ────────────────────────────── */}
-      <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
+      <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} support={support} />
     </header>
   );
 }

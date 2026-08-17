@@ -268,3 +268,170 @@ export function IconCrown({ className }: IconProps) {
     </Svg>
   );
 }
+
+// ── Brand + admin icons ──────────────────────────────────────
+
+export function IconWhatsApp({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 32 32" fill="currentColor" aria-hidden="true" className={className ?? "h-5 w-5"}>
+      <path d="M16 3C9.4 3 4 8.4 4 15c0 2.6.8 5 2.2 7L4 29l7.2-2.1c1.9 1 4 1.6 6.3 1.6 6.6 0 12-5.4 12-12S22.6 3 16 3zm0 21.8c-2.2 0-4.3-.6-6.1-1.8l-.4-.3-4.2 1.2 1.2-4.1-.3-.4C5.1 17.8 4.5 15.9 4.5 14 4.5 8.7 9.3 3.9 16 3.9S27.5 8.7 27.5 14 22.7 24.8 16 24.8zm5.8-7.3c-.3-.2-1.8-.9-2.1-1-.3-.1-.5-.2-.7.2-.2.3-.8 1-.9 1.2-.2.2-.3.2-.6.1-.3-.2-1.3-.5-2.4-1.5-.9-.8-1.5-1.8-1.7-2.1-.2-.3 0-.5.1-.6l.5-.6c.2-.2.2-.4.3-.6.1-.2 0-.4 0-.5-.1-.2-.7-1.8-1-2.4-.3-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.5s1.1 2.9 1.2 3.1c.2.2 2.1 3.3 5.1 4.6.7.3 1.3.5 1.7.6.7.2 1.4.2 1.9.1.6-.1 1.8-.7 2-1.4.3-.7.3-1.3.2-1.4-.1-.1-.3-.2-.6-.4z" />
+    </svg>
+  );
+}
+
+export function IconTelegram({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className={className ?? "h-5 w-5"}>
+      <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z" />
+    </svg>
+  );
+}
+
+export function IconDashboard({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <rect x="3" y="3" width="8" height="8" rx="2" />
+      <rect x="13" y="3" width="8" height="5" rx="2" />
+      <rect x="13" y="10" width="8" height="11" rx="2" />
+      <rect x="3" y="13" width="8" height="8" rx="2" />
+    </Svg>
+  );
+}
+
+export function IconCalendar({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M8 3v4M16 3v4M3 10h18" />
+    </Svg>
+  );
+}
+
+export function IconUsers({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <circle cx="9" cy="8" r="3.5" />
+      <path d="M2.5 20a6.5 6.5 0 0 1 13 0" />
+      <circle cx="17.5" cy="9" r="2.5" />
+      <path d="M16 14.5a5 5 0 0 1 5.5 5" />
+    </Svg>
+  );
+}
+
+export function IconDownload({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M12 3v12" />
+      <path d="m6 11 6 6 6-6" />
+      <path d="M4 21h16" />
+    </Svg>
+  );
+}
+
+export function IconUpload({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M12 16V4" />
+      <path d="m6 8 6-6 6 6" />
+      <path d="M4 21h16" />
+    </Svg>
+  );
+}
+
+export function IconCoins({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <circle cx="9" cy="9" r="6" />
+      <path d="M9 5.5a5 5 0 0 1 5 5" />
+      <circle cx="16.5" cy="15.5" r="5" />
+      <path d="M16.5 12.5a3.8 3.8 0 0 1 3.8 3.8" />
+    </Svg>
+  );
+}
+
+export function IconGlobe({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18" />
+      <path d="M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18Z" />
+    </Svg>
+  );
+}
+
+export function IconGift2({ className }: IconProps) {
+  return <IconGift className={className} />;
+}
+
+export function IconStar({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="m12 3 2.7 5.6 6.1.8-4.5 4.3 1.1 6-5.4-2.9-5.4 2.9 1.1-6L3.2 9.4l6.1-.8L12 3Z" />
+    </Svg>
+  );
+}
+
+export function IconImage({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <circle cx="9" cy="10" r="2" />
+      <path d="m21 16-5-5-9 9" />
+    </Svg>
+  );
+}
+
+export function IconBell({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M6 9a6 6 0 1 1 12 0c0 5 2 6 2 6H4s2-1 2-6" />
+      <path d="M10 20a2.2 2.2 0 0 0 4 0" />
+    </Svg>
+  );
+}
+
+export function IconGear({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.2a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.2a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.2a1.7 1.7 0 0 0 1 1.5h.1a1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.2a1.7 1.7 0 0 0-1.5 1Z" />
+    </Svg>
+  );
+}
+
+export function IconScroll({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M8 3h9a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H7a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h9" />
+      <path d="M9 6V5a2 2 0 0 1 4 0v1" />
+      <path d="M9 12h6M9 16h4" />
+    </Svg>
+  );
+}
+
+export function IconPencil({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3Z" />
+    </Svg>
+  );
+}
+
+export function IconTrash({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M3 6h18" />
+      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+    </Svg>
+  );
+}
+
+export function IconSmartphone({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <rect x="6" y="2" width="12" height="20" rx="3" />
+      <path d="M11 18h2" />
+    </Svg>
+  );
+}

@@ -3,6 +3,22 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { can, Resource } from "@/lib/api";
 import { getSettings } from "@/lib/settings";
+import {
+  IconDashboard,
+  IconFootball,
+  IconCalendar,
+  IconUsers,
+  IconDownload,
+  IconUpload,
+  IconCoins,
+  IconGlobe,
+  IconGift2,
+  IconStar,
+  IconImage,
+  IconBell,
+  IconGear,
+  IconScroll,
+} from "@/components/icons";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
@@ -10,21 +26,21 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   const s = await getSettings();
 
-  const NAV: { resource: Resource; href: string; label: string; icon: string }[] = [
-    { resource: "dashboard", href: "/admin", label: "Dashboard", icon: "📊" },
-    { resource: "sports", href: "/admin/sports", label: "Sports", icon: "⚽" },
-    { resource: "games", href: "/admin/games", label: "Games", icon: "🗓️" },
-    { resource: "users", href: "/admin/users", label: "Users", icon: "👥" },
-    { resource: "deposits", href: "/admin/deposits", label: "Deposits", icon: "📥" },
-    { resource: "withdrawals", href: "/admin/withdrawals", label: "Withdrawals", icon: "📤" },
-    { resource: "currencies", href: "/admin/currencies", label: "Currencies", icon: "💱" },
-    { resource: "languages", href: "/admin/languages", label: "Languages", icon: "🌐" },
-    { resource: "promotions", href: "/admin/promotions", label: "Promotions", icon: "🎁" },
-    { resource: "testimonials", href: "/admin/testimonials", label: "Testimonials", icon: "⭐" },
-    { resource: "banners", href: "/admin/banners", label: "Banners", icon: "🖼️" },
-    { resource: "notifications", href: "/admin/notifications", label: "Announcements", icon: "🔔" },
-    { resource: "settings", href: "/admin/settings", label: "Website Settings", icon: "⚙️" },
-    { resource: "audit", href: "/admin/audit", label: "Audit Logs", icon: "📜" },
+  const NAV: { resource: Resource; href: string; label: string; Icon: (p: { className?: string }) => React.ReactNode }[] = [
+    { resource: "dashboard", href: "/admin", label: "Dashboard", Icon: IconDashboard },
+    { resource: "sports", href: "/admin/sports", label: "Sports", Icon: IconFootball },
+    { resource: "games", href: "/admin/games", label: "Games", Icon: IconCalendar },
+    { resource: "users", href: "/admin/users", label: "Users", Icon: IconUsers },
+    { resource: "deposits", href: "/admin/deposits", label: "Deposits", Icon: IconDownload },
+    { resource: "withdrawals", href: "/admin/withdrawals", label: "Withdrawals", Icon: IconUpload },
+    { resource: "currencies", href: "/admin/currencies", label: "Currencies", Icon: IconCoins },
+    { resource: "languages", href: "/admin/languages", label: "Languages", Icon: IconGlobe },
+    { resource: "promotions", href: "/admin/promotions", label: "Promotions", Icon: IconGift2 },
+    { resource: "testimonials", href: "/admin/testimonials", label: "Testimonials", Icon: IconStar },
+    { resource: "banners", href: "/admin/banners", label: "Banners", Icon: IconImage },
+    { resource: "notifications", href: "/admin/notifications", label: "Announcements", Icon: IconBell },
+    { resource: "settings", href: "/admin/settings", label: "Website Settings", Icon: IconGear },
+    { resource: "audit", href: "/admin/audit", label: "Audit Logs", Icon: IconScroll },
   ];
   const visible = NAV.filter((n) => can(user.role, n.resource));
 
@@ -47,7 +63,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
                 href={n.href}
                 className="block rounded-lg px-3 py-2 text-sm font-medium text-ink2 transition-colors hover:bg-white/5 hover:text-ink"
               >
-                {n.icon} {n.label}
+                <span className="inline-flex items-center gap-2">
+                  <n.Icon className="h-4 w-4 text-ink3" />
+                  {n.label}
+                </span>
               </Link>
             ))}
           </nav>

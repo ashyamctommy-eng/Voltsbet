@@ -6,7 +6,6 @@ import { useTheme } from "@/components/ThemeProvider";
 import {
   IconLive,
   IconLightning,
-  IconWallet,
   IconArrowDown,
   IconArrowUp,
   IconTicket,
@@ -14,30 +13,48 @@ import {
   IconHelp,
   IconMoon,
   IconSun,
-  IconFlag,
   IconChevronRight,
   IconCrown,
   IconDice,
+  IconWhatsApp,
+  IconTelegram,
 } from "@/components/icons";
+
+export type SupportLinks = {
+  whatsappEnabled: boolean;
+  whatsapp: string;
+  telegramEnabled: boolean;
+  telegram: string;
+};
 
 const SPORT_LINKS = [
   { href: "/live", label: "Live Games", Icon: IconLive },
-  { href: "/vfootball", label: "vFootball", Icon: IconLightning },
   { href: "/account/deposit", label: "Deposit", Icon: IconArrowDown },
   { href: "/account/withdraw", label: "Withdraw", Icon: IconArrowUp },
   { href: "/account/bets", label: "My Bets", Icon: IconTicket },
+  { href: "/vfootball", label: "vFootball", Icon: IconLightning },
   { href: "/account", label: "Refer & Earn", Icon: IconGift },
 ];
 
 const TOP_LEAGUES = [
-  { name: "Premier League", flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", href: "/sports/football" },
-  { name: "Championship", flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", href: "/sports/football" },
-  { name: "La Liga", flag: "🇪🇸", href: "/sports/football" },
+  { name: "Premier League", href: "/sports/football", Flag: EnglandFlag },
+  { name: "Championship", href: "/sports/football", Flag: EnglandFlag },
+  { name: "La Liga", href: "/sports/football", Flag: SpainFlag },
 ];
 
-export default function Drawer({ open, onClose }: { open: boolean; onClose: () => void }) {
+export default function Drawer({
+  open,
+  onClose,
+  support,
+}: {
+  open: boolean;
+  onClose: () => void;
+  support: SupportLinks;
+}) {
   const pathname = usePathname();
   const { theme, toggle } = useTheme();
+  const showWhatsApp = support.whatsappEnabled && !!support.whatsapp;
+  const showTelegram = support.telegramEnabled && !!support.telegram;
 
   return (
     <div className={`fixed inset-0 z-[70] ${open ? "" : "pointer-events-none"}`} aria-hidden={!open}>
@@ -114,8 +131,8 @@ export default function Drawer({ open, onClose }: { open: boolean; onClose: () =
                 onClick={onClose}
                 className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink2 transition-colors hover:bg-white/5 hover:text-ink"
               >
-                <span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-white/5 text-sm">
-                  {l.flag}
+                <span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-white/5">
+                  <l.Flag className="h-4 w-5" />
                 </span>
                 {l.name}
                 <IconChevronRight className="ml-auto h-4 w-4 text-ink3" />
@@ -132,15 +149,44 @@ export default function Drawer({ open, onClose }: { open: boolean; onClose: () =
               <Link href="/responsible-gambling" onClick={onClose} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink2 hover:bg-white/5 hover:text-ink">
                 <IconHelp className="h-5 w-5" /> Help &amp; Support
               </Link>
-              <Link href="/terms" onClick={onClose} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink2 hover:bg-white/5 hover:text-ink">
-                <IconFlag className="h-5 w-5" /> Terms &amp; Conditions
-              </Link>
             </div>
           </div>
         </div>
 
-        {/* Dark theme toggle pinned at the bottom */}
+        {/* Pinned bottom: social (admin-configured) + theme toggle */}
         <div className="border-t border-line px-4 py-4">
+          {(showWhatsApp || showTelegram) && (
+            <div className="mb-3 flex items-center gap-3 rounded-xl bg-white/5 px-4 py-3">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-ink3">Connect</span>
+              <div className="ml-auto flex items-center gap-2">
+                {showWhatsApp && (
+                  <a
+                    href={`https://wa.me/${support.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent("Hello! I need help.")}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="WhatsApp"
+                    title="WhatsApp"
+                    className="flex h-9 w-9 items-center justify-center rounded-full bg-[#25D366] text-white transition-transform hover:scale-110"
+                  >
+                    <IconWhatsApp className="h-5 w-5" />
+                  </a>
+                )}
+                {showTelegram && (
+                  <a
+                    href={support.telegram}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Telegram"
+                    title="Telegram"
+                    className="flex h-9 w-9 items-center justify-center rounded-full bg-[#229ED9] text-white transition-transform hover:scale-110"
+                  >
+                    <IconTelegram className="h-5 w-5" />
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center justify-between rounded-xl bg-white/5 px-4 py-3">
             <span className="flex items-center gap-2 text-sm font-semibold text-ink2">
               {theme === "dark" ? <IconMoon className="h-5 w-5" /> : <IconSun className="h-5 w-5" />}
@@ -166,5 +212,28 @@ export default function Drawer({ open, onClose }: { open: boolean; onClose: () =
         </div>
       </aside>
     </div>
+  );
+}
+
+/* ── Simplified league flags (SVG) ─────────────────────────── */
+
+function EnglandFlag({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 60 40" className={className} aria-hidden>
+      <rect width="60" height="40" fill="#fff" />
+      <path d="M0 0h60v40H0z" fill="#CE1124" opacity="0.28" />
+      <path d="M28 0h4v40h-4z" fill="#CE1124" />
+      <path d="M0 18h60v4H0z" fill="#CE1124" />
+    </svg>
+  );
+}
+
+function SpainFlag({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 60 40" className={className} aria-hidden>
+      <rect width="60" height="40" fill="#C60B1E" />
+      <rect y="10" width="60" height="20" fill="#FFC400" />
+      <circle cx="30" cy="20" r="3.4" fill="#C60B1E" />
+    </svg>
   );
 }

@@ -52,7 +52,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <ThemeProvider>
           <ToastProvider>
             <BetSlipProvider>
-              <Header user={headerUser} siteName={s.siteName} />
+              <Header
+                user={headerUser}
+                siteName={s.siteName}
+                support={{
+                  whatsappEnabled: s.whatsappEnabled,
+                  whatsapp: s.whatsapp,
+                  telegramEnabled: s.telegramEnabled,
+                  telegram: s.telegram,
+                }}
+              />
               <main className="min-h-[60vh] pb-20 xl:pb-0">{children}</main>
               <Footer />
               <MobileNav loggedIn={!!user} />
