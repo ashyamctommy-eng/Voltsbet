@@ -30,6 +30,29 @@ type SlideGame = {
 
 const INTERVAL_MS = 5000;
 
+/**
+ * Competitions that get priority in the hero carousel (checked in order).
+ * Odds-API.io names include the country prefix ("England - Premier League",
+ * "International Clubs - UEFA Champions League"), so substring match works.
+ */
+const TOP_LEAGUES = [
+  "champions league", "europa league", "conference league", "world cup",
+  "afcon", "african nations", "copa america", "copa libertadores",
+  "premier league", "la liga", "serie a", "bundesliga", "ligue 1",
+  "eredivisie", "primeira liga", "championship", "fa cup",
+  "scottish premiership", "super lig",
+  // African competitions/leagues get boosted ahead of the long tail
+  "south africa", "egypt", "nigeria", "ghana", "kenya", "tanzania", "uganda",
+  "zimbabwe", "morocco", "tunisia", "algeria", "angola", "mozambique",
+  "zambia", "malawi", "ethiopia", "senegal", "caf",
+];
+
+const leagueRank = (g: SlideGame) => {
+  const name = (g.competitionName ?? "").toLowerCase();
+  const i = TOP_LEAGUES.findIndex((k) => name.includes(k));
+  return i === -1 ? TOP_LEAGUES.length : i;
+};
+
 /** Hero carousel: cashback promo slide + auto-rotating live/upcoming matches. */
 export default function MatchSlideshow({ games }: { games: SlideGame[] }) {
   const matchSlides = useMemo(() => {
@@ -37,7 +60,11 @@ export default function MatchSlideshow({ games }: { games: SlideGame[] }) {
     const live = games.filter((g) => g.live || g.status === "LIVE");
     const upcoming = games
       .filter((g) => !g.live && g.status !== "LIVE" && new Date(g.startAt) > now)
-      .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
+      .sort(
+        (a, b) =>
+          leagueRank(a) - leagueRank(b) ||
+          new Date(a.startAt).getTime() - new Date(b.startAt).getTime(),
+      );
     return [...live, ...upcoming].slice(0, 7); // +1 promo slide
   }, [games]);
 
