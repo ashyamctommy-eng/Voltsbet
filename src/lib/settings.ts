@@ -166,7 +166,10 @@ export async function getSettings(): Promise<SiteSettings> {
   s.oddsProvider = raw["odds.provider"] ?? s.oddsProvider;
   s.oddsMarginPercent = Number(raw["odds.marginPercent"] ?? s.oddsMarginPercent);
   s.maxLiabilityPerMarket = Number(raw["betting.maxLiabilityPerMarket"] ?? s.maxLiabilityPerMarket);
-  s.hideSeededGames = raw["games.hideSeeded"] === "true";
+  s.hideSeededGames =
+    process.env.SHOW_SEEDED_GAMES !== undefined
+      ? process.env.SHOW_SEEDED_GAMES !== "true" // env wins: "false" = hide seeds
+      : raw["games.hideSeeded"] === "true";
   s.referralEnabled = (raw["referral.enabled"] ?? String(DEFAULTS.referralEnabled)) === "true";
   s.referralBonusPercent = Number(raw["referral.bonusPercent"] ?? s.referralBonusPercent);
   s.referralBonusCap = Number(raw["referral.bonusCap"] ?? s.referralBonusCap);

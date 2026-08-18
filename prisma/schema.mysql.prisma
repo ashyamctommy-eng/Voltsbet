@@ -45,6 +45,7 @@ model User {
   deposits     Deposit[]
   withdrawals  Withdrawal[]
   notifications Notification[]
+  broadcasts   Broadcast[]
 
   @@index([role])
   @@index([status])
@@ -374,6 +375,21 @@ model Notification {
   createdAt DateTime @default(now())
 
   @@index([userId])
+}
+
+/// Admin announcement broadcasts — global or targeted at one user.
+model Broadcast {
+  id         String   @id @default(cuid())
+  title      String
+  message    String
+  targetType String   @default("ALL") // ALL | USER
+  userId     String? // set when targetType = USER
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdBy  String? // admin user id
+  createdAt  DateTime @default(now())
+
+  @@index([targetType, userId])
+  @@index([createdAt])
 }
 
 // ────────────────────────── Status engine & settings ─────────────────────

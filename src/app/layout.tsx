@@ -12,6 +12,7 @@ import Footer from "@/components/Footer";
 import MobileNav from "@/components/MobileNav";
 import SupportWidget from "@/components/SupportWidget";
 import BetSlip from "@/components/BetSlip";
+import BroadcastBanner from "@/components/BroadcastBanner";
 
 export const metadata: Metadata = {
   title: { default: "VoltBet — Sports Betting", template: "%s | VoltBet" },
@@ -67,6 +68,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   telegram: s.telegram,
                 }}
               >
+                <BroadcastBanner />
                 <Header user={headerUser} siteName={s.siteName} />
                 <main className="min-h-[60vh] pb-20 xl:pb-0">{children}</main>
                 <Footer />

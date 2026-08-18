@@ -2,7 +2,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { can, Resource } from "@/lib/api";
-import { getSettings } from "@/lib/settings";
 import {
   IconDashboard,
   IconFootball,
@@ -19,12 +18,11 @@ import {
   IconGear,
   IconScroll,
 } from "@/components/icons";
+import AdminBroadcastButton from "@/components/admin/BroadcastDrawer";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
   if (!user || user.role === "CUSTOMER") redirect("/login");
-
-  const s = await getSettings();
 
   const NAV: { resource: Resource; href: string; label: string; Icon: (p: { className?: string }) => React.ReactNode }[] = [
     { resource: "dashboard", href: "/admin", label: "Dashboard", Icon: IconDashboard },
@@ -50,6 +48,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-extrabold">Admin Panel</h1>
         <div className="flex items-center gap-3 text-sm text-ink2">
+          <AdminBroadcastButton />
           <span className="rounded-full bg-accent/15 px-3 py-1 font-semibold text-accent">{user.role.replace("_", " ")}</span>
           <Link href="/" className="text-ink3 hover:text-ink">← View site</Link>
         </div>
