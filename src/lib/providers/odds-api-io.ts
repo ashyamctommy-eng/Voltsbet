@@ -1,0 +1,238 @@
+/**
+ * Odds-API.io provider — api.odds-api.io/v3 (the company at odds-api.io).
+ *
+ * Real-time odds from 265+ bookmakers across 34 sports (incl. African +
+ * global football), REST API. Requires env: ODDS_IO_KEY  (free plan: 2
+ * recreational bookmakers, 100 req/hour; select them in the dashboard or via
+ * PUT /bookmakers/selected/select).
+ *
+ * Endpoints used (verified live 2026-08):
+ *   GET /events?sport=football            → events (defaults next 14 days,
+ *                                           hard cap 5000, status pending/live/
+ *                                           settled/cancelled, scores included)
+ *   GET /odds/multi?eventIds=1,2,…&bookmakers=…  → odds for ≤10 events/call
+ *   GET /events/live                      → in-play events + clock (minute,
+ *                                           period, running, statusDetail)
+ *   GET /bookmakers/selected              → user's selected bookmakers
+ * Auth: ?apiKey=… query param (key from https://odds-api.io/dashboard).
+ */
+import { ApiGame, OddsProvider } from "./odds-api";
+import { applyMarginGrid } from "../margin";
+import { getSettings } from "../settings";
+
+const BASE = "https://api.odds-api.io/v3";
+/** /odds/multi accepts up to 10 event ids per call. */
+const ODDS_BATCH = 10;
+/** Cap on imported pending events per sync (soonest kickoffs win). */
+const MAX_EVENTS = Number(process.env.ODDS_IO_MAX_EVENTS ?? 150) || 150;
+/** Bookmaker override; defaults to the account's selected bookmakers. */
+const BOOKMAKERS_OVERRIDE = (process.env.ODDS_IO_BOOKMAKERS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+
+type OddsValue = Record<string, string | number>;
+type Market = { name: string; updatedAt?: string; odds: OddsValue[] };
+
+type Event = {
+  id: number;
+  home: string;
+  away: string;
+  date: string; // ISO
+  status: string; // pending | live | settled | cancelled
+  league?: { name?: string; slug?: string };
+  scores?: { home: number | null; away: number | null };
+  clock?: { minute?: number | null; period?: number | null; running?: boolean | null };
+};
+
+type OddsEvent = Event & { bookmakers?: Record<string, Market[]> };
+
+export class OddsIoProvider implements OddsProvider {
+  id = "odds-api-io";
+
+  private key: string;
+
+  constructor() {
+    this.key = process.env.ODDS_IO_KEY ?? "";
+  }
+
+  private async get<T>(path: string): Promise<T> {
+    if (!this.key) throw new Error("ODDS_IO_KEY is not set");
+    const res = await fetch(`${BASE}${path}${path.includes("?") ? "&" : "?"}apiKey=${this.key}`);
+    if (!res.ok) throw new Error(`Odds-API.io ${res.status}: ${await res.text().catch(() => "")}`);
+    return res.json() as Promise<T>;
+  }
+
+  async fetchSports() {
+    // /sports needs no auth; other sports map through SPORT_KEY_MAP anyway.
+    const res = await fetch(`${BASE}/sports`);
+    if (!res.ok) throw new Error(`Odds-API.io ${res.status}`);
+    const data = (await res.json()) as { name: string; slug: string }[];
+    return data.map((s) => ({ key: s.slug, name: s.name }));
+  }
+
+  async fetchUpcomingGames(sportKeys: string[]) {
+    if (!sportKeys.includes("football")) return [];
+    const margin = (await getSettings()).oddsMarginPercent;
+
+    const events = await this.get<Event[]>(`/events?sport=football`);
+    const upcoming = events
+      .filter((e) => e.status === "pending")
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .slice(0, MAX_EVENTS);
+    if (!upcoming.length) return [];
+
+    const oddsByEvent = await this.fetchOddsBatch(
+      upcoming.map((e) => e.id),
+    );
+
+    return upcoming.map((e) => ({
+      externalId: `oddsio-${e.id}`,
+      sportKey: "football",
+      competitionName: e.league?.name,
+      homeName: e.home,
+      awayName: e.away,
+      startAt: new Date(e.date),
+      markets: this.buildMarkets(e, oddsByEvent.get(e.id) ?? [], margin),
+    }));
+  }
+
+  /** Fetch odds for up to MAX_EVENTS events in batches of 10 via /odds/multi. */
+  private async fetchOddsBatch(ids: number[]): Promise<Map<number, Market[]>> {
+    const map = new Map<number, Market[]>();
+    const bookmakers = BOOKMAKERS_OVERRIDE.length
+      ? BOOKMAKERS_OVERRIDE
+      : await this.selectedBookmakers();
+    if (!bookmakers.length) return map;
+
+    for (let i = 0; i < ids.length; i += ODDS_BATCH) {
+      const chunk = ids.slice(i, i + ODDS_BATCH);
+      try {
+        const odds = await this.get<OddsEvent[]>(
+          `/odds/multi?eventIds=${chunk.join(",")}&bookmakers=${bookmakers.join(",")}`,
+        );
+        for (const ev of odds) {
+          // Prefer the first selected bookmaker with markets (feed margins
+          // are stripped/re-priced below anyway).
+          const markets = bookmakers.map((b) => ev.bookmakers?.[b] ?? []).find((m) => m.length);
+          if (markets) map.set(ev.id, markets);
+        }
+      } catch {
+        /* odds optional — game still imported without odds */
+      }
+    }
+    return map;
+  }
+
+  private async selectedBookmakers(): Promise<string[]> {
+    try {
+      const sel = await this.get<{ bookmakers: string[] }>(`/bookmakers/selected`);
+      if (sel.bookmakers?.length) return sel.bookmakers;
+    } catch {
+      /* fall back below */
+    }
+    return ["1xbet"];
+  }
+
+  private buildMarkets(e: Event, markets: Market[], margin: number): ApiGame["markets"] {
+    const out: ApiGame["markets"] = [];
+    for (const m of markets) {
+      const odds = m.odds?.[0];
+      if (!odds) continue;
+
+      switch (m.name) {
+        case "ML": {
+          const home = Number(odds.home);
+          const draw = Number(odds.draw);
+          const away = Number(odds.away);
+          if (!(home > 1 && draw > 1 && away > 1)) continue;
+          const outcomes: { name: string; label?: string; odds: number }[] = [
+            { name: e.home, label: "1", odds: home },
+            { name: "Draw", label: "X", odds: draw },
+            { name: e.away, label: "2", odds: away },
+          ];
+          out.push({
+            key: "MATCH_RESULT",
+            name: "Match Result",
+            outcomes: applyMarginGrid(outcomes, margin),
+          });
+          break;
+        }
+        case "Double Chance": {
+          const x = Number(odds["1X"]);
+          const twelve = Number(odds["12"]);
+          const y = Number(odds["X2"]);
+          if (!(x > 1 && twelve > 1 && y > 1)) continue;
+          out.push({
+            key: "DOUBLE_CHANCE",
+            name: "Double Chance",
+            // lowercase names so auto-settle matches (1x / x2 / 12)
+            outcomes: applyMarginGrid(
+              [
+                { name: "1x", odds: x },
+                { name: "12", odds: twelve },
+                { name: "x2", odds: y },
+              ],
+              margin,
+            ),
+          });
+          break;
+        }
+        case "Totals": {
+          const over = Number(odds.over);
+          const under = Number(odds.under);
+          if (!(over > 1 && under > 1)) continue;
+          const line = odds.hdp ?? 0;
+          out.push({
+            key: "OVER_UNDER",
+            name: `Over/Under ${line}`,
+            // lowercase so auto-settle matches (over/under prefix + line)
+            outcomes: applyMarginGrid(
+              [
+                { name: `over ${line}`, odds: over },
+                { name: `under ${line}`, odds: under },
+              ],
+              margin,
+            ),
+          });
+          break;
+        }
+        case "Both Teams To Score": {
+          const yes = Number(odds.yes);
+          const no = Number(odds.no);
+          if (!(yes > 1 && no > 1)) continue;
+          out.push({
+            key: "BTTS",
+            name: "Both Teams To Score",
+            outcomes: applyMarginGrid(
+              [
+                { name: "yes", odds: yes },
+                { name: "no", odds: no },
+              ],
+              margin,
+            ),
+          });
+          break;
+        }
+        default:
+          break; // Spread, Team Totals, Corners, Correct Score, European Handicap, …
+      }
+    }
+    return out;
+  }
+
+  async fetchLiveScores(sportKeys: string[]) {
+    if (!sportKeys.includes("football")) return [];
+    // /events/live covers every sport — filter to football so tennis etc.
+    // never get matched to football games.
+    const events = await this.get<Event[]>(`/events/live?sport=football`);
+    return events.map((e) => {
+      const clock = e.clock?.minute != null ? `${e.clock.minute}'` : undefined;
+      return {
+        externalId: `oddsio-${e.id}`,
+        status: "live" as const,
+        homeScore: e.scores?.home ?? undefined,
+        awayScore: e.scores?.away ?? undefined,
+        period: e.clock?.period != null ? `Period ${e.clock.period}` : undefined,
+        clock,
+      };
+    });
+  }
+}

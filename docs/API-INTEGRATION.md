@@ -11,7 +11,7 @@ scores and results from an external provider — without being hard-coded to one
 - Docs: https://the-odds-api.com/liveapi/guides/v4/
 - Paid tiers from $30/mo (20K requests) — upgrade when you outgrow the free quota.
 
-## Alternate provider: Odds-API.io (API-Football v3)
+## Alternate provider: API-Football (api-sports.io)
 
 - **Free tier: 100 requests/day, no card — every endpoint including odds.**
 - Football only, but **global + African leagues, no region locks** — one key covers
@@ -23,11 +23,32 @@ scores and results from an external provider — without being hard-coded to one
   - `GET /fixtures?live=all` — in-play fixtures with score + minute
   - `GET /odds?date=YYYY-MM-DD&page=N` — pre-match odds (paginated 10/page)
 - Auth: `x-apisports-key: <key>` header (env `ODDS_API_IO_KEY`).
-- Switch: Admin → Settings → Odds & Risk → `odds.provider` = `odds-api-io`.
+- Switch: Admin → Settings → Odds & Risk → `odds.provider` = `api-football`.
 - Free-tier budget: 1 full sync = days-ahead (7) fixture calls + ≤3 odds pages/day
   (default) + 1 live call ≈ 29 requests. Run 1–2×/day; live polling every ~20 min
   keeps you under the 100/day cap. Tune with `ODDS_API_IO_DAYS_AHEAD` and
   `ODDS_API_IO_MAX_ODDS_PAGES`.
+
+## Alternate provider: Odds-API.io (api.odds-api.io/v3)
+
+- **The company at odds-api.io — NOT the same as API-Football above.** Free plan:
+  2 **recreational** bookmakers (sharp/exchange books are paid), 100 req/hour.
+- Global + African football confirmed (South Africa Premiership, Egypt Premier
+  League, Tunisia Ligue 1, Angola, Tanzania, Uganda, Zimbabwe, …) plus 34 sports.
+- Sign up → key + bookmaker selection: https://odds-api.io/dashboard
+- Endpoints used (verified live 2026-08):
+  - `GET /events?sport=football` — events, next 14 days by default, status
+    `pending | live | settled | cancelled`, scores included, hard cap 5000
+  - `GET /odds/multi?eventIds=…&bookmakers=…` — odds for ≤10 events per call
+  - `GET /events/live` — in-play events with clock (minute, period)
+  - `GET /bookmakers/selected` — the account's selected bookmakers
+- Auth: `?apiKey=` query param (env `ODDS_IO_KEY`).
+- Markets mapped: `ML` → MATCH_RESULT, `Double Chance` → DOUBLE_CHANCE,
+  `Totals` → OVER_UNDER, `Both Teams To Score` → BTTS (outcome names are
+  lowercase so auto-settle matches). Margin applied via the same grid.
+- Switch: Admin → Settings → Odds & Risk → `odds.provider` = `odds-api-io`.
+- Budget: 1 full sync ≈ 1 events call + ceil(events/10) odds calls + 1 live call;
+  capped at 150 events by default (`ODDS_IO_MAX_EVENTS`), so ≈ 17 requests.
 
 ## Why not the others (as of 2026): Sportmonks is excellent but €100+/mo after a
 14-day trial; football-data.org has no odds. Start free with The Odds API; the
@@ -36,10 +57,11 @@ provider layer makes swapping later a non-event.
 ## How it fits the codebase
 
 ```
-src/lib/providers/odds-api.ts     TheOddsApi class implements the OddsProvider interface
-src/lib/providers/api-football.ts ApiFootballProvider (Odds-API.io / API-Football v3)
-src/lib/sync.ts                   syncGames(): fetch → upsert → dedup (externalId unique)
-src/app/api/admin/sync/route.ts   manual trigger (admin button on Games page)
+src/lib/providers/odds-api.ts       TheOddsApi class (The Odds API, the-odds-api.com)
+src/lib/providers/api-football.ts   ApiFootballProvider (API-Football, api-sports.io)
+src/lib/providers/odds-api-io.ts    OddsIoProvider (Odds-API.io, api.odds-api.io/v3)
+src/lib/sync.ts                     syncGames(): fetch → upsert → dedup (externalId unique)
+src/app/api/admin/sync/route.ts     manual trigger (admin button on Games page)
 ```
 
 `OddsProvider` interface (implement a new file to add a provider):

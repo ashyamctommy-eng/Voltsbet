@@ -1,9 +1,11 @@
 /**
- * Odds-API.io (API-Football / api-sports.io) provider — v3.football.api-sports.io.
+ * API-Football provider (api-sports.io) — v3.football.api-sports.io.
  *
  * Covers global + African football leagues with real-time in-play metadata and
  * full market availability (1X2, Double Chance, BTTS, Over/Under…) with no
  * region locks. Requires env: ODDS_API_IO_KEY  (free tier: 100 requests/day).
+ * Provider id: "api-football" (NOT the same company as odds-api.io — see
+ * src/lib/providers/odds-api-io.ts for that one).
  *
  * Response mapping implemented per v3 docs:
  *   /fixtures → status.short (NS/1H/HT/2H/FT…), status.elapsed (minute),
@@ -68,7 +70,7 @@ type BetValue = { value: string; odd: string };
 type Bet = { id: number; name: string; values: BetValue[] };
 
 export class ApiFootballProvider implements OddsProvider {
-  id = "odds-api-io";
+  id = "api-football";
 
   private key: string;
 

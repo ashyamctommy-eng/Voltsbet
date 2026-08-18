@@ -14,17 +14,20 @@ import { teamLogo } from "@/lib/team-logos";
 import { getSettings } from "@/lib/settings";
 import { deriveDoubleChance, deriveDrawNoBet } from "@/lib/derived-markets";
 import { ApiFootballProvider } from "@/lib/providers/api-football";
+import { OddsIoProvider } from "@/lib/providers/odds-api-io";
 
 export const PROVIDERS: Record<string, () => OddsProvider> = {
   "the-odds-api": () => new TheOddsApi(),
-  "odds-api-io": () => new ApiFootballProvider(),
+  "api-football": () => new ApiFootballProvider(),
+  "odds-api-io": () => new OddsIoProvider(),
 };
 
 /** Env var that gates each provider — checked before syncing so a missing key
- *  never silently skips (and never blocks the other provider). */
+ *  never silently skips (and never blocks the other providers). */
 export const PROVIDER_KEY_ENV: Record<string, string> = {
   "the-odds-api": "ODDS_API_KEY",
-  "odds-api-io": "ODDS_API_IO_KEY",
+  "api-football": "ODDS_API_IO_KEY",
+  "odds-api-io": "ODDS_IO_KEY",
 };
 
 // Map provider sport keys → local sport slugs. Extend per your feed.
@@ -35,7 +38,7 @@ export const PROVIDER_KEY_ENV: Record<string, string> = {
 const SPORT_KEY_MAP: Record<string, string> = {
   soccer_epl: "football", soccer_spain_la_liga: "football",
   soccer_italy_serie_a: "football", soccer_germany_bundesliga: "football",
-  football: "football", // Odds-API.io (api-football) key
+  football: "football", // api-football (API-Football) + odds-api-io (Odds-API.io) sport key
   basketball_nba: "basketball",
   baseball_mlb: "baseball", icehockey_nhl: "ice-hockey",
 };
