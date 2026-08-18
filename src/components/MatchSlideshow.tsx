@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import TeamLogo from "@/components/TeamLogo";
-import { IconGift } from "@/components/icons";
-import { formatDateTime } from "@/lib/odds";
+import { IconGift, IconClock } from "@/components/icons";
+import { formatKickoff, liveContext } from "@/lib/kickoff";
 
 type SlideGame = {
   id: string;
@@ -16,6 +16,7 @@ type SlideGame = {
   status: string;
   homeScore: number;
   awayScore: number;
+  period: string | null;
   clock: string | null;
   live: boolean;
   sport: { name: string; slug: string; icon: string | null };
@@ -112,11 +113,12 @@ function PromoSlide() {
 
 /* ── Slides 2+: featured match card ─────────────────────────── */
 function MatchSlide({ g, index, total }: { g: SlideGame; index: number; total: number }) {
-  const live = g.live || g.status === "LIVE";
+  const live = g.live || g.status === "LIVE" || g.status === "HALF_TIME";
+  const ctx = liveContext(g.status, g.clock, g.period);
 
   return (
     <Link
-      href={`/match/${g.id}`}
+      href={`/fixture/${g.id}`}
       className="card card-hover relative block overflow-hidden !border-brand/20"
     >
       <div className="pointer-events-none absolute -right-12 -top-14 h-44 w-44 rounded-full bg-brand/10 blur-2xl" />
@@ -126,10 +128,13 @@ function MatchSlide({ g, index, total }: { g: SlideGame; index: number; total: n
           <span className="truncate font-semibold text-ink3">{g.competitionName ?? g.sport.name}</span>
           {live ? (
             <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-red-500/15 px-2 py-0.5 font-bold text-red-400">
-              <span className="live-dot" /> LIVE {g.clock ? `· ${g.clock}` : ""}
+              <span className="live-dot" /> Live{ctx ? ` · ${ctx}` : ""}
             </span>
           ) : (
-            <span className="shrink-0 font-semibold text-ink3">{formatDateTime(g.startAt)}</span>
+            <span className="flex shrink-0 items-center gap-1 font-medium text-ink3">
+              <IconClock className="h-3.5 w-3.5" />
+              {formatKickoff(g.startAt)}
+            </span>
           )}
         </div>
 

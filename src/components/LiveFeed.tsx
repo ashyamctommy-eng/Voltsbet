@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import MatchCard from "@/components/MatchCard";
+import { IconTv, IconCalendar } from "@/components/icons";
 
 type FeedGame = {
   id: string;
@@ -80,7 +81,8 @@ export default function LiveFeed({ games }: { games: FeedGame[] }) {
       <div className="mt-6">
         {filtered.length === 0 ? (
           <div className="card p-12 text-center">
-            <div className="text-4xl">{tab === "live" ? "📺" : "🗓️"}</div>
+            <IconTv className={`mx-auto h-10 w-10 text-ink3 ${tab === "live" ? "" : "hidden"}`} />
+            <IconCalendar className={`mx-auto h-10 w-10 text-ink3 ${tab === "live" ? "hidden" : ""}`} />
             <p className="mt-3 font-semibold">No {tab} events</p>
             <p className="mt-1 text-sm text-ink3">
               {tab === "live" ? "Check another tab — upcoming and today's matches are listed here." : "Try another day tab — matches appear as soon as they're scheduled."}

@@ -42,6 +42,7 @@ export type SiteSettings = {
   heroTitle: string;
   heroSubtitle: string;
   // Odds & risk
+  oddsProvider: string; // the-odds-api | odds-api-io
   oddsMarginPercent: number; // overround added on top of feed odds (e.g. 6 = 6%)
   maxLiabilityPerMarket: number; // max exposure (potential payout) per market
   // Referrals
@@ -95,6 +96,7 @@ const DEFAULTS: SiteSettings = {
   appUrl: "",
   heroTitle: "Bet on the games you love",
   heroSubtitle: "Fast odds, instant crypto deposits, live betting.",
+  oddsProvider: "the-odds-api",
   oddsMarginPercent: 6,
   maxLiabilityPerMarket: 500000,
   referralEnabled: true,
@@ -158,6 +160,7 @@ export async function getSettings(): Promise<SiteSettings> {
   s.appUrl = raw["app.url"] ?? s.appUrl;
   s.heroTitle = raw["home.heroTitle"] ?? s.heroTitle;
   s.heroSubtitle = raw["home.heroSubtitle"] ?? s.heroSubtitle;
+  s.oddsProvider = raw["odds.provider"] ?? s.oddsProvider;
   s.oddsMarginPercent = Number(raw["odds.marginPercent"] ?? s.oddsMarginPercent);
   s.maxLiabilityPerMarket = Number(raw["betting.maxLiabilityPerMarket"] ?? s.maxLiabilityPerMarket);
   s.referralEnabled = (raw["referral.enabled"] ?? String(DEFAULTS.referralEnabled)) === "true";

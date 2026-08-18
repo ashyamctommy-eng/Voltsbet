@@ -11,10 +11,13 @@
 import { prisma } from "@/lib/prisma";
 import { TheOddsApi, OddsProvider, ApiGame } from "@/lib/providers/odds-api";
 import { teamLogo } from "@/lib/team-logos";
+import { getSettings } from "@/lib/settings";
 import { deriveDoubleChance, deriveDrawNoBet } from "@/lib/derived-markets";
+import { ApiFootballProvider } from "@/lib/providers/api-football";
 
 export const PROVIDERS: Record<string, () => OddsProvider> = {
   "the-odds-api": () => new TheOddsApi(),
+  "odds-api-io": () => new ApiFootballProvider(),
 };
 
 // Map provider sport keys → local sport slugs. Extend per your feed.
@@ -25,11 +28,13 @@ export const PROVIDERS: Record<string, () => OddsProvider> = {
 const SPORT_KEY_MAP: Record<string, string> = {
   soccer_epl: "football", soccer_spain_la_liga: "football",
   soccer_italy_serie_a: "football", soccer_germany_bundesliga: "football",
+  football: "football", // Odds-API.io (api-football) key
   basketball_nba: "basketball",
   baseball_mlb: "baseball", icehockey_nhl: "ice-hockey",
 };
 
-export async function syncGames(providerId = "the-odds-api") {
+export async function syncGames(providerId?: string) {
+  if (!providerId) providerId = (await getSettings()).oddsProvider || "the-odds-api";
   const provider = PROVIDERS[providerId]?.();
   if (!provider) throw new Error(`Unknown provider: ${providerId}`);
   if (!process.env.ODDS_API_KEY) {

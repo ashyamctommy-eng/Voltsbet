@@ -481,3 +481,12 @@ export function IconFlame({ className }: IconProps) {
     </Svg>
   );
 }
+
+export function IconClock({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3.5 2" />
+    </Svg>
+  );
+}

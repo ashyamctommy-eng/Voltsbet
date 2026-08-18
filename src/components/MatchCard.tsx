@@ -1,7 +1,8 @@
 import Link from "next/link";
 import OddsButton from "@/components/OddsButton";
 import TeamLogo from "@/components/TeamLogo";
-import { formatDateTime } from "@/lib/odds";
+import { IconClock } from "@/components/icons";
+import { formatKickoff, liveContext } from "@/lib/kickoff";
 
 type MarketLite = {
   id: string;
@@ -40,39 +41,48 @@ export default function MatchCard({
   /** Restrict which market keys the card may use as its main market (e.g. "1x2" filter). */
   preferMarkets?: string[];
 }) {
-  const live = game.status === "LIVE" || game.status === "HALF_TIME";
+  const isLive = game.status === "LIVE" || game.status === "HALF_TIME" || game.live;
   const candidates = game.markets.filter((m) => m.status === "OPEN" && m.outcomes.some((o) => o.status === "ACTIVE"));
+  const openMarketCount = game.markets.filter((m) => m.status === "OPEN").length;
   const mainMarket =
     (preferMarkets ? candidates.find((m) => preferMarkets.includes(m.key)) : undefined) ??
     candidates.find((m) => m.key === "h2h" || m.key === "MATCH_RESULT") ??
     candidates[0];
   const odds = mainMarket?.outcomes.filter((o) => o.status === "ACTIVE").slice(0, 3) ?? [];
+  const ctx = liveContext(game.status, game.clock, game.period);
 
   return (
     <div className="card card-hover p-4">
+      {/* Header row: league left · markets count right */}
       <div className="flex items-center justify-between gap-2 text-xs">
-        {showCompetition ? (
-          <span className="truncate font-semibold text-ink3">{game.competitionName ?? game.sport.name}</span>
-        ) : (
-          <span />
-        )}
-        {live ? (
-          <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-red-500/15 px-2 py-0.5 font-bold text-red-400">
-            <span className="live-dot" />
-            LIVE {game.clock ? `· ${game.clock}` : ""}
-            {game.period ? ` · ${game.period}` : ""}
-          </span>
-        ) : game.status === "POSTPONED" ? (
-          <span className="shrink-0 rounded-full bg-gray-500/15 px-2 py-0.5 font-semibold text-gray-400">Postponed</span>
-        ) : (
-          <span className="shrink-0 text-ink3">{formatDateTime(game.startAt)}</span>
-        )}
+        <span className="truncate font-semibold text-ink3">{game.competitionName ?? game.sport.name}</span>
+        <Link
+          href={`/fixture/${game.id}`}
+          className="shrink-0 font-bold text-brand hover:underline"
+        >
+          +{openMarketCount} Markets ›
+        </Link>
       </div>
 
-      <Link href={`/match/${game.id}`} className="mt-3 block">
+      {/* Secondary row: LIVE badge + context, or clock + kickoff */}
+      <div className="mt-1.5 flex items-center gap-1.5">
+        {isLive ? (
+          <span className="flex items-center gap-1.5 rounded-full bg-red-500/15 px-2 py-0.5 font-bold text-red-400">
+            <span className="live-dot" /> Live
+          </span>
+        ) : (
+          <IconClock className="h-3.5 w-3.5 text-ink3" />
+        )}
+        <span className="truncate text-xs font-medium text-ink2">
+          {isLive ? (ctx ?? "") : formatKickoff(game.startAt)}
+        </span>
+      </div>
+
+      {/* Teams */}
+      <Link href={`/fixture/${game.id}`} className="mt-3 block">
         <div className="flex items-center justify-between gap-2">
           <TeamName name={game.homeName} logo={game.homeLogo} />
-          {live || game.status === "FINISHED" ? (
+          {isLive || game.status === "FINISHED" ? (
             <span className="shrink-0 text-xl font-extrabold tabular-nums">
               {game.homeScore} <span className="mx-1 text-ink3">–</span> {game.awayScore}
             </span>
@@ -83,10 +93,11 @@ export default function MatchCard({
         </div>
       </Link>
 
+      {/* 1X2 odds */}
       {game.status === "FINISHED" ? (
         <div className="mt-3 flex items-center justify-between rounded-lg bg-card2 px-3 py-2 text-xs text-ink3">
           <span>Final score</span>
-          <Link href={`/match/${game.id}`} className="font-semibold text-brand">Results →</Link>
+          <Link href={`/fixture/${game.id}`} className="font-semibold text-brand">Results →</Link>
         </div>
       ) : odds.length > 0 && mainMarket ? (
         <div className="mt-3 grid grid-cols-3 gap-2">
@@ -106,7 +117,7 @@ export default function MatchCard({
               label={o.label}
               odds={Number(o.odds)}
               gameStatus={game.status}
-              live={live}
+              live={isLive}
             />
           ))}
         </div>
@@ -115,13 +126,6 @@ export default function MatchCard({
           Market Suspended
         </div>
       )}
-
-      <div className="mt-3 flex items-center justify-between text-xs">
-        <span className="text-ink3">{mainMarket?.name ?? "No open markets"}</span>
-        <Link href={`/match/${game.id}`} className="font-semibold text-brand hover:underline">
-          More markets →
-        </Link>
-      </div>
     </div>
   );
 }
