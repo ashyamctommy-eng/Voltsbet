@@ -1,12 +1,17 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { getSettings } from "@/lib/settings";
 import { formatDateTime } from "@/lib/odds";
 
 export const dynamic = "force-dynamic";
 
 export default async function ResultsPage() {
+  const s = await getSettings();
   const finished = await prisma.game.findMany({
-    where: { status: "FINISHED" },
+    where: {
+      status: "FINISHED",
+      ...(s.hideSeededGames ? { source: "API" } : {}),
+    },
     include: { sport: true },
     orderBy: { startAt: "desc" },
     take: 50,

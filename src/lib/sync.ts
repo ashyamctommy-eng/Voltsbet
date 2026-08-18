@@ -11,7 +11,7 @@
 import { prisma } from "@/lib/prisma";
 import { TheOddsApi, OddsProvider, ApiGame } from "@/lib/providers/odds-api";
 import { teamLogo } from "@/lib/team-logos";
-import { getSettings } from "@/lib/settings";
+import { getSettings, setSetting } from "@/lib/settings";
 import { deriveDoubleChance, deriveDrawNoBet } from "@/lib/derived-markets";
 import { ApiFootballProvider } from "@/lib/providers/api-football";
 import { OddsIoProvider } from "@/lib/providers/odds-api-io";
@@ -98,6 +98,13 @@ export async function syncGames(providerId?: string) {
       },
     });
     scoreUpdates++;
+  }
+
+  // Auto-hide seed/manual games once the provider feed is live — the site then
+  // shows only synced (API) games. Admin can flip it back in settings; it only
+  // re-arms when NEW games are added, so a manual override isn't stomped on.
+  if (created > 0) {
+    await setSetting("games.hideSeeded", "true");
   }
 
   return { created, updated, scoreUpdates, gamesSynced: games.length };

@@ -8,17 +8,20 @@ import MatchFeed from "@/components/MatchFeed";
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const [s, banners, games, popularSports, promotions, testimonials] = await Promise.all([
-    getSettings(),
+  const s = await getSettings();
+  const [banners, games, popularSports, promotions, testimonials] = await Promise.all([
     prisma.banner.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
     prisma.game.findMany({
-      where: { status: { notIn: ["FINISHED", "CANCELLED"] } },
+      where: {
+        status: { notIn: ["FINISHED", "CANCELLED"] },
+        ...(s.hideSeededGames ? { source: "API" } : {}),
+      },
       include: {
         sport: true,
         markets: { include: { outcomes: true }, orderBy: { sortOrder: "asc" } },
       },
       orderBy: [{ live: "desc" }, { startAt: "asc" }],
-      take: 50,
+      take: 200,
     }),
     prisma.sport.findMany({
       where: { active: true },

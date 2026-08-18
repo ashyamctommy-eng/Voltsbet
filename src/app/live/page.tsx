@@ -1,11 +1,16 @@
 import { prisma } from "@/lib/prisma";
+import { getSettings } from "@/lib/settings";
 import LiveFeed from "@/components/LiveFeed";
 
 export const dynamic = "force-dynamic";
 
 export default async function LivePage() {
+  const s = await getSettings();
   const liveGames = await prisma.game.findMany({
-    where: { status: { notIn: ["FINISHED", "CANCELLED"] } },
+    where: {
+      status: { notIn: ["FINISHED", "CANCELLED"] },
+      ...(s.hideSeededGames ? { source: "API" } : {}),
+    },
     include: { sport: true, markets: { include: { outcomes: true }, orderBy: { sortOrder: "asc" } } },
     orderBy: [{ status: "asc" }, { startAt: "asc" }],
     take: 60,

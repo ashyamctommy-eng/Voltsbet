@@ -125,7 +125,7 @@ function MatchSlide({ g, index, total }: { g: SlideGame; index: number; total: n
 
       <div className="relative p-4">
         <div className="flex items-center justify-between gap-2 text-xs">
-          <span className="truncate font-semibold text-ink3">{g.competitionName ?? g.sport.name}</span>
+          <span className="line-clamp-2 font-semibold leading-tight text-ink3">{g.competitionName ?? g.sport.name}</span>
           {live ? (
             <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-red-500/15 px-2 py-0.5 font-bold text-red-400">
               <span className="live-dot" /> Live{ctx ? ` · ${ctx}` : ""}

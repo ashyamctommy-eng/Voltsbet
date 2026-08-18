@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { getSettings } from "@/lib/settings";
 import MatchCard from "@/components/MatchCard";
 
 export const dynamic = "force-dynamic";
@@ -10,10 +11,14 @@ export default async function SportPage({ params }: { params: Promise<{ slug: st
   const sport = await prisma.sport.findUnique({ where: { slug } });
   if (!sport || !sport.active) notFound();
 
+  const s = await getSettings();
   const [sports, allGames] = await Promise.all([
     prisma.sport.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
     prisma.game.findMany({
-      where: { sportId: sport.id },
+      where: {
+        sportId: sport.id,
+        ...(s.hideSeededGames ? { source: "API" } : {}),
+      },
       include: { sport: true, markets: { include: { outcomes: true }, orderBy: { sortOrder: "asc" } } },
       orderBy: [{ status: "asc" }, { startAt: "asc" }],
     }),

@@ -42,9 +42,11 @@ export type SiteSettings = {
   heroTitle: string;
   heroSubtitle: string;
   // Odds & risk
-  oddsProvider: string; // the-odds-api | odds-api-io
+  oddsProvider: string; // the-odds-api | api-football | odds-api-io
   oddsMarginPercent: number; // overround added on top of feed odds (e.g. 6 = 6%)
   maxLiabilityPerMarket: number; // max exposure (potential payout) per market
+  // Games display
+  hideSeededGames: boolean; // show only synced (source=API) games in public lists; auto-on after first successful sync
   // Referrals
   referralEnabled: boolean;
   referralBonusPercent: number; // % of referee's first deposit credited to referrer
@@ -99,6 +101,7 @@ const DEFAULTS: SiteSettings = {
   oddsProvider: "the-odds-api",
   oddsMarginPercent: 6,
   maxLiabilityPerMarket: 500000,
+  hideSeededGames: false,
   referralEnabled: true,
   referralBonusPercent: 10,
   referralBonusCap: 500,
@@ -163,6 +166,7 @@ export async function getSettings(): Promise<SiteSettings> {
   s.oddsProvider = raw["odds.provider"] ?? s.oddsProvider;
   s.oddsMarginPercent = Number(raw["odds.marginPercent"] ?? s.oddsMarginPercent);
   s.maxLiabilityPerMarket = Number(raw["betting.maxLiabilityPerMarket"] ?? s.maxLiabilityPerMarket);
+  s.hideSeededGames = raw["games.hideSeeded"] === "true";
   s.referralEnabled = (raw["referral.enabled"] ?? String(DEFAULTS.referralEnabled)) === "true";
   s.referralBonusPercent = Number(raw["referral.bonusPercent"] ?? s.referralBonusPercent);
   s.referralBonusCap = Number(raw["referral.bonusCap"] ?? s.referralBonusCap);

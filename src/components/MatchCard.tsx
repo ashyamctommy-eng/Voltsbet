@@ -55,7 +55,9 @@ export default function MatchCard({
     <div className="card card-hover p-4">
       {/* Header row: league left · markets count right */}
       <div className="flex items-center justify-between gap-2 text-xs">
-        <span className="truncate font-semibold text-ink3">{game.competitionName ?? game.sport.name}</span>
+        <span className="line-clamp-2 font-semibold leading-tight text-ink3">
+          {game.competitionName ?? game.sport.name}
+        </span>
         <Link
           href={`/fixture/${game.id}`}
           className="shrink-0 font-bold text-brand hover:underline"
