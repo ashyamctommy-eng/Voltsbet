@@ -101,10 +101,14 @@ export async function syncGames(providerId?: string) {
   }
 
   // Auto-hide seed/manual games once the provider feed is live — the site then
-  // shows only synced (API) games. Admin can flip it back in settings; it only
-  // re-arms when NEW games are added, so a manual override isn't stomped on.
-  if (created > 0) {
-    await setSetting("games.hideSeeded", "true");
+  // shows only synced (API) games. Auto-enables on any successful sync that
+  // found feed games, but ONLY while the admin has never touched the toggle:
+  // once it exists in settings (on or off), manual choice wins.
+  if (created > 0 || updated > 0) {
+    const existing = await prisma.setting.findUnique({ where: { key: "games.hideSeeded" } });
+    if (!existing) {
+      await setSetting("games.hideSeeded", "true");
+    }
   }
 
   return { created, updated, scoreUpdates, gamesSynced: games.length };
