@@ -11,17 +11,35 @@ scores and results from an external provider — without being hard-coded to one
 - Docs: https://the-odds-api.com/liveapi/guides/v4/
 - Paid tiers from $30/mo (20K requests) — upgrade when you outgrow the free quota.
 
-**Why not the others (as of 2026):** Sportmonks is excellent but €100+/mo after a
-14-day trial; API-Football is football-only with a limited free tier (100 req/day);
-football-data.org has no odds. Start free with The Odds API; the provider layer makes
-swapping later a non-event.
+## Alternate provider: Odds-API.io (API-Football v3)
+
+- **Free tier: 100 requests/day, no card — every endpoint including odds.**
+- Football only, but **global + African leagues, no region locks** — one key covers
+  Serie A, Bundesliga, EPL, CAF competitions, etc. Real-time in-play minute/period
+  metadata and pre-match odds 1–14 days before kickoff.
+- Sign up → key on dashboard: https://dashboard.api-football.com
+- Endpoints used (verified against official OpenAPI v3.9.3):
+  - `GET /fixtures?date=YYYY-MM-DD&timezone=UTC` — fixtures per day
+  - `GET /fixtures?live=all` — in-play fixtures with score + minute
+  - `GET /odds?date=YYYY-MM-DD&page=N` — pre-match odds (paginated 10/page)
+- Auth: `x-apisports-key: <key>` header (env `ODDS_API_IO_KEY`).
+- Switch: Admin → Settings → Odds & Risk → `odds.provider` = `odds-api-io`.
+- Free-tier budget: 1 full sync = days-ahead (7) fixture calls + ≤3 odds pages/day
+  (default) + 1 live call ≈ 29 requests. Run 1–2×/day; live polling every ~20 min
+  keeps you under the 100/day cap. Tune with `ODDS_API_IO_DAYS_AHEAD` and
+  `ODDS_API_IO_MAX_ODDS_PAGES`.
+
+## Why not the others (as of 2026): Sportmonks is excellent but €100+/mo after a
+14-day trial; football-data.org has no odds. Start free with The Odds API; the
+provider layer makes swapping later a non-event.
 
 ## How it fits the codebase
 
 ```
-src/lib/providers/odds-api.ts   TheOddsApi class implements the OddsProvider interface
-src/lib/sync.ts                 syncGames(): fetch → upsert → dedup (externalId unique)
-src/app/api/admin/sync/route.ts manual trigger (admin button on Games page)
+src/lib/providers/odds-api.ts     TheOddsApi class implements the OddsProvider interface
+src/lib/providers/api-football.ts ApiFootballProvider (Odds-API.io / API-Football v3)
+src/lib/sync.ts                   syncGames(): fetch → upsert → dedup (externalId unique)
+src/app/api/admin/sync/route.ts   manual trigger (admin button on Games page)
 ```
 
 `OddsProvider` interface (implement a new file to add a provider):

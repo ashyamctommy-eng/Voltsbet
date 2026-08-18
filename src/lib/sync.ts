@@ -20,6 +20,13 @@ export const PROVIDERS: Record<string, () => OddsProvider> = {
   "odds-api-io": () => new ApiFootballProvider(),
 };
 
+/** Env var that gates each provider — checked before syncing so a missing key
+ *  never silently skips (and never blocks the other provider). */
+export const PROVIDER_KEY_ENV: Record<string, string> = {
+  "the-odds-api": "ODDS_API_KEY",
+  "odds-api-io": "ODDS_API_IO_KEY",
+};
+
 // Map provider sport keys → local sport slugs. Extend per your feed.
 // Keys verified against the live API (2026-08): The Odds API renamed several
 // keys (soccer_la_liga → soccer_spain_la_liga, etc.). Tennis is now
@@ -37,8 +44,9 @@ export async function syncGames(providerId?: string) {
   if (!providerId) providerId = (await getSettings()).oddsProvider || "the-odds-api";
   const provider = PROVIDERS[providerId]?.();
   if (!provider) throw new Error(`Unknown provider: ${providerId}`);
-  if (!process.env.ODDS_API_KEY) {
-    return { skipped: true, reason: "ODDS_API_KEY not set — keeping manual/seed games" };
+  const keyEnv = PROVIDER_KEY_ENV[providerId] ?? "ODDS_API_KEY";
+  if (!process.env[keyEnv]) {
+    return { skipped: true, reason: `${keyEnv} not set — keeping manual/seed games` };
   }
 
   const sports = await provider.fetchSports();

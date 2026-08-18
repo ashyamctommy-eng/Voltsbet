@@ -8,8 +8,9 @@
  * Response mapping implemented per v3 docs:
  *   /fixtures → status.short (NS/1H/HT/2H/FT…), status.elapsed (minute),
  *               league.name, teams.home/away (+logos), goals
- *   /odds?date= → per-fixture bookmaker bet arrays (Match Winner, Double
- *               Chance, Both Teams Score, Goals Over/Under…)
+ *   /odds?date=&page=N → per-fixture bookmaker bet arrays (Match Winner,
+ *               Double Chance, Both Teams Score, Goals Over/Under…);
+ *               paginated 10 fixtures/page, walked up to MAX_ODDS_PAGES.
  */
 import { ApiGame, ApiScore, OddsProvider } from "./odds-api";
 import { applyMarginGrid } from "../margin";
@@ -17,15 +18,24 @@ import { getSettings } from "../settings";
 
 const BASE = "https://v3.football.api-sports.io";
 
+/** /odds paginates at 10 fixtures per page (official docs). */
+const ODDS_PAGE_SIZE = 10;
+/** Max /odds pages fetched per day (10 fixtures each). Env-tunable so the
+ *  free-tier budget (100 req/day) stays under control: default 3 pages/day
+ *  covers ~30 fixtures' odds per day. */
+const MAX_ODDS_PAGES = Number(process.env.ODDS_API_IO_MAX_ODDS_PAGES ?? 3) || 3;
+/** Upcoming window: today → +N days (env-tunable; default 7). */
+const DAYS_AHEAD = Number(process.env.ODDS_API_IO_DAYS_AHEAD ?? 7) || 7;
+
 /** Map API-Football fixture status shorts → local game status. */
 function localStatus(short: string): ApiScore["status"] {
   switch (short) {
     case "FT": case "AET": case "PEN": return "finished";
-    case "1H": case "2H": case "ET": case "BT": case "INT": case "LIVE": return "live";
+    case "1H": case "2H": case "ET": case "BT": case "P": case "SUSP": case "INT": case "LIVE": return "live";
     case "HT": return "live";
     case "PST": case "ABD": return "postponed";
     case "CANC": case "AWD": case "WO": return "cancelled";
-    default: return "scheduled"; // NS, TBD, SUSP, …
+    default: return "scheduled"; // NS, TBD, …
   }
 }
 
@@ -71,7 +81,14 @@ export class ApiFootballProvider implements OddsProvider {
     const res = await fetch(`${BASE}${path}`, { headers: { "x-apisports-key": this.key } });
     if (!res.ok) throw new Error(`Odds-API.io ${res.status}: ${await res.text().catch(() => "")}`);
     const json = (await res.json()) as { response: T; errors?: unknown };
-    if (Array.isArray(json.errors) && json.errors.length) {
+    // The API reports failures via `errors` — as an object (e.g. {"token":
+    // "Invalid API key…"}) or as an array. Both must be treated as errors;
+    // otherwise a bad key silently syncs nothing.
+    const hasErrors =
+      Array.isArray(json.errors)
+        ? json.errors.length > 0
+        : json.errors != null && Object.keys(json.errors).length > 0;
+    if (hasErrors) {
       throw new Error(`Odds-API.io error: ${JSON.stringify(json.errors)}`);
     }
     return json.response;
@@ -89,18 +106,26 @@ export class ApiFootballProvider implements OddsProvider {
     if (!sportKeys.includes("football")) return [];
     const margin = (await getSettings()).oddsMarginPercent;
 
-    // Upcoming window: today → +6 days. /fixtures?date= (1 req) + /odds?date= (1 req) per day.
+    // Upcoming window: today → +DAYS_AHEAD. /fixtures?date= (1 req) +
+    // /odds?date=…&page=N (1 req/page, 10 fixtures per page) per day.
     const games: ApiGame[] = [];
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < DAYS_AHEAD; i++) {
       const day = new Date(Date.now() + i * 86400_000);
       const fixtures = await this.get<Fixture[]>(`/fixtures?date=${this.dateStr(day)}&timezone=UTC`);
       if (!fixtures.length) continue;
 
-      // One odds call per day covers every fixture that day (free-tier friendly)
+      // Odds are paginated 10 fixtures per page — walk pages until the last
+      // one or the per-day cap. A page shorter than PAGE_SIZE is the last.
       let oddsByFixture = new Map<number, Bet[]>();
       try {
-        const odds = await this.get<OddsResponse[]>(`/odds?date=${this.dateStr(day)}`);
-        oddsByFixture = new Map(odds.map((o) => [o.fixture.id, o.bookmakers?.[0]?.bets ?? []]));
+        const dayOdds: OddsResponse[] = [];
+        for (let page = 1; page <= MAX_ODDS_PAGES; page++) {
+          const odds = await this.get<OddsResponse[]>(`/odds?date=${this.dateStr(day)}&page=${page}`);
+          if (!odds.length) break;
+          dayOdds.push(...odds);
+          if (odds.length < ODDS_PAGE_SIZE) break; // last page
+        }
+        oddsByFixture = new Map(dayOdds.map((o) => [o.fixture.id, o.bookmakers?.[0]?.bets ?? []]));
       } catch {
         /* odds optional — game still imported without odds */
       }
