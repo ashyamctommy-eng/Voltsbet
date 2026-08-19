@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import MatchCard from "@/components/MatchCard";
 import { IconTv, IconCalendar } from "@/components/icons";
+import { dayWindow } from "@/lib/feed-dates";
 
 type FeedGame = {
   id: string;
@@ -43,10 +44,8 @@ export default function LiveFeed({ games }: { games: FeedGame[] }) {
 
   const filtered = useMemo(() => {
     const now = new Date();
-    const day = (offset: number) => {
-      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset);
-      return { from: d.getTime(), to: d.getTime() + 86400_000 };
-    };
+    const day = (offset: number) =>
+      dayWindow(new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset).toDateString());
     const sameDay = (t: number, offset: number) => t >= day(offset).from && t < day(offset).to;
 
     let list = games;

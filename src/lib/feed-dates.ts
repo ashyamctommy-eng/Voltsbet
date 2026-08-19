@@ -36,9 +36,39 @@ export function buildDateOptions(now: Date = new Date()): DateOption[] {
   return opts;
 }
 
-/** Local calendar-day window [00:00:00, 23:59:59.999] for a date option value. */
+/**
+ * Local calendar-day window [00:00:00, 23:59:59.999] for a date option value.
+ *
+ * DST-safe: never assumes a day is 24h. The next local midnight is built via
+ * the Date constructor (`new Date(y, m, d + 1)`), which normalizes across the
+ * 23h/25h DST transition days automatically.
+ */
 export function dayWindow(value: string): { from: number; to: number } {
   const d = new Date(value); // "Wed Aug 19 2026" parses as local midnight
-  const from = Number.isNaN(d.getTime()) ? 0 : d.getTime();
-  return { from, to: from + 86400_000 };
+  if (Number.isNaN(d.getTime())) return { from: 0, to: 0 };
+  const next = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+  return { from: d.getTime(), to: next.getTime() };
+}
+
+/**
+ * Parse a URL `?date=YYYY-MM-DD` param into a local-midnight option value
+ * ("Wed Aug 19 2026"). Never `new Date("YYYY-MM-DD")` — that parses as UTC
+ * midnight and shifts the whole day in non-UTC timezones (and differently
+ * around DST transitions).
+ */
+export function dateParamToValue(param: string | null | undefined): string | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(param ?? "");
+  if (!m) return null;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return Number.isNaN(d.getTime()) ? null : d.toDateString();
+}
+
+/** Convert an option value back to a `YYYY-MM-DD` URL param. */
+export function valueToDateParam(value: string): string {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }

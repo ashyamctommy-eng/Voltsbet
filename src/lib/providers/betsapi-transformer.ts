@@ -96,7 +96,13 @@ export type ApiFeedGame = {
 export function apiMatchToFeedGame(view: BetsApiMatchView): ApiFeedGame {
   const [hs, as] = view.score.split("-").map((n) => Number(n.trim()));
   const status: ApiFeedGame["status"] =
-    view.timeStatus === "1" ? "LIVE" : view.timeStatus === "3" ? "FINISHED" : "SCHEDULED";
+    view.timeStatus === "1"
+      ? "LIVE"
+      : view.timeStatus === "3"
+        ? "FINISHED"
+        : view.timeStatus === "4" // suspended / postponed — sorted to the bottom
+          ? "POSTPONED"
+          : "SCHEDULED";
   const startAt = new Date(view.kickoff);
   return {
     id: view.id,
@@ -236,7 +242,9 @@ function priceOutcomes(
   const repriced = applyMarginGrid(present, margin);
   let i = 0;
   return outcomes.map((o) =>
-    o.odds > 1 ? repriced[i++] : { name: o.name, label: o.label, odds: 0 },
+    o.odds > 1
+      ? { ...repriced[i++], label: o.label } // margin drops label — restore it
+      : { name: o.name, label: o.label, odds: 0 },
   );
 }
 
@@ -340,6 +348,49 @@ export function extractOddsMarkets(
         [
           { name: `over ${bestLine}`, odds: bestOver },
           { name: `under ${bestLine}`, odds: bestUnder },
+        ],
+        margin,
+      ),
+    });
+  }
+
+  // Half-Time Result — standalone `half_time_result` when present, else
+  // derived from `half_time_full_time` ("1/1", "X/2"...) by picking the most
+  // probable leg (lowest odds) per HT outcome.
+  let htHome = 0;
+  let htDraw = 0;
+  let htAway = 0;
+  const htr = findMarket(prematch, "half_time_result");
+  if (htr?.odds?.length) {
+    htHome = num(legOdds(htr, (l) => l.name === "1" || l.header === "1"));
+    htDraw = num(legOdds(htr, (l) => l.name?.toLowerCase() === "draw"));
+    htAway = num(legOdds(htr, (l) => l.name === "2" || l.header === "2"));
+  } else {
+    const htft = findMarket(prematch, "half_time_full_time");
+    const htPart = (name: string) => name.split("/")[0]?.trim().toLowerCase();
+    const bestFor = (part: string) => {
+      let bestOdds = 0;
+      for (const l of htft?.odds ?? []) {
+        if (htPart(l.name ?? "") === part) {
+          const n = num(l.odds);
+          if (n > 0 && (bestOdds === 0 || n < bestOdds)) bestOdds = n;
+        }
+      }
+      return bestOdds;
+    };
+    htHome = bestFor("1");
+    htDraw = bestFor("x");
+    htAway = bestFor("2");
+  }
+  if (htHome > 0 || htDraw > 0 || htAway > 0) {
+    markets.push({
+      key: "HT_RESULT",
+      name: "Half-Time Result",
+      outcomes: priceOutcomes(
+        [
+          { name: homeName, label: "1", odds: htHome },
+          { name: "Draw", label: "X", odds: htDraw },
+          { name: awayName, label: "2", odds: htAway },
         ],
         margin,
       ),

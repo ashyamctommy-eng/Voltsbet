@@ -38,7 +38,8 @@ export default async function SportPage({ params }: { params: Promise<{ slug: st
   // Group: Today → Upcoming → Finished
   const now = new Date();
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const endOfToday = new Date(startOfToday.getTime() + 86400_000);
+  // DST-safe next local midnight (a day is 23h/25h across transitions).
+  const endOfToday = new Date(startOfToday.getFullYear(), startOfToday.getMonth(), startOfToday.getDate() + 1);
   const byLeague = (arr: typeof allGames) =>
     [...arr].sort((a, b) => leagueRank(a) - leagueRank(b) || a.startAt.getTime() - b.startAt.getTime());
   const today = byLeague(listable.filter((g) => g.status === "SCHEDULED" && g.startAt >= startOfToday && g.startAt < endOfToday));
