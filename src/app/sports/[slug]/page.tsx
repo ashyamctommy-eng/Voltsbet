@@ -32,19 +32,20 @@ export default async function SportPage({ params }: { params: Promise<{ slug: st
     return i === -1 ? 99 : i;
   };
 
-  // Group: Live → Today → Upcoming → Finished
+  // Live matches are isolated to /live — this page lists pre-match + settled.
+  const listable = allGames.filter((g) => !(g.status === "LIVE" || g.status === "HALF_TIME" || g.status === "IN_PLAY"));
+
+  // Group: Today → Upcoming → Finished
   const now = new Date();
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const endOfToday = new Date(startOfToday.getTime() + 86400_000);
   const byLeague = (arr: typeof allGames) =>
     [...arr].sort((a, b) => leagueRank(a) - leagueRank(b) || a.startAt.getTime() - b.startAt.getTime());
-  const live = byLeague(allGames.filter((g) => g.status === "LIVE" || g.status === "HALF_TIME"));
-  const today = byLeague(allGames.filter((g) => g.status === "SCHEDULED" && g.startAt >= startOfToday && g.startAt < endOfToday));
-  const upcoming = byLeague(allGames.filter((g) => g.status === "SCHEDULED" && g.startAt >= endOfToday));
-  const others = byLeague(allGames.filter((g) => !live.includes(g) && !today.includes(g) && !upcoming.includes(g)));
+  const today = byLeague(listable.filter((g) => g.status === "SCHEDULED" && g.startAt >= startOfToday && g.startAt < endOfToday));
+  const upcoming = byLeague(listable.filter((g) => g.status === "SCHEDULED" && g.startAt >= endOfToday));
+  const others = byLeague(listable.filter((g) => !today.includes(g) && !upcoming.includes(g)));
 
   const groups: [string, typeof allGames][] = [
-    ["Live Now", live],
     ["Today", today],
     ["Upcoming", upcoming],
     ["Other", others],

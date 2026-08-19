@@ -4,6 +4,7 @@
  * Shared by:
  *   - GET /api/betsapi/matches (proxy route)
  *   - the homepage server component (live rendering, DB fallback)
+ *   - MatchFeed's client-side auto-fetch (module-level client cache)
  *
  * Flow (sequential per the multi-endpoint spec):
  *   Step 1: /v1/bet365/upcoming?sport_id=1 → fixture ids
@@ -15,24 +16,26 @@
  * raise the RapidAPI tier. Every request is TTL-cached in-process so page
  * loads between refreshes cost 0 requests.
  */
-import type { FeedGame } from "@/components/MatchFeed";
 import { getSettings } from "@/lib/settings";
 import { BetsApiClient } from "@/lib/providers/betsapi-client";
 import {
   RawBetsApiMatch,
   PrematchLike,
-  MatchView,
   ViewMarket,
+  BetsApiMatchView,
   transformBetsApiMatch,
   extractOddsMarkets,
 } from "@/lib/providers/betsapi-transformer";
+
+export {
+  apiMatchToFeedGame,
+} from "@/lib/providers/betsapi-transformer";
+export type { BetsApiMatchView, ApiFeedGame } from "@/lib/providers/betsapi-transformer";
 
 /** Feed size: prematch is 1 request per event. */
 const FEED_EVENTS = Number(process.env.BETSAPI_FEED_EVENTS ?? 6) || 6;
 /** In-process TTL so the homepage doesn't re-hit BetsAPI on every load. */
 const FEED_TTL_SECONDS = Number(process.env.BETSAPI_FEED_TTL_SECONDS ?? 300) || 300;
-
-export type BetsApiMatchView = MatchView & { markets: ViewMarket[] };
 
 let cache: { at: number; matches: BetsApiMatchView[] } | null = null;
 
@@ -78,47 +81,4 @@ export async function getBetsApiFeed(limit: number = FEED_EVENTS): Promise<BetsA
 /** Clear the in-process cache (used by tests / admin actions if ever needed). */
 export function clearBetsApiFeedCache(): void {
   cache = null;
-}
-
-/**
- * Adapt a transformed BetsAPI match into the card/feed shape the UI renders.
- * Synthetic ids (matchId-marketKey-outcomeName) keep betslip selections
- * unique without DB rows; `isApiMatch` hides DB-only links (fixture pages).
- */
-export function apiMatchToFeedGame(view: BetsApiMatchView): FeedGame {
-  const [hs, as] = view.score.split("-").map((n) => Number(n.trim()));
-  const status: FeedGame["status"] =
-    view.timeStatus === "1" ? "LIVE" : view.timeStatus === "3" ? "FINISHED" : "SCHEDULED";
-  const startAt = new Date(view.kickoff);
-  return {
-    id: view.id,
-    isApiMatch: true,
-    homeName: view.homeTeam,
-    awayName: view.awayTeam,
-    homeLogo: null,
-    awayLogo: null,
-    startAt,
-    status,
-    homeScore: Number.isFinite(hs) ? hs : 0,
-    awayScore: Number.isFinite(as) ? as : 0,
-    period: null,
-    clock: view.elapsedMinute || null,
-    live: view.isLive,
-    featured: false,
-    sport: { name: "Football", slug: "football", icon: "⚽" },
-    competitionName: view.leagueName,
-    markets: view.markets.map((m) => ({
-      id: `${view.id}-${m.key}`,
-      name: m.name,
-      key: m.key,
-      status: "OPEN",
-      outcomes: m.outcomes.map((o) => ({
-        id: `${view.id}-${m.key}-${o.name}`,
-        name: o.name,
-        label: o.label ?? null,
-        odds: o.odds,
-        status: o.odds > 1 ? "ACTIVE" : "CLOSED",
-      })),
-    })),
-  };
 }

@@ -55,6 +55,82 @@ export type ViewMarket = {
   outcomes: { name: string; label?: string; odds: number }[];
 };
 
+/** A transformed match with merged prematch markets (the proxy/feed payload). */
+export type BetsApiMatchView = MatchView & { markets: ViewMarket[] };
+
+/**
+ * Card/feed shape (structural twin of MatchFeed's FeedGame — kept pure so the
+ * client can import it without pulling server modules).
+ */
+export type ApiFeedGame = {
+  id: string;
+  isApiMatch?: boolean;
+  homeName: string;
+  awayName: string;
+  homeLogo: string | null;
+  awayLogo: string | null;
+  startAt: Date;
+  status: string;
+  homeScore: number;
+  awayScore: number;
+  period: string | null;
+  clock: string | null;
+  live: boolean;
+  featured: boolean;
+  sport: { name: string; slug: string; icon: string | null };
+  competitionName: string | null;
+  markets: {
+    id: string;
+    name: string;
+    key: string;
+    status: string;
+    outcomes: { id: string; name: string; label: string | null; odds: unknown; status: string }[];
+  }[];
+};
+
+/**
+ * Adapt a transformed BetsAPI match into the card/feed shape the UI renders.
+ * Synthetic ids (matchId-marketKey-outcomeName) keep betslip selections
+ * unique without DB rows; `isApiMatch` hides DB-only links (fixture pages).
+ */
+export function apiMatchToFeedGame(view: BetsApiMatchView): ApiFeedGame {
+  const [hs, as] = view.score.split("-").map((n) => Number(n.trim()));
+  const status: ApiFeedGame["status"] =
+    view.timeStatus === "1" ? "LIVE" : view.timeStatus === "3" ? "FINISHED" : "SCHEDULED";
+  const startAt = new Date(view.kickoff);
+  return {
+    id: view.id,
+    isApiMatch: true,
+    homeName: view.homeTeam,
+    awayName: view.awayTeam,
+    homeLogo: null,
+    awayLogo: null,
+    startAt,
+    status,
+    homeScore: Number.isFinite(hs) ? hs : 0,
+    awayScore: Number.isFinite(as) ? as : 0,
+    period: null,
+    clock: view.elapsedMinute || null,
+    live: view.isLive,
+    featured: false,
+    sport: { name: "Football", slug: "football", icon: "⚽" },
+    competitionName: view.leagueName,
+    markets: view.markets.map((m) => ({
+      id: `${view.id}-${m.key}`,
+      name: m.name,
+      key: m.key,
+      status: "OPEN",
+      outcomes: m.outcomes.map((o) => ({
+        id: `${view.id}-${m.key}-${o.name}`,
+        name: o.name,
+        label: o.label ?? null,
+        odds: o.odds,
+        status: o.odds > 1 ? "ACTIVE" : "CLOSED",
+      })),
+    })),
+  };
+}
+
 /**
  * Serializer for RAW BetsAPI objects — the exact transformation spec:
  * status string-vs-int guarded, safe league/team extraction, unix→Date, and

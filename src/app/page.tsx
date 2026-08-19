@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { getBetsApiFeed, apiMatchToFeedGame } from "@/lib/betsapi-feed";
+import { isLiveStatus } from "@/lib/game-status";
 import BannerCarousel from "@/components/BannerCarousel";
 import MatchSlideshow from "@/components/MatchSlideshow";
 import MatchFeed, { type FeedGame as MatchFeedGame } from "@/components/MatchFeed";
@@ -29,21 +30,24 @@ export default async function HomePage() {
     prisma.testimonial.findMany({ where: { status: "APPROVED" }, orderBy: { sortOrder: "asc" }, take: 4 }),
   ]);
 
-  // Live API feed when reachable, else the synced DB feed.
-  const games: MatchFeedGame[] = apiFeed?.length
-    ? apiFeed.map(apiMatchToFeedGame)
-    : await prisma.game.findMany({
-        where: {
-          status: { notIn: ["FINISHED", "CANCELLED"] },
-          ...(s.hideSeededGames ? { source: "API" } : {}),
-        },
-        include: {
-          sport: true,
-          markets: { include: { outcomes: true }, orderBy: { sortOrder: "asc" } },
-        },
-        orderBy: [{ live: "desc" }, { startAt: "asc" }],
-        take: 200,
-      });
+  // Live BetsAPI feed when reachable, else the synced DB feed.
+  // Live matches are filtered OUT of home entirely — they belong on /live.
+  const games: MatchFeedGame[] = (
+    apiFeed?.length
+      ? apiFeed.map(apiMatchToFeedGame)
+      : await prisma.game.findMany({
+          where: {
+            status: { notIn: ["FINISHED", "CANCELLED"] },
+            ...(s.hideSeededGames ? { source: "API" } : {}),
+          },
+          include: {
+            sport: true,
+            markets: { include: { outcomes: true }, orderBy: { sortOrder: "asc" } },
+          },
+          orderBy: [{ live: "desc" }, { startAt: "asc" }],
+          take: 200,
+        })
+  ).filter((g) => !isLiveStatus(g.status, g.live));
 
   return (
     <div className="mx-auto max-w-[1600px] px-4">
