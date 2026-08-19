@@ -16,8 +16,10 @@ type ApiConfig = {
 type TestResult = {
   ok: boolean;
   status?: number;
-  results?: number;
+  events?: number;
   sample?: string | null;
+  prematchMarkets?: string[];
+  prematchError?: string | null;
   error?: string;
 };
 
@@ -68,8 +70,12 @@ export default function AdminApiSettings() {
       body: { rapidKey: key, rapidHost: host, rapidBase: base },
     });
     setTesting(false);
-    if (!res.ok) return setTest({ ok: false, error: res.error.message });
+    if (!res.ok) {
+      setTest({ ok: false, error: res.error.message });
+      return push("error", res.error.message);
+    }
     setTest(res.data);
+    push(res.data.ok ? "success" : "error", res.data.ok ? `Connected — ${res.data.events} pre-match events` : "Connection failed");
   }
 
   const isPrimary = primary || config?.primary;
@@ -160,9 +166,23 @@ export default function AdminApiSettings() {
             }`}
           >
             {test.ok ? <IconCheck className="mt-0.5 h-4 w-4 shrink-0" /> : <IconX className="mt-0.5 h-4 w-4 shrink-0" />}
-            <div>
-              <p className="font-bold">{test.ok ? `Connected — ${test.results} pre-match events` : "Connection failed"}</p>
+            <div className="min-w-0">
+              <p className="font-bold">
+                {test.ok ? `Connected — ${test.events ?? 0} pre-match events` : "Connection failed"}
+              </p>
               {test.ok && test.sample ? <p className="text-xs opacity-80">Sample: {test.sample}</p> : null}
+              {test.ok && test.prematchMarkets && test.prematchMarkets.length > 0 ? (
+                <p className="mt-1 flex flex-wrap gap-1">
+                  {test.prematchMarkets.map((m) => (
+                    <span key={m} className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold">
+                      {m}
+                    </span>
+                  ))}
+                </p>
+              ) : null}
+              {test.ok && test.prematchError ? (
+                <p className="mt-1 break-all font-mono text-xs opacity-80">prematch: {test.prematchError}</p>
+              ) : null}
               {!test.ok && test.error ? <p className="mt-0.5 break-all font-mono text-xs opacity-80">{test.error}</p> : null}
             </div>
           </div>
@@ -170,8 +190,13 @@ export default function AdminApiSettings() {
       </form>
 
       <p className="text-xs text-ink3">
-        Odds engine: prematch 1X2, Double Chance, Totals + BTTS map into your existing market model with your margin applied.
-        Missing prices render as “-”. Live scores come from <span className="font-mono">/v3/bet365/inplay</span> with the match timer.
+        Pipeline: <span className="font-mono">/v1/bet365/upcoming</span> (fixture list) →{" "}
+        <span className="font-mono">/v3/bet365/prematch?FI=</span> (bet365 odds per event — capped by
+        <span className="font-mono"> BETSAPI_ODDS_EVENTS</span>, default 20) →{" "}
+        <span className="font-mono">/v1/bet365/result?event_id=</span> (finished outcomes for settlement).
+        Markets: full_time_result (1X2), double_chance, goals_over_under, both_teams_to_score, draw_no_bet —
+        margin applied; missing prices render as “-”. Live: <span className="font-mono">/v3/bet365/inplay</span>.
+        Keep sync runs modest — the BASIC RapidAPI plan is rate-limited per hour.
       </p>
     </div>
   );

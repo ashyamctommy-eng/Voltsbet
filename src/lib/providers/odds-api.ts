@@ -40,6 +40,8 @@ export interface OddsProvider {
   fetchSports(): Promise<{ key: string; name: string }[]>;
   fetchUpcomingGames(sportKeys: string[]): Promise<ApiGame[]>;
   fetchLiveScores(sportKeys: string[]): Promise<ApiScore[]>;
+  /** Optional: finished outcomes for the given external ids (settlement). */
+  fetchResults?(externalIds: string[]): Promise<ApiScore[]>;
 }
 
 // ─────────────────────────────────────────────────────────────────────────

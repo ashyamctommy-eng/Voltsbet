@@ -3,8 +3,10 @@ import { handle, ok, ApiError, requireAdmin, verifyCsrf } from "@/lib/api";
 import { getSettings } from "@/lib/settings";
 
 /**
- * POST /api/admin/config/api/test — ping the BetsAPI prematch endpoint with
- * the submitted (or saved) RapidAPI credentials and report what comes back.
+ * POST /api/admin/config/api/test — verify the BetsAPI connection end-to-end:
+ *  1. GET /v1/bet365/upcoming?sport_id=1   (fixture list — proves the key)
+ *  2. GET /v3/bet365/prematch?FI=<first>    (deep odds — proves the parser's
+ *     source of truth and shows the market count)
  */
 export const POST = handle(async (req: NextRequest) => {
   await verifyCsrf(req);
@@ -28,41 +30,58 @@ export const POST = handle(async (req: NextRequest) => {
     throw new ApiError(400, "Enter an X-RapidAPI-Key first.", "VALIDATION");
   }
 
-  const url = `${base}/v3/bet365/prematch?sport_id=1`;
+  const headers = { "x-rapidapi-key": key, "x-rapidapi-host": host };
+  const signal = AbortSignal.timeout(15000);
+
   try {
-    const res = await fetch(url, {
-      headers: { "x-rapidapi-key": key, "x-rapidapi-host": host },
-      signal: AbortSignal.timeout(15000),
-    });
-    const text = await res.text();
-    let json: { success?: number; error?: unknown; results?: unknown[]; pager?: unknown } | null = null;
+    // Step 1 — fixture list
+    const listRes = await fetch(`${base}/v1/bet365/upcoming?sport_id=1`, { headers, signal });
+    const listText = await listRes.text();
+    let list: { success?: number; error?: string; error_detail?: string; results?: { id: string; league?: { name?: string }; home?: { name?: string }; away?: { name?: string }; time?: string }[] } | null = null;
     try {
-      json = JSON.parse(text);
+      list = JSON.parse(listText);
     } catch {
-      /* non-JSON error body */
+      /* not JSON */
     }
-    if (!res.ok) {
+    if (!listRes.ok || list?.success !== 1) {
       return ok({
         ok: false,
-        status: res.status,
-        error: text.slice(0, 300),
+        step: "upcoming",
+        status: listRes.status,
+        error: (list?.error_detail ?? list?.error ?? listText).slice(0, 300),
       });
     }
-    if (json?.success !== 1) {
-      return ok({
-        ok: false,
-        status: res.status,
-        error: JSON.stringify(json?.error ?? json).slice(0, 300),
-      });
+    const events = list.results ?? [];
+    const first = events[0];
+
+    // Step 2 — prematch deep odds for the first event
+    const prematch: { markets?: string[]; sample?: string; error?: string } = { markets: [] };
+    if (first) {
+      const pmRes = await fetch(`${base}/v3/bet365/prematch?FI=${encodeURIComponent(first.id)}`, { headers, signal });
+      const pmText = await pmRes.text();
+      try {
+        const pm = JSON.parse(pmText) as { success?: number; results?: { main?: { sp?: Record<string, unknown> } }[] };
+        if (pm.success === 1) {
+          const sp = pm.results?.[0]?.main?.sp ?? {};
+          prematch.markets = Object.keys(sp);
+        } else {
+          prematch.error = pmText.slice(0, 200);
+        }
+      } catch {
+        prematch.error = pmText.slice(0, 200);
+      }
+      prematch.sample = first.league?.name
+        ? `${first.league.name} — ${first.home?.name ?? "?"} vs ${first.away?.name ?? "?"}`
+        : `${first.home?.name ?? "?"} vs ${first.away?.name ?? "?"}`;
     }
-    const first = (json.results?.[0] as { league?: { name?: string }; home?: { name?: string }; away?: { name?: string } }) ?? null;
+
     return ok({
       ok: true,
-      status: res.status,
-      results: json.results?.length ?? 0,
-      sample: first
-        ? `${first.league?.name ?? "?"} — ${first.home?.name ?? "?"} vs ${first.away?.name ?? "?"}`
-        : null,
+      status: listRes.status,
+      events: events.length,
+      sample: prematch.sample ?? null,
+      prematchMarkets: prematch.markets ?? [],
+      prematchError: prematch.error ?? null,
     });
   } catch (err) {
     return ok({

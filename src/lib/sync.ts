@@ -113,6 +113,42 @@ export async function syncGames(providerId?: string) {
     scoreUpdates++;
   }
 
+  // Optional settlement sweep — providers with fetchResults() (betsapi) pull
+  // finished outcomes for due games that aren't finished yet. Capped so the
+  // request budget stays sane on rate-limited plans.
+  if (provider.fetchResults && providerId === "betsapi") {
+    const due = await prisma.game.findMany({
+      where: {
+        source: "API",
+        externalId: { startsWith: "betsapi-" },
+        startAt: { lt: new Date() },
+        status: { notIn: ["FINISHED", "CANCELLED", "POSTPONED"] },
+      },
+      select: { externalId: true },
+      take: 20,
+    });
+    if (due.length) {
+      const ids = due
+        .map((g) => g.externalId)
+        .filter((id): id is string => !!id);
+      const finished = await provider.fetchResults(ids);
+      for (const score of finished) {
+        const game = await prisma.game.findUnique({ where: { externalId: score.externalId } });
+        if (!game) continue;
+        await prisma.game.update({
+          where: { id: game.id },
+          data: {
+            ...(score.homeScore !== undefined ? { homeScore: score.homeScore } : {}),
+            ...(score.awayScore !== undefined ? { awayScore: score.awayScore } : {}),
+            status: "FINISHED",
+            live: false,
+          },
+        });
+        scoreUpdates++;
+      }
+    }
+  }
+
   // Auto-hide seed/manual games once the provider feed is live — the site then
   // shows only synced (API) games. Auto-enables on any successful sync that
   // found feed games, but ONLY while the admin has never touched the toggle:
