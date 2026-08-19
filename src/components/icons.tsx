@@ -286,6 +286,22 @@ export function IconX({ className }: IconProps) {
   );
 }
 
+export function IconCheck({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M20 6 9 17l-5-5" />
+    </Svg>
+  );
+}
+
+export function IconPlug({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M9 2v6M15 2v6M6 8h12v3a6 6 0 0 1-12 0V8ZM12 17v5" />
+    </Svg>
+  );
+}
+
 export function IconCrown({ className }: IconProps) {
   return (
     <Svg className={className}>

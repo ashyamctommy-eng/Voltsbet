@@ -15,15 +15,18 @@ import { getSettings, setSetting } from "@/lib/settings";
 import { deriveDoubleChance, deriveDrawNoBet } from "@/lib/derived-markets";
 import { ApiFootballProvider } from "@/lib/providers/api-football";
 import { OddsIoProvider } from "@/lib/providers/odds-api-io";
+import { BetsApiProvider } from "@/lib/providers/betsapi";
 
 export const PROVIDERS: Record<string, () => OddsProvider> = {
   "the-odds-api": () => new TheOddsApi(),
   "api-football": () => new ApiFootballProvider(),
   "odds-api-io": () => new OddsIoProvider(),
+  "betsapi": () => new BetsApiProvider(), // PRIMARY — Bet365 via RapidAPI / BetsAPI
 };
 
 /** Env var that gates each provider — checked before syncing so a missing key
- *  never silently skips (and never blocks the other providers). */
+ *  never silently skips (and never blocks the other providers). Providers
+ *  without an env entry (betsapi) are gated by their DB config instead. */
 export const PROVIDER_KEY_ENV: Record<string, string> = {
   "the-odds-api": "ODDS_API_KEY",
   "api-football": "ODDS_API_IO_KEY",
@@ -39,17 +42,27 @@ const SPORT_KEY_MAP: Record<string, string> = {
   soccer_epl: "football", soccer_spain_la_liga: "football",
   soccer_italy_serie_a: "football", soccer_germany_bundesliga: "football",
   football: "football", // api-football (API-Football) + odds-api-io (Odds-API.io) sport key
+  "1": "football", // betsapi soccer (bet365 via RapidAPI)
   basketball_nba: "basketball",
   baseball_mlb: "baseball", icehockey_nhl: "ice-hockey",
+  "3": "basketball", "2": "tennis", "4": "ice-hockey", // betsapi sport ids
 };
 
 export async function syncGames(providerId?: string) {
   if (!providerId) providerId = (await getSettings()).oddsProvider || "the-odds-api";
   const provider = PROVIDERS[providerId]?.();
   if (!provider) throw new Error(`Unknown provider: ${providerId}`);
-  const keyEnv = PROVIDER_KEY_ENV[providerId] ?? "ODDS_API_KEY";
-  if (!process.env[keyEnv]) {
-    return { skipped: true, reason: `${keyEnv} not set — keeping manual/seed games` };
+  if (providerId === "betsapi") {
+    // BetsAPI credentials live in the DB (Admin → API Settings), not env.
+    const s = await getSettings();
+    if (!s.apiRapidKey) {
+      return { skipped: true, reason: "RapidAPI key not configured — set it in Admin → API Settings" };
+    }
+  } else {
+    const keyEnv = PROVIDER_KEY_ENV[providerId] ?? "ODDS_API_KEY";
+    if (!process.env[keyEnv]) {
+      return { skipped: true, reason: `${keyEnv} not set — keeping manual/seed games` };
+    }
   }
 
   const sports = await provider.fetchSports();

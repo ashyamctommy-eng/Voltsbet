@@ -13,6 +13,7 @@ import MobileNav from "@/components/MobileNav";
 import SupportWidget from "@/components/SupportWidget";
 import BetSlip from "@/components/BetSlip";
 import BroadcastBanner from "@/components/BroadcastBanner";
+import VoltBetSplashLoader from "@/components/VoltBetSplashLoader";
 
 export const metadata: Metadata = {
   title: { default: "VoltBet — Sports Betting", template: "%s | VoltBet" },
@@ -68,6 +69,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   telegram: s.telegram,
                 }}
               >
+                <VoltBetSplashLoader />
                 <BroadcastBanner />
                 <Header user={headerUser} siteName={s.siteName} />
                 {/* Mobile bottom padding clears the nav bar (~64px) plus the

@@ -42,10 +42,14 @@ export type SiteSettings = {
   heroTitle: string;
   heroSubtitle: string;
   // Odds & risk
-  oddsProvider: string; // the-odds-api | api-football | odds-api-io
+  oddsProvider: string; // the-odds-api | api-football | odds-api-io | betsapi
   oddsMarginPercent: number; // overround added on top of feed odds (e.g. 6 = 6%)
   maxLiabilityPerMarket: number; // max exposure (potential payout) per market
   oddsIoLeagueSlugs: string; // comma-separated league slugs to import (empty = all); env ODDS_IO_LEAGUE_SLUGS wins
+  // Primary API (BetsAPI via RapidAPI) — bet365 odds feed
+  apiRapidKey: string; // X-RapidAPI-Key
+  apiRapidHost: string; // X-RapidAPI-Host (betsapi2.p.rapidapi.com)
+  apiRapidBase: string; // base target URL (https://betsapi2.p.rapidapi.com)
   // Games display
   hideSeededGames: boolean; // show only synced (source=API) games in public lists; auto-on after first successful sync
   // Referrals
@@ -99,10 +103,13 @@ const DEFAULTS: SiteSettings = {
   appUrl: "",
   heroTitle: "Bet on the games you love",
   heroSubtitle: "Fast odds, instant crypto deposits, live betting.",
-  oddsProvider: "the-odds-api",
+  oddsProvider: "betsapi", // primary: BetsAPI (bet365 via RapidAPI)
   oddsMarginPercent: 6,
   maxLiabilityPerMarket: 500000,
   oddsIoLeagueSlugs: "",
+  apiRapidKey: "",
+  apiRapidHost: "betsapi2.p.rapidapi.com",
+  apiRapidBase: "https://betsapi2.p.rapidapi.com",
   hideSeededGames: false,
   referralEnabled: true,
   referralBonusPercent: 10,
@@ -169,6 +176,9 @@ export async function getSettings(): Promise<SiteSettings> {
   s.oddsMarginPercent = Number(raw["odds.marginPercent"] ?? s.oddsMarginPercent);
   s.maxLiabilityPerMarket = Number(raw["betting.maxLiabilityPerMarket"] ?? s.maxLiabilityPerMarket);
   s.oddsIoLeagueSlugs = raw["odds.io.leagueSlugs"] ?? s.oddsIoLeagueSlugs;
+  s.apiRapidKey = raw["api.rapidKey"] ?? s.apiRapidKey;
+  s.apiRapidHost = raw["api.rapidHost"] ?? s.apiRapidHost;
+  s.apiRapidBase = raw["api.rapidBase"] ?? s.apiRapidBase;
   s.hideSeededGames =
     process.env.SHOW_SEEDED_GAMES !== undefined
       ? process.env.SHOW_SEEDED_GAMES !== "true" // env wins: "false" = hide seeds
