@@ -70,7 +70,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               >
                 <BroadcastBanner />
                 <Header user={headerUser} siteName={s.siteName} />
-                <main className="min-h-[60vh] pb-20 xl:pb-0">{children}</main>
+                {/* Mobile bottom padding clears the nav bar (~64px) plus the
+                    floating betslip mini-bar (sits at 68px, ~56px tall). */}
+                <main className="min-h-[60vh] pb-32 xl:pb-0">{children}</main>
                 <Footer />
                 <MobileNav loggedIn={!!user} liveCount={liveGames} />
                 <SupportWidget

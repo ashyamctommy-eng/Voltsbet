@@ -77,15 +77,13 @@ export default function BetSlip() {
     push("error", res.error.message);
   }
 
-  const canPlace = items.length > 0 && !placing;
-
   return (
     <>
       {/* ── Mobile floating mini-bar ── */}
       {items.length > 0 && !open && (
         <button
           onClick={() => setOpen(true)}
-          className="fixed inset-x-3 bottom-[68px] z-40 xl:hidden"
+          className="fixed inset-x-3 bottom-[68px] z-50 xl:hidden"
         >
           <span className="flex w-full items-center justify-between rounded-xl border border-brand/40 bg-[#0c1a14]/95 px-4 py-3 shadow-2xl backdrop-blur">
             <span className="flex items-center gap-2 text-sm font-semibold">

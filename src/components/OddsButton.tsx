@@ -21,10 +21,15 @@ type Props = {
 };
 
 export default function OddsButton(props: Props) {
-  const { items, add, setOpen } = useBetSlip();
+  const { items, add, remove, setOpen } = useBetSlip();
   const selected = items.some((i) => i.outcomeId === props.outcomeId);
-  const suspended = props.gameStatus !== "SCHEDULED" && props.gameStatus !== "LIVE" && props.gameStatus !== "HALF_TIME";
-  const disabled = suspended;
+  // Price missing (0 / unset) or game closed → render a "-" placeholder that
+  // is NOT clickable. A SELECTED pick is never disabled: tapping it again
+  // removes it from the slip and clears the highlight.
+  const unavailable = !(props.odds > 0);
+  const suspended =
+    props.gameStatus !== "SCHEDULED" && props.gameStatus !== "LIVE" && props.gameStatus !== "HALF_TIME";
+  const disabled = suspended || unavailable;
 
   const item: SlipItem = {
     outcomeId: props.outcomeId,
@@ -48,16 +53,21 @@ export default function OddsButton(props: Props) {
       type="button"
       disabled={disabled}
       onClick={() => {
+        if (selected) {
+          // Toggle OFF — remove from the slip, highlight resets via `selected`.
+          remove(props.outcomeId);
+          return;
+        }
         add(item);
         // Desktop: the rail opens immediately. Mobile: the floating mini-bar
         // appears — tapping it (or the Bets tab) opens the sheet.
         if (window.innerWidth >= 1280) setOpen(true);
       }}
-      className={`odds-btn active:scale-95 ${selected ? "selected" : ""}`}
+      className={`odds-btn active:scale-95 ${selected ? "selected" : ""} ${unavailable ? "odds-btn-muted" : ""}`}
       aria-pressed={selected}
-      title={disabled ? "Betting closed for this game" : `Add ${props.outcome} @ ${fmtOdds(props.odds)}`}
+      title={disabled ? (unavailable ? "Price unavailable" : "Betting closed for this game") : `Add ${props.outcome} @ ${fmtOdds(props.odds)}`}
     >
-      {fmtOdds(props.odds)}
+      {unavailable ? "-" : fmtOdds(props.odds)}
     </button>
   );
 }

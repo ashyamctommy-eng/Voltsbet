@@ -10,8 +10,12 @@
  *   GET /events?sport=football            → events (defaults next 14 days,
  *                                           hard cap 5000, status pending/live/
  *                                           settled/cancelled, scores included)
- *   GET /odds/multi?eventIds=1,2,…&bookmakers=…  → odds for ≤10 events/call
- *   GET /events/live                      → in-play events + clock (minute,
+ *   GET /leagues?sport=football           → league registry (name/slug) used to
+ *                                           enrich events + optional curation
+ *                                           via ODDS_IO_LEAGUE_SLUGS
+ *   GET /odds/multi?eventIds=1,2,…&bookmakers=…  → odds for ≤10 events/call,
+ *                                           merged per market type across books
+ *   GET /events/live?sport=football       → in-play events + clock (minute,
  *                                           period, running, statusDetail)
  *   GET /bookmakers/selected              → user's selected bookmakers
  * Auth: ?apiKey=… query param (key from https://odds-api.io/dashboard).
@@ -27,6 +31,14 @@ const ODDS_BATCH = 10;
 const MAX_EVENTS = Number(process.env.ODDS_IO_MAX_EVENTS ?? 150) || 150;
 /** Bookmaker override; defaults to the account's selected bookmakers. */
 const BOOKMAKERS_OVERRIDE = (process.env.ODDS_IO_BOOKMAKERS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+/** Optional curation: comma-separated league slugs — only these are imported. */
+const LEAGUE_SLUGS = (process.env.ODDS_IO_LEAGUE_SLUGS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+
+/** Status vocabulary accepted for upcoming fixtures ("pending" per the API,
+ *  "NOT_STARTED" / "NS" per the spec/other providers). */
+const UPCOMING_STATUSES = new Set(["pending", "scheduled", "NOT_STARTED", "NS"]);
+/** Status vocabulary accepted as in-play. */
+const LIVE_STATUSES = new Set(["live", "IN_PLAY", "1H", "2H", "HT"]);
 
 type OddsValue = Record<string, string | number>;
 type Market = { name: string; updatedAt?: string; odds: OddsValue[] };
@@ -73,8 +85,21 @@ export class OddsIoProvider implements OddsProvider {
     const margin = (await getSettings()).oddsMarginPercent;
 
     const events = await this.get<Event[]>(`/events?sport=football`);
+
+    // League registry (GET /v3/leagues) — authoritative league names/slugs.
+    // Used to enrich events that carry a slug but no name, and to optionally
+    // curate the import set via ODDS_IO_LEAGUE_SLUGS.
+    let leagueNameBySlug = new Map<string, string>();
+    try {
+      const leagues = await this.get<{ slug: string; name: string }[]>(`/leagues?sport=football`);
+      leagueNameBySlug = new Map(leagues.map((l) => [l.slug, l.name]));
+    } catch {
+      /* enrichment optional — events already carry league names */
+    }
+
     const upcoming = events
-      .filter((e) => e.status === "pending")
+      .filter((e) => UPCOMING_STATUSES.has(e.status))
+      .filter((e) => !LEAGUE_SLUGS.length || (e.league?.slug && LEAGUE_SLUGS.includes(e.league.slug)))
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
       .slice(0, MAX_EVENTS);
     if (!upcoming.length) return [];
@@ -86,7 +111,7 @@ export class OddsIoProvider implements OddsProvider {
     return upcoming.map((e) => ({
       externalId: `oddsio-${e.id}`,
       sportKey: "football",
-      competitionName: e.league?.name,
+      competitionName: e.league?.name ?? (e.league?.slug ? leagueNameBySlug.get(e.league.slug) : undefined),
       homeName: e.home,
       awayName: e.away,
       startAt: new Date(e.date),
@@ -109,10 +134,20 @@ export class OddsIoProvider implements OddsProvider {
           `/odds/multi?eventIds=${chunk.join(",")}&bookmakers=${bookmakers.join(",")}`,
         );
         for (const ev of odds) {
-          // Prefer the first selected bookmaker with markets (feed margins
-          // are stripped/re-priced below anyway).
-          const markets = bookmakers.map((b) => ev.bookmakers?.[b] ?? []).find((m) => m.length);
-          if (markets) map.set(ev.id, markets);
+          // Merge per MARKET TYPE across the selected bookmakers — take each
+          // market (ML, Double Chance, Totals, …) from the first bookmaker
+          // that prices it, so a thin book never starves a whole event.
+          const merged: Market[] = [];
+          const seen = new Set<string>();
+          for (const bk of bookmakers) {
+            for (const m of ev.bookmakers?.[bk] ?? []) {
+              if (!seen.has(m.name)) {
+                seen.add(m.name);
+                merged.push(m);
+              }
+            }
+          }
+          if (merged.length) map.set(ev.id, merged);
         }
       } catch {
         /* odds optional — game still imported without odds */
@@ -220,9 +255,11 @@ export class OddsIoProvider implements OddsProvider {
 
   async fetchLiveScores(sportKeys: string[]) {
     if (!sportKeys.includes("football")) return [];
-    // /events/live covers every sport — filter to football so tennis etc.
-    // never get matched to football games.
-    const events = await this.get<Event[]>(`/events/live?sport=football`);
+    // /events/live covers every sport — filter to football (and accept the
+    // spec's IN_PLAY alias) so tennis etc. never match football games.
+    const events = (await this.get<Event[]>(`/events/live?sport=football`)).filter((e) =>
+      LIVE_STATUSES.has(e.status),
+    );
     return events.map((e) => {
       const clock = e.clock?.minute != null ? `${e.clock.minute}'` : undefined;
       return {

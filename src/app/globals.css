@@ -105,6 +105,11 @@ body {
   border-color: var(--color-line);
   color: var(--color-ink3);
 }
+/* Missing price placeholder ("-") — dimmer than a real disabled button */
+.odds-btn-muted {
+  opacity: 0.35;
+  font-weight: 500;
+}
 
 /* ── Misc ─────────────────────────────────────────────────── */
 .skeleton {

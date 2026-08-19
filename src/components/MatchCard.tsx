@@ -63,6 +63,17 @@ export default function MatchCard({
     return null;
   };
 
+  /** Body rows: for 1X2 markets always render Home/Draw/Away (missing prices
+   *  show a "-" placeholder row); other markets render their own outcomes. */
+  const isOneXTwo = mainMarket?.key === "MATCH_RESULT" || mainMarket?.key === "h2h";
+  const outcomeRows: { leg: string; label: string | null; outcome?: (typeof odds)[number] }[] = isOneXTwo
+    ? [
+        { leg: game.homeName, label: "1", outcome: odds.find((o) => o.label === "1" || o.name === game.homeName) },
+        { leg: "Draw", label: "X", outcome: odds.find((o) => (o.label ?? "").toLowerCase() === "x" || o.name.toLowerCase() === "draw") },
+        { leg: game.awayName, label: "2", outcome: odds.find((o) => o.label === "2" || o.name === game.awayName) },
+      ]
+    : odds.map((o) => ({ leg: o.name, label: o.label, outcome: o }));
+
   return (
     <div className="card card-hover p-4">
       {/* Card header: league/competition left · green markets count right */}
@@ -118,33 +129,37 @@ export default function MatchCard({
         </div>
       ) : odds.length > 0 && mainMarket ? (
         <div className="mt-3 space-y-1.5">
-          {odds.map((o) => (
-            <div key={o.id} className="flex items-center justify-between gap-3 rounded-lg bg-card2 px-3 py-2">
+          {outcomeRows.map((row, i) => (
+            <div key={i} className="flex items-center justify-between gap-3 rounded-lg bg-card2 px-3 py-2">
               <span className="flex min-w-0 items-center gap-2">
-                <TeamLogo name={o.name} src={logoFor(o.name)} className="h-5 w-5" />
-                <span className="truncate text-sm font-semibold">{o.name}</span>
-                {o.label && (
+                <TeamLogo name={row.leg} src={logoFor(row.leg)} className="h-5 w-5 shrink-0" />
+                <span className="truncate text-sm font-semibold">{row.leg}</span>
+                {row.label && (
                   <span className="shrink-0 rounded bg-white/5 px-1.5 py-0.5 text-[10px] font-bold text-ink3">
-                    {o.label}
+                    {row.label}
                   </span>
                 )}
               </span>
-              <OddsButton
-                outcomeId={o.id}
-                gameId={game.id}
-                sport={game.sport.name}
-                competition={game.competitionName ?? game.sport.name}
-                home={game.homeName}
-                away={game.awayName}
-                startAt={game.startAt.toISOString()}
-                market={mainMarket.name}
-                marketKey={mainMarket.key}
-                outcome={o.name}
-                label={o.label}
-                odds={Number(o.odds)}
-                gameStatus={game.status}
-                live={isLive}
-              />
+              {row.outcome ? (
+                <OddsButton
+                  outcomeId={row.outcome.id}
+                  gameId={game.id}
+                  sport={game.sport.name}
+                  competition={game.competitionName ?? game.sport.name}
+                  home={game.homeName}
+                  away={game.awayName}
+                  startAt={game.startAt.toISOString()}
+                  market={mainMarket.name}
+                  marketKey={mainMarket.key}
+                  outcome={row.outcome.name}
+                  label={row.label}
+                  odds={Number(row.outcome.odds)}
+                  gameStatus={game.status}
+                  live={isLive}
+                />
+              ) : (
+                <span className="odds-btn odds-btn-muted" title="Price unavailable">-</span>
+              )}
             </div>
           ))}
         </div>

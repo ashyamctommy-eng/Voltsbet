@@ -269,6 +269,15 @@ export function IconChevronDown({ className }: IconProps) {
   );
 }
 
+/** Dual vertical chevrons ("⇅") for sortable/date selector pills. */
+export function IconChevronsUpDown({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="m8 15 4 4 4-4M8 9l4-4 4 4" />
+    </Svg>
+  );
+}
+
 export function IconX({ className }: IconProps) {
   return (
     <Svg className={className}>

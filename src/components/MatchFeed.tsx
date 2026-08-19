@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import MatchCard from "@/components/MatchCard";
-import { IconChevronDown } from "@/components/icons";
+import { IconChevronDown, IconChevronsUpDown } from "@/components/icons";
 import { leagueRank } from "@/lib/league-rank";
 
 type FeedGame = {
@@ -46,11 +46,14 @@ function Dropdown({
   active,
   options,
   onSelect,
+  icon = "down",
 }: {
   label: string;
   active: boolean;
   options: { value: string; label: string }[];
   onSelect: (value: string) => void;
+  /** "down" = single chevron (Leagues ⌄), "updown" = dual chevrons (Today ⇅). */
+  icon?: "down" | "updown";
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -64,7 +67,11 @@ function Dropdown({
         }`}
       >
         <span className="max-w-36 truncate">{label}</span>
-        <IconChevronDown className="h-3 w-3" />
+        {icon === "updown" ? (
+          <IconChevronsUpDown className="h-3 w-3" />
+        ) : (
+          <IconChevronDown className="h-3 w-3" />
+        )}
       </button>
       {open && (
         <>
@@ -135,7 +142,7 @@ export default function MatchFeed({ games }: { games: FeedGame[] }) {
 
   const marketKeys = [...(MARKET_FILTERS.find((m) => m.id === marketFilter)!.keys)];
 
-  const dayLabel = dayFilter === "tomorrow" ? "Tomorrow ⌄" : "Today ⌄";
+  const dayLabel = dayFilter === "tomorrow" ? "Tomorrow ⇅" : "Today ⇅";
 
   return (
     <section className="mt-4">
@@ -164,6 +171,7 @@ export default function MatchFeed({ games }: { games: FeedGame[] }) {
         <Dropdown
           label={dayLabel}
           active={timeFilter === "today" || timeFilter === "tomorrow"}
+          icon="updown"
           options={[
             { value: "today", label: "Today" },
             { value: "tomorrow", label: "Tomorrow" },
