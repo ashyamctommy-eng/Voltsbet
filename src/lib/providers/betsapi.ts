@@ -1,9 +1,10 @@
 /**
  * BetsApiProvider — BetsAPI (bet365 via RapidAPI) as an OddsProvider.
  *
- * Transport lives in `./betsapi-client` (BetsApiClient) — this file owns only
- * the domain mapping: fixture metadata → ApiGame, prematch markets → our
- * market model, live/finished statuses, and the settlement sweep.
+ * Transport lives in `./betsapi-client` (BetsApiClient); data mapping lives in
+ * `./betsapi-transformer` (extractOddsMarkets). This file owns only the
+ * provider glue: fixture/metadata types, status mapping, and the sync-facing
+ * fetch methods.
  *
  * Endpoint mapping (all via BetsApiClient, verified live 2026-08):
  *   getUpcomingEvents(sportId, page) → fixture LIST (metadata only: id/FI,
@@ -20,9 +21,9 @@
  * (capped 20). BASIC plan is rate-limited per hour — keep runs modest.
  */
 import { ApiGame, ApiScore, OddsProvider } from "./odds-api";
-import { applyMarginGrid } from "../margin";
 import { getSettings } from "../settings";
 import { BetsApiClient } from "./betsapi-client";
+import { extractOddsMarkets } from "./betsapi-transformer";
 
 const FOOTBALL_SPORT_ID = "1";
 
@@ -34,9 +35,6 @@ const MAX_EVENTS = Number(process.env.BETSAPI_MAX_EVENTS ?? 150) || 150;
 const ODDS_EVENTS = Number(process.env.BETSAPI_ODDS_EVENTS ?? 20) || 20;
 /** Max finished-result lookups per sync (1 request each). */
 const RESULT_SWEEP = Number(process.env.BETSAPI_RESULT_SWEEP ?? 20) || 20;
-
-type OddsLeg = { id?: string; odds?: string; name?: string | null; header?: string | null; handicap?: string | null };
-type BetsApiMarket = { id?: string; name?: string; odds?: OddsLeg[] };
 
 /** Upcoming-list event (metadata source). */
 type BetsApiEvent = {
@@ -55,8 +53,8 @@ type BetsApiEvent = {
 type PrematchResult = {
   FI?: string;
   event_id?: string;
-  main?: { sp?: Record<string, BetsApiMarket> };
-  others?: { sp?: Record<string, BetsApiMarket> }[];
+  main?: { sp?: Record<string, { id?: string; name?: string; odds?: { id?: string; odds?: string; name?: string | null; header?: string | null; handicap?: string | null }[] }> };
+  others?: { sp?: Record<string, { id?: string; name?: string; odds?: { id?: string; odds?: string; name?: string | null; header?: string | null; handicap?: string | null }[] }> }[];
 };
 
 /** Map time_status → local status ("1" = IN_PLAY / live, "0" = NOT_STARTED). */
@@ -66,179 +64,10 @@ function localStatus(timeStatus: string | undefined): ApiScore["status"] {
   return "scheduled";
 }
 
-/** Look up one market by key across main.sp (and others as a fallback). */
-function findMarket(prematch: PrematchResult | null, key: string): BetsApiMarket | null {
-  if (!prematch) return null;
-  const fromMain = prematch.main?.sp?.[key];
-  if (fromMain?.odds?.length) return fromMain;
-  for (const other of prematch.others ?? []) {
-    const m = other.sp?.[key];
-    if (m?.odds?.length) return m;
-  }
-  return null;
-}
-
-/**
- * Apply the margin grid to priced legs only; missing legs stay odds 0 so the
- * card renders them as "-" (never feed 0-odds to the margin engine).
- */
-function priceOutcomes(
-  outcomes: { name: string; label?: string; odds: number }[],
-  margin: number,
-): { name: string; label?: string; odds: number }[] {
-  const present = outcomes.filter((o) => o.odds > 1);
-  if (present.length < 2) {
-    return outcomes.map((o) => ({ name: o.name, label: o.label, odds: o.odds > 1 ? Math.round(o.odds * 20) / 20 : 0 }));
-  }
-  const repriced = applyMarginGrid(present, margin);
-  let i = 0;
-  return outcomes.map((o) =>
-    o.odds > 1 ? repriced[i++] : { name: o.name, label: o.label, odds: 0 },
-  );
-}
-
-const legOdds = (m: BetsApiMarket | null, match: (l: OddsLeg) => boolean) =>
-  m?.odds?.find(match)?.odds;
-
-/**
- * Parse a BetsAPI event (+ its prematch markets) into our ApiGame shape.
- * Missing market values become odds 0 — the card renders them as "-".
- */
+/** Parse a BetsAPI event (+ prematch markets) into our ApiGame shape. */
 export function parseBetsApiMatch(item: BetsApiEvent, prematch: PrematchResult | null, margin: number): ApiGame {
-  const num = (v: string | undefined) => {
-    const n = Number(v);
-    return v != null && isFinite(n) && n > 1 ? n : 0;
-  };
   const homeName = item.home?.name ?? "Home";
   const awayName = item.away?.name ?? "Away";
-  const markets: ApiGame["markets"] = [];
-
-  // 1X2 — full_time_result odds: name "1" | "Draw" | "2"
-  const ftr = findMarket(prematch, "full_time_result");
-  const home = num(legOdds(ftr, (l) => l.name === "1" || l.header === "1"));
-  const draw = num(legOdds(ftr, (l) => l.name?.toLowerCase() === "draw"));
-  const away = num(legOdds(ftr, (l) => l.name === "2" || l.header === "2"));
-  if (home > 0 || draw > 0 || away > 0) {
-    markets.push({
-      key: "MATCH_RESULT",
-      name: "Match Result",
-      outcomes: priceOutcomes(
-        [
-          { name: homeName, label: "1", odds: home },
-          { name: "Draw", label: "X", odds: draw },
-          { name: awayName, label: "2", odds: away },
-        ],
-        margin,
-      ),
-    });
-  }
-
-  // Double Chance — names like "Fulham or Draw" (1X), "Draw or Arsenal" (X2),
-  // "Fulham or Arsenal" (12) → normalize to settle-friendly 1x/12/x2.
-  const dc = findMarket(prematch, "double_chance");
-  const dcLegs = (dc?.odds ?? []).slice(0, 3);
-  const dcPick: Record<string, number> = {};
-  for (const l of dcLegs) {
-    const n = (l.name ?? "").toLowerCase();
-    let key: string | null = null;
-    if (n.endsWith("or draw")) key = "1x";
-    else if (n.startsWith("draw or")) key = "x2";
-    else if (n.includes(" or ")) key = "12";
-    if (key) dcPick[key] = num(l.odds);
-  }
-  // positional fallback (1X, X2, 12) if names were plain
-  if (!Object.keys(dcPick).length && dcLegs.length >= 2) {
-    dcPick["1x"] = num(dcLegs[0]?.odds);
-    dcPick["x2"] = num(dcLegs[1]?.odds);
-    if (dcLegs[2]) dcPick["12"] = num(dcLegs[2]?.odds);
-  }
-  if (Object.values(dcPick).some((v) => v > 0)) {
-    markets.push({
-      key: "DOUBLE_CHANCE",
-      name: "Double Chance",
-      outcomes: priceOutcomes(
-        [
-          { name: "1x", odds: dcPick["1x"] ?? 0 },
-          { name: "12", odds: dcPick["12"] ?? 0 },
-          { name: "x2", odds: dcPick["x2"] ?? 0 },
-        ],
-        margin,
-      ),
-    });
-  }
-
-  // Totals — goals_over_under: { name: line "2.5", header: Over|Under, odds }
-  const gou = findMarket(prematch, "goals_over_under");
-  let bestLine = -1;
-  let bestOver = 0;
-  let bestUnder = 0;
-  const byLine = new Map<number, { over: number; under: number }>();
-  for (const l of gou?.odds ?? []) {
-    const line = Number(l.name ?? l.handicap);
-    if (!isFinite(line) || line <= 0) continue;
-    const bucket = byLine.get(line) ?? { over: 0, under: 0 };
-    if ((l.header ?? l.name ?? "").toLowerCase().startsWith("over")) bucket.over = num(l.odds);
-    if ((l.header ?? l.name ?? "").toLowerCase().startsWith("under")) bucket.under = num(l.odds);
-    byLine.set(line, bucket);
-  }
-  for (const [line, b] of byLine) {
-    if (b.over <= 0 || b.under <= 0) continue;
-    if (bestLine < 0 || Math.abs(line - 2.5) < Math.abs(bestLine - 2.5)) {
-      bestLine = line;
-      bestOver = b.over;
-      bestUnder = b.under;
-    }
-  }
-  if (bestLine > 0) {
-    markets.push({
-      key: "OVER_UNDER",
-      name: `Over/Under ${bestLine}`,
-      outcomes: priceOutcomes(
-        [
-          { name: `over ${bestLine}`, odds: bestOver },
-          { name: `under ${bestLine}`, odds: bestUnder },
-        ],
-        margin,
-      ),
-    });
-  }
-
-  // Both Teams To Score — Yes/No
-  const btts = findMarket(prematch, "both_teams_to_score");
-  const btsYes = num(legOdds(btts, (l) => l.name?.toLowerCase() === "yes" || l.header?.toLowerCase() === "yes"));
-  const btsNo = num(legOdds(btts, (l) => l.name?.toLowerCase() === "no" || l.header?.toLowerCase() === "no"));
-  if (btsYes > 0 || btsNo > 0) {
-    markets.push({
-      key: "BTTS",
-      name: "Both Teams To Score",
-      outcomes: priceOutcomes(
-        [
-          { name: "yes", odds: btsYes },
-          { name: "no", odds: btsNo },
-        ],
-        margin,
-      ),
-    });
-  }
-
-  // Draw No Bet — odds: name "1" | "2"
-  const dnb = findMarket(prematch, "draw_no_bet");
-  const dnbHome = num(legOdds(dnb, (l) => l.name === "1" || l.header === "1"));
-  const dnbAway = num(legOdds(dnb, (l) => l.name === "2" || l.header === "2"));
-  if (dnbHome > 0 || dnbAway > 0) {
-    markets.push({
-      key: "DRAW_NO_BET",
-      name: "Draw No Bet",
-      outcomes: priceOutcomes(
-        [
-          { name: homeName, label: "1", odds: dnbHome },
-          { name: awayName, label: "2", odds: dnbAway },
-        ],
-        margin,
-      ),
-    });
-  }
-
   return {
     externalId: `betsapi-${item.id}`,
     sportKey: FOOTBALL_SPORT_ID,
@@ -246,7 +75,7 @@ export function parseBetsApiMatch(item: BetsApiEvent, prematch: PrematchResult |
     homeName,
     awayName,
     startAt: new Date(Number(item.time) * 1000),
-    markets,
+    markets: extractOddsMarkets(prematch, homeName, awayName, margin),
   };
 }
 
@@ -275,7 +104,7 @@ export class BetsApiProvider implements OddsProvider {
     const margin = (await getSettings()).oddsMarginPercent;
     const client = await BetsApiClient.fromSettings();
 
-    // 1) Fixture list (metadata only) — page-walk, stop on a short page.
+    // Step 1 — fixture list (metadata only): page-walk, stop on a short page.
     const fixtures: BetsApiEvent[] = [];
     for (let page = 1; page <= 3; page++) {
       const res = await client.getUpcomingEvents(FOOTBALL_SPORT_ID, page);
@@ -289,7 +118,8 @@ export class BetsApiProvider implements OddsProvider {
       .slice(0, MAX_EVENTS);
     if (!upcoming.length) return [];
 
-    // 2) Odds for the soonest ODDS_EVENTS fixtures (1 prematch request each).
+    // Step 2 — odds for the soonest ODDS_EVENTS fixtures, executed SEQUENTIALLY
+    // (1 prematch request each) so rate limits degrade gracefully per event.
     const oddsTarget = upcoming.slice(0, ODDS_EVENTS);
     const prematchByFi = new Map<string, PrematchResult | null>();
     for (const ev of oddsTarget) {

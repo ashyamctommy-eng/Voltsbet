@@ -2,7 +2,8 @@ import Link from "next/link";
 import OddsButton from "@/components/OddsButton";
 import TeamLogo from "@/components/TeamLogo";
 import { IconClock } from "@/components/icons";
-import { formatKickoff, liveContext } from "@/lib/kickoff";
+import { liveContext } from "@/lib/kickoff";
+import { toMatchView } from "@/lib/providers/betsapi-transformer";
 
 type MarketLite = {
   id: string;
@@ -31,9 +32,15 @@ type GameLite = {
   markets: MarketLite[];
 };
 
-/** Statuses that count as in-play — everything else is pre-match/finished. */
-const LIVE_STATUSES = ["LIVE", "HALF_TIME", "IN_PLAY"];
-
+/**
+ * Match card — renders from the standard MatchView contract (toMatchView).
+ * Conditional rules:
+ *   LIVE (timeStatus "1" / isLive)   → red • Live badge + score + elapsed
+ *                                      minute; clock icon & kickoff HIDDEN.
+ *   PRE-MATCH (timeStatus "0" / future) → league top-left, green markets link
+ *                                      top-right, SVG clock + kickoff below,
+ *                                      stacked teams + 1X2 odds right.
+ */
 export default function MatchCard({
   game,
   showCompetition = true,
@@ -44,8 +51,9 @@ export default function MatchCard({
   /** Restrict which market keys the card may use as its main market (e.g. "1x2" filter). */
   preferMarkets?: string[];
 }) {
-  void showCompetition; // reserved — league line always renders from competitionName
-  const isLive = LIVE_STATUSES.includes(game.status) || game.live;
+  void showCompetition; // reserved — league line always renders from the view
+  const view = toMatchView(game);
+  const isLive = view.isLive;
   const isFinished = game.status === "FINISHED";
 
   const candidates = game.markets.filter((m) => m.status === "OPEN" && m.outcomes.some((o) => o.status === "ACTIVE"));
@@ -58,8 +66,8 @@ export default function MatchCard({
   const ctx = liveContext(game.status, game.clock, game.period);
 
   const logoFor = (name: string) => {
-    if (name === game.homeName) return game.homeLogo;
-    if (name === game.awayName) return game.awayLogo;
+    if (name === view.homeTeam) return game.homeLogo;
+    if (name === view.awayTeam) return game.awayLogo;
     return null;
   };
 
@@ -68,18 +76,18 @@ export default function MatchCard({
   const isOneXTwo = mainMarket?.key === "MATCH_RESULT" || mainMarket?.key === "h2h";
   const outcomeRows: { leg: string; label: string | null; outcome?: (typeof odds)[number] }[] = isOneXTwo
     ? [
-        { leg: game.homeName, label: "1", outcome: odds.find((o) => o.label === "1" || o.name === game.homeName) },
+        { leg: view.homeTeam, label: "1", outcome: odds.find((o) => o.label === "1" || o.name === view.homeTeam) },
         { leg: "Draw", label: "X", outcome: odds.find((o) => (o.label ?? "").toLowerCase() === "x" || o.name.toLowerCase() === "draw") },
-        { leg: game.awayName, label: "2", outcome: odds.find((o) => o.label === "2" || o.name === game.awayName) },
+        { leg: view.awayTeam, label: "2", outcome: odds.find((o) => o.label === "2" || o.name === view.awayTeam) },
       ]
     : odds.map((o) => ({ leg: o.name, label: o.label, outcome: o }));
 
   return (
     <div className="card card-hover p-4">
-      {/* Card header: league/competition left · green markets count right */}
+      {/* Card header: leagueName left · green markets count right */}
       <div className="flex items-center justify-between gap-2 text-xs">
         <span className="line-clamp-2 font-semibold leading-tight text-ink3">
-          {game.competitionName ?? game.sport.name}
+          {view.leagueName}
         </span>
         <Link
           href={`/fixture/${game.id}`}
@@ -89,8 +97,8 @@ export default function MatchCard({
         </Link>
       </div>
 
-      {/* Secondary line: LIVE badge + live context, or SVG clock + kickoff.
-          Pre-match (NOT_STARTED/future) never renders the red badge. */}
+      {/* Secondary line: LIVE badge + elapsed minute, or SVG clock + kickoff.
+          Pre-match (timeStatus "0" / future) NEVER renders the red badge. */}
       <div className="mt-1.5 flex items-center gap-1.5">
         {isLive ? (
           <span className="flex items-center gap-1.5 rounded-full bg-red-500/15 px-2 py-0.5 font-bold text-red-400">
@@ -100,7 +108,7 @@ export default function MatchCard({
           <IconClock className="h-3.5 w-3.5 shrink-0 text-ink3" />
         )}
         <span className="truncate text-xs font-medium text-ink2">
-          {isLive ? (ctx ?? "In play") : formatKickoff(game.startAt)}
+          {isLive ? (view.elapsedMinute || ctx || "In play") : view.kickoffLabel}
         </span>
       </div>
 
@@ -108,15 +116,15 @@ export default function MatchCard({
       {(isLive || isFinished) && (
         <div className="mt-2 flex items-center justify-center gap-2 rounded-lg bg-card2 px-3 py-2">
           <span className="flex min-w-0 items-center gap-1.5 text-sm font-semibold">
-            <TeamLogo name={game.homeName} src={game.homeLogo} className="h-5 w-5" />
-            <span className="truncate">{game.homeName}</span>
+            <TeamLogo name={view.homeTeam} src={game.homeLogo} className="h-5 w-5" />
+            <span className="truncate">{view.homeTeam}</span>
           </span>
           <span className="shrink-0 text-lg font-extrabold tabular-nums">
-            {game.homeScore} <span className="mx-0.5 text-ink3">–</span> {game.awayScore}
+            {view.score.replace("-", " – ")}
           </span>
           <span className="flex min-w-0 items-center gap-1.5 text-sm font-semibold">
-            <span className="truncate">{game.awayName}</span>
-            <TeamLogo name={game.awayName} src={game.awayLogo} className="h-5 w-5" />
+            <span className="truncate">{view.awayTeam}</span>
+            <TeamLogo name={view.awayTeam} src={game.awayLogo} className="h-5 w-5" />
           </span>
         </div>
       )}
@@ -145,9 +153,9 @@ export default function MatchCard({
                   outcomeId={row.outcome.id}
                   gameId={game.id}
                   sport={game.sport.name}
-                  competition={game.competitionName ?? game.sport.name}
-                  home={game.homeName}
-                  away={game.awayName}
+                  competition={view.leagueName}
+                  home={view.homeTeam}
+                  away={view.awayTeam}
                   startAt={game.startAt.toISOString()}
                   market={mainMarket.name}
                   marketKey={mainMarket.key}
