@@ -8,7 +8,9 @@ export default async function LivePage() {
   const s = await getSettings();
   const liveGames = await prisma.game.findMany({
     where: {
-      status: { notIn: ["FINISHED", "CANCELLED"] },
+      // Live-only: this route owns in-play matches; pre-match scheduling
+      // lives on the home feed.
+      status: { in: ["LIVE", "HALF_TIME", "IN_PLAY"] },
       ...(s.hideSeededGames ? { source: "API" } : {}),
     },
     include: { sport: true, markets: { include: { outcomes: true }, orderBy: { sortOrder: "asc" } } },
@@ -16,7 +18,7 @@ export default async function LivePage() {
     take: 60,
   });
 
-  const liveCount = liveGames.filter((g) => g.status === "LIVE" || g.status === "HALF_TIME").length;
+  const liveCount = liveGames.length;
 
   return (
     <div className="mx-auto max-w-[1600px] px-4">

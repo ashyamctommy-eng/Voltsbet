@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import MatchCard from "@/components/MatchCard";
-import { IconTv, IconCalendar } from "@/components/icons";
-import { dayWindow } from "@/lib/feed-dates";
+import { IconTv } from "@/components/icons";
+import { isLiveStatus } from "@/lib/game-status";
 
 type FeedGame = {
   id: string;
@@ -30,66 +31,54 @@ type FeedGame = {
   }[];
 };
 
-const TABS = [
-  { id: "live", label: "Live" },
-  { id: "today", label: "Today" },
-  { id: "tomorrow", label: "Tomorrow" },
-  { id: "upcoming", label: "Upcoming" },
-] as const;
+/** How often the live page silently re-fetches scores/timers from the DB. */
+const REFRESH_MS = 30_000;
 
-type Tab = (typeof TABS)[number]["id"];
-
+/**
+ * Live feed — in-play matches ONLY (the /live route).
+ *
+ * The pre-match scheduling views (Today / Tomorrow / Upcoming) live on the
+ * home feed; here every card is a game in progress with a ticking clock.
+ * Scores and timers auto-refresh every 30s via router.refresh() (no reload,
+ * client state like the ticking clocks is preserved).
+ */
 export default function LiveFeed({ games }: { games: FeedGame[] }) {
-  const [tab, setTab] = useState<Tab>("live");
+  const router = useRouter();
 
-  const filtered = useMemo(() => {
-    const now = new Date();
-    const day = (offset: number) =>
-      dayWindow(new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset).toDateString());
-    const sameDay = (t: number, offset: number) => t >= day(offset).from && t < day(offset).to;
+  // Real-time feel: silently re-run the server page so DB scores/timers stay
+  // fresh without a manual reload.
+  useEffect(() => {
+    const t = setInterval(() => router.refresh(), REFRESH_MS);
+    return () => clearInterval(t);
+  }, [router]);
 
-    let list = games;
-    if (tab === "live") list = list.filter((g) => g.status === "LIVE" || g.status === "HALF_TIME");
-    if (tab === "today") list = list.filter((g) => sameDay(new Date(g.startAt).getTime(), 0));
-    if (tab === "tomorrow") list = list.filter((g) => sameDay(new Date(g.startAt).getTime(), 1));
-    if (tab === "upcoming") list = list.filter((g) => new Date(g.startAt).getTime() >= day(2).from);
-
-    return [...list].sort(
-      (a, b) => Number(b.live) - Number(a.live) || new Date(a.startAt).getTime() - new Date(b.startAt).getTime(),
-    );
-  }, [games, tab]);
+  const live = useMemo(
+    () =>
+      [...games]
+        .filter((g) => isLiveStatus(g.status, g.live))
+        .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime()),
+    [games],
+  );
 
   return (
     <>
-      {/* Date / status tabs */}
-      <div className="no-scrollbar -mx-4 flex items-center gap-1 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`shrink-0 rounded-full px-4 py-1.5 text-xs font-bold transition-colors ${
-              tab === t.id ? "bg-brand text-[#052e16]" : "bg-white/5 text-ink2 hover:bg-white/10 hover:text-ink"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-        <span className="ml-auto hidden shrink-0 text-[11px] font-semibold text-ink3 sm:block">{filtered.length} matches</span>
+      <div className="flex items-center gap-2 text-[11px] font-semibold text-ink3">
+        <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-red-400" />
+        Live — updates automatically every 30s
       </div>
 
-      <div className="mt-6">
-        {filtered.length === 0 ? (
+      <div className="mt-4">
+        {live.length === 0 ? (
           <div className="card p-12 text-center">
-            <IconTv className={`mx-auto h-10 w-10 text-ink3 ${tab === "live" ? "" : "hidden"}`} />
-            <IconCalendar className={`mx-auto h-10 w-10 text-ink3 ${tab === "live" ? "hidden" : ""}`} />
-            <p className="mt-3 font-semibold">No {tab} events</p>
+            <IconTv className="mx-auto h-10 w-10 text-ink3" />
+            <p className="mt-3 font-semibold">No live matches right now</p>
             <p className="mt-1 text-sm text-ink3">
-              {tab === "live" ? "Check another tab — upcoming and today's matches are listed here." : "Try another day tab — matches appear as soon as they're scheduled."}
+              Check back soon — in-play games appear here in real time.
             </p>
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
-            {filtered.map((g) => (
+            {live.map((g) => (
               <MatchCard key={g.id} game={g} />
             ))}
           </div>
