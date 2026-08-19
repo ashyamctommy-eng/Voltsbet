@@ -1,23 +1,19 @@
 /**
- * BetsAPI via RapidAPI — bet365 odds feed (betsapi2.p.rapidapi.com).
+ * BetsApiProvider — BetsAPI (bet365 via RapidAPI) as an OddsProvider.
  *
- * PRIMARY provider for sports events, live scores and odds. Credentials are
- * DB-backed (Admin → API Settings): X-RapidAPI-Key / X-RapidAPI-Host / Base
- * Target URL.
+ * Transport lives in `./betsapi-client` (BetsApiClient) — this file owns only
+ * the domain mapping: fixture metadata → ApiGame, prematch markets → our
+ * market model, live/finished statuses, and the settlement sweep.
  *
- * Endpoints verified live 2026-08 (RapidAPI BetsAPI package, BASIC plan):
- *   GET /v1/bet365/upcoming?sport_id=1   → fixture LIST (metadata only: id/FI,
+ * Endpoint mapping (all via BetsApiClient, verified live 2026-08):
+ *   getUpcomingEvents(sportId, page) → fixture LIST (metadata only: id/FI,
  *       time unix, time_status "0", league, home, away — NO odds here)
- *   GET /v3/bet365/prematch?FI=<id>      → per-event bet365 markets (1 req per
+ *   getPrematchOdds(fi)              → per-event bet365 markets (1 req per
  *       event). Markets live in main.sp / others[]: full_time_result (1X2),
- *       double_chance, goals_over_under, both_teams_to_score, draw_no_bet …
- *       Each market: { id, name, odds: [{ id, odds: "1.80", name|header,
- *       handicap }] }.
- *   GET /v1/bet365/inplay?sport_id=1     → live feed (RapidAPI returns the RAW
- *       compressed bet365 format — parsed v3 variant may also exist; we
- *       tolerate both, degrading gracefully)
- *   GET /v1/bet365/result?event_id=<id>  → finished outcome (time_status "3",
- *       ss "5-0", scores map) for settlement
+ *       double_chance, goals_over_under, both_teams_to_score, draw_no_bet.
+ *   getInplay()                      → live feed (RapidAPI may return the RAW
+ *       compressed format — we detect it and degrade gracefully)
+ *   getResults(event_id)             → finished outcome for settlement
  *
  * Budget: upcoming list = 1–3 req, prematch = 1 req per priced event
  * (BETSAPI_ODDS_EVENTS, default 20), live = 1, results = 1 per due game
@@ -26,9 +22,8 @@
 import { ApiGame, ApiScore, OddsProvider } from "./odds-api";
 import { applyMarginGrid } from "../margin";
 import { getSettings } from "../settings";
+import { BetsApiClient } from "./betsapi-client";
 
-const DEFAULT_HOST = "betsapi2.p.rapidapi.com";
-const DEFAULT_BASE = "https://betsapi2.p.rapidapi.com";
 const FOOTBALL_SPORT_ID = "1";
 
 /** Upcoming fixture list page size (per the API pager). */
@@ -37,7 +32,7 @@ const LIST_PAGE_SIZE = 50;
 const MAX_EVENTS = Number(process.env.BETSAPI_MAX_EVENTS ?? 150) || 150;
 /** Max events that get per-event prematch odds (1 request each). */
 const ODDS_EVENTS = Number(process.env.BETSAPI_ODDS_EVENTS ?? 20) || 20;
-/** Max finished-result sweeps per sync (1 request each). */
+/** Max finished-result lookups per sync (1 request each). */
 const RESULT_SWEEP = Number(process.env.BETSAPI_RESULT_SWEEP ?? 20) || 20;
 
 type OddsLeg = { id?: string; odds?: string; name?: string | null; header?: string | null; handicap?: string | null };
@@ -258,38 +253,17 @@ export function parseBetsApiMatch(item: BetsApiEvent, prematch: PrematchResult |
 export class BetsApiProvider implements OddsProvider {
   id = "betsapi";
 
-  private async creds() {
-    const s = await getSettings();
-    return {
-      key: s.apiRapidKey,
-      host: s.apiRapidHost || DEFAULT_HOST,
-      base: s.apiRapidBase || DEFAULT_BASE,
-    };
-  }
-
-  private async get<T>(path: string): Promise<T> {
-    const { key, host, base } = await this.creds();
-    if (!key) throw new Error("RapidAPI key not configured — set it in Admin → API Settings");
-    const res = await fetch(`${base}${path}`, {
-      headers: { "x-rapidapi-key": key, "x-rapidapi-host": host },
-    });
-    if (!res.ok) throw new Error(`BetsAPI ${res.status}: ${await res.text().catch(() => "")}`);
-    const json = (await res.json()) as { success?: number; error?: string; error_detail?: string; message?: string; results?: T };
-    if (json.success !== 1) {
-      throw new Error(`BetsAPI error: ${json.error_detail ?? json.error ?? json.message ?? JSON.stringify(json)}`);
-    }
-    return (json.results ?? []) as T;
-  }
-
   async fetchSports() {
     // Sport id 1 = soccer — verified live; keep the map static (zero requests).
     return [{ key: FOOTBALL_SPORT_ID, name: "Soccer" }];
   }
 
-  /** Prematch odds for one event (deep bet365 markets). */
+  /** Prematch odds for one event (deep bet365 markets) via the shared client. */
   async fetchPrematch(fi: string): Promise<PrematchResult | null> {
     try {
-      const results = await this.get<PrematchResult[]>(`/v3/bet365/prematch?FI=${encodeURIComponent(fi)}`);
+      const client = await BetsApiClient.fromSettings();
+      const res = await client.getPrematchOdds(fi);
+      const results = (res.results ?? []) as PrematchResult[];
       return results[0] ?? null;
     } catch {
       return null; // rate-limited or no odds — game still imports without markets
@@ -299,11 +273,13 @@ export class BetsApiProvider implements OddsProvider {
   async fetchUpcomingGames(sportKeys: string[]) {
     if (!sportKeys.includes(FOOTBALL_SPORT_ID)) return [];
     const margin = (await getSettings()).oddsMarginPercent;
+    const client = await BetsApiClient.fromSettings();
 
     // 1) Fixture list (metadata only) — page-walk, stop on a short page.
     const fixtures: BetsApiEvent[] = [];
     for (let page = 1; page <= 3; page++) {
-      const batch = await this.get<BetsApiEvent[]>(`/v1/bet365/upcoming?sport_id=${FOOTBALL_SPORT_ID}&page=${page}`);
+      const res = await client.getUpcomingEvents(FOOTBALL_SPORT_ID, page);
+      const batch = (res.results ?? []) as BetsApiEvent[];
       if (!batch.length) break;
       fixtures.push(...batch.filter((e) => e.time_status === "0"));
       if (batch.length < LIST_PAGE_SIZE) break;
@@ -326,7 +302,9 @@ export class BetsApiProvider implements OddsProvider {
   async fetchLiveScores(sportKeys: string[]) {
     if (!sportKeys.includes(FOOTBALL_SPORT_ID)) return [];
     try {
-      const data = await this.get<BetsApiEvent[] | unknown[][]>(`/v3/bet365/inplay?sport_id=${FOOTBALL_SPORT_ID}`);
+      const client = await BetsApiClient.fromSettings();
+      const res = await client.getInplay();
+      const data = (res.results ?? []) as BetsApiEvent[] | unknown[][];
       // RapidAPI may serve the RAW compressed bet365 format (array-of-arrays)
       // which has no team names — in that case we degrade gracefully.
       if (!Array.isArray(data) || !data.length) return [];
@@ -348,10 +326,12 @@ export class BetsApiProvider implements OddsProvider {
   /** Finished outcomes for settlement — one /result request per event id. */
   async fetchResults(ids: string[]): Promise<ApiScore[]> {
     const out: ApiScore[] = [];
+    const client = await BetsApiClient.fromSettings();
     const fios = ids.map((id) => id.replace(/^betsapi-/, "")).slice(0, RESULT_SWEEP);
     for (const fi of fios) {
       try {
-        const results = await this.get<BetsApiEvent[]>(`/v1/bet365/result?event_id=${encodeURIComponent(fi)}`);
+        const res = await client.getResults(fi);
+        const results = (res.results ?? []) as BetsApiEvent[];
         const r = results[0];
         if (!r || localStatus(r.time_status) !== "finished") continue;
         const [hs, as] = String(r.ss ?? "").split("-").map((n) => Number(n));

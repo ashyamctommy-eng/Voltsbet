@@ -106,7 +106,7 @@ export class BetsApiClient {
   }
 
   // ── 1. In-Play Filter ────────────────────────────────────────────────
-  getInplayFilter(sportId = 1): Promise<BetsApiResponse<unknown>> {
+  getInplayFilter(sportId: string | number = 1): Promise<BetsApiResponse<unknown>> {
     return this.request("/v1/bet365/inplay_filter", { sport_id: sportId });
   }
 
@@ -120,13 +120,13 @@ export class BetsApiClient {
     return this.request("/v1/bet365/event", { stats: 1, lineup: 1, FI: eventId });
   }
 
-  // ── 4. Upcoming Events ───────────────────────────────────────────────
-  getUpcomingEvents(sportId = 1): Promise<BetsApiResponse<unknown>> {
-    return this.request("/v1/bet365/upcoming", { sport_id: sportId });
+  // ── 4. Upcoming Events (optional page for pager-walking) ─────────────
+  getUpcomingEvents(sportId: string | number = 1, page?: number): Promise<BetsApiResponse<unknown>> {
+    return this.request("/v1/bet365/upcoming", { sport_id: sportId, ...(page ? { page } : {}) });
   }
 
   // ── 5. Upcoming Leagues (note: singular "league" per the API) ────────
-  getUpcomingLeagues(sportId = 1): Promise<BetsApiResponse<unknown>> {
+  getUpcomingLeagues(sportId: string | number = 1): Promise<BetsApiResponse<unknown>> {
     return this.request("/v1/bet365/league", { sport_id: sportId });
   }
 
