@@ -18,6 +18,7 @@ import {
   IconGear,
   IconScroll,
   IconPlug,
+  IconController,
 } from "@/components/icons";
 import AdminBroadcastButton from "@/components/admin/BroadcastDrawer";
 
@@ -41,6 +42,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     { resource: "crypto", href: "/admin/settings#payments", label: "Payments", Icon: IconCoins },
     { resource: "settings", href: "/admin/api-settings", label: "API Settings", Icon: IconPlug },
     { resource: "settings", href: "/admin/settings", label: "Website Settings", Icon: IconGear },
+    { resource: "dashboard", href: "/admin/ops", label: "Ops", Icon: IconController },
     { resource: "audit", href: "/admin/audit", label: "Audit Logs", Icon: IconScroll },
   ];
   const visible = NAV.filter((n) => can(user.role, n.resource));
