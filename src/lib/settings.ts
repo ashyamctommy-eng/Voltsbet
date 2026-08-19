@@ -52,6 +52,7 @@ export type SiteSettings = {
   apiRapidBase: string; // base target URL (https://betsapi2.p.rapidapi.com)
   // Games display
   hideSeededGames: boolean; // show only synced (source=API) games in public lists; auto-on after first successful sync
+  liveRefreshSeconds: number; // /live auto-refresh + live-score poll interval (1 BetsAPI inplay request per window)
   // Referrals
   referralEnabled: boolean;
   referralBonusPercent: number; // % of referee's first deposit credited to referrer
@@ -111,6 +112,7 @@ const DEFAULTS: SiteSettings = {
   apiRapidHost: "betsapi2.p.rapidapi.com",
   apiRapidBase: "https://betsapi2.p.rapidapi.com",
   hideSeededGames: false,
+  liveRefreshSeconds: 60,
   referralEnabled: true,
   referralBonusPercent: 10,
   referralBonusCap: 500,
@@ -183,6 +185,7 @@ export async function getSettings(): Promise<SiteSettings> {
     process.env.SHOW_SEEDED_GAMES !== undefined
       ? process.env.SHOW_SEEDED_GAMES !== "true" // env wins: "false" = hide seeds
       : raw["games.hideSeeded"] === "true";
+  s.liveRefreshSeconds = Number(raw["live.refreshSeconds"] ?? s.liveRefreshSeconds) || s.liveRefreshSeconds;
   s.referralEnabled = (raw["referral.enabled"] ?? String(DEFAULTS.referralEnabled)) === "true";
   s.referralBonusPercent = Number(raw["referral.bonusPercent"] ?? s.referralBonusPercent);
   s.referralBonusCap = Number(raw["referral.bonusCap"] ?? s.referralBonusCap);

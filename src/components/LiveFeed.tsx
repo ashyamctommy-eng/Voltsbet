@@ -31,26 +31,31 @@ type FeedGame = {
   }[];
 };
 
-/** How often the live page silently re-fetches scores/timers from the DB. */
-const REFRESH_MS = 30_000;
-
 /**
  * Live feed — in-play matches ONLY (the /live route).
  *
  * The pre-match scheduling views (Today / Tomorrow / Upcoming) live on the
  * home feed; here every card is a game in progress with a ticking clock.
- * Scores and timers auto-refresh every 30s via router.refresh() (no reload,
- * client state like the ticking clocks is preserved).
+ * Scores and timers auto-refresh every `refreshSeconds` via router.refresh()
+ * (no reload, client state like the ticking clocks is preserved); the server
+ * page also pulls fresh scores from BetsAPI on each poll (throttled).
  */
-export default function LiveFeed({ games }: { games: FeedGame[] }) {
+export default function LiveFeed({
+  games,
+  refreshSeconds = 60,
+}: {
+  games: FeedGame[];
+  /** Auto-refresh interval in seconds (admin setting live.refreshSeconds). */
+  refreshSeconds?: number;
+}) {
   const router = useRouter();
 
   // Real-time feel: silently re-run the server page so DB scores/timers stay
   // fresh without a manual reload.
   useEffect(() => {
-    const t = setInterval(() => router.refresh(), REFRESH_MS);
+    const t = setInterval(() => router.refresh(), Math.max(5, refreshSeconds) * 1000);
     return () => clearInterval(t);
-  }, [router]);
+  }, [router, refreshSeconds]);
 
   const live = useMemo(
     () =>
@@ -64,7 +69,7 @@ export default function LiveFeed({ games }: { games: FeedGame[] }) {
     <>
       <div className="flex items-center gap-2 text-[11px] font-semibold text-ink3">
         <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-red-400" />
-        Live — updates automatically every 30s
+        Live — updates automatically every {refreshSeconds}s
       </div>
 
       <div className="mt-4">

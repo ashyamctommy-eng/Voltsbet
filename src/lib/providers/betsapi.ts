@@ -135,10 +135,29 @@ export class BetsApiProvider implements OddsProvider {
       const client = await BetsApiClient.fromSettings();
       const res = await client.getInplay();
       const data = (res.results ?? []) as BetsApiEvent[] | unknown[][];
-      // RapidAPI may serve the RAW compressed bet365 format (array-of-arrays)
-      // which has no team names — in that case we degrade gracefully.
       if (!Array.isArray(data) || !data.length) return [];
-      if (Array.isArray(data[0])) return []; // raw format detected
+      if (Array.isArray(data[0])) {
+        // RapidAPI serves the RAW compressed bet365 format (array-of-arrays).
+        // Defensive parse of the documented layout:
+        //   [0]=id [1]=league_id [2]=time(unix) [3]=time_status [4]=home
+        //   [5]=away [6]=ss "2-1" [7]=timer "67:42" [8+]=other
+        const raw = data as unknown[][];
+        const parsed = raw
+          .filter((r) => Array.isArray(r) && r.length >= 8 && String(r[3]) === "1")
+          .filter((r) => typeof r[4] === "string" && typeof r[5] === "string" && /^\d+-\d+$/.test(String(r[6])))
+          .map((r) => {
+            const [hs, as] = String(r[6]).split("-").map((n) => Number(n));
+            return {
+              externalId: `betsapi-${r[0]}`,
+              status: "live" as const,
+              homeScore: Number.isFinite(hs) ? hs : undefined,
+              awayScore: Number.isFinite(as) ? as : undefined,
+              clock: typeof r[7] === "string" && r[7] ? r[7] : undefined,
+            };
+          });
+        if (parsed.length) return parsed; // recognized raw shape
+        return []; // unrecognized — degrade gracefully
+      }
       return (data as BetsApiEvent[])
         .filter((e) => localStatus(e.time_status) === "live")
         .map((e) => ({

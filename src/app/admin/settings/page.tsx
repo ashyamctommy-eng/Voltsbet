@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/client";
 import { useToast } from "@/components/BetSlipContext";
-import { IconWhatsApp, IconTelegram, IconCoins, IconSmartphone, IconGear, IconGlobe, IconGift2, IconPencil } from "@/components/icons";
+import { IconWhatsApp, IconTelegram, IconCoins, IconSmartphone, IconGear, IconGlobe, IconGift2, IconPencil, IconTv } from "@/components/icons";
 
 type FieldType = "text" | "password" | "number" | "toggle" | "select";
 type Field = {
@@ -47,6 +47,14 @@ const GROUPS: { title: string; anchor: string; icon: React.ReactNode; fields: Fi
       { key: "odds.io.leagueSlugs", label: "Odds-API.io leagues (slugs)", type: "text", hint: "Comma-separated league slugs to import — leave empty for all. Slug matches exactly or as a prefix (e.g. 'international-clubs-uefa-champions-league' covers playoff + league phase). Env ODDS_IO_LEAGUE_SLUGS overrides this" },
       { key: "games.hideSeeded", label: "Disable seeded / virtual matches", type: "toggle", hint: "Show only live API-feed matches (source=API). Turns on automatically after the first successful sync that adds games. Env override: SHOW_SEEDED_GAMES=false" },
       { key: "betting.maxLiabilityPerMarket", label: "Max liability per market", type: "number", hint: "Reject bets that push exposure past this cap" },
+    ],
+  },
+  {
+    title: "Live",
+    anchor: "live",
+    icon: <IconTv className="h-4 w-4" />,
+    fields: [
+      { key: "live.refreshSeconds", label: "Live page auto-refresh (seconds)", type: "number", hint: "How often /live polls for fresh scores/timers. Each refresh costs 1 BetsAPI inplay request — at 60s that is 60/hr (BASIC plans cap ~16/hr; raise this on tight plans or upgrade the tier)" },
     ],
   },
   {

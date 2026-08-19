@@ -1,11 +1,15 @@
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
+import { refreshLiveScores } from "@/lib/live-scores";
 import LiveFeed from "@/components/LiveFeed";
 
 export const dynamic = "force-dynamic";
 
 export default async function LivePage() {
   const s = await getSettings();
+  // Pull fresh scores/timers from BetsAPI (throttled: max 1 inplay request
+  // per live.refreshSeconds window) before reading the DB.
+  await refreshLiveScores();
   const liveGames = await prisma.game.findMany({
     where: {
       // Live-only: this route owns in-play matches; pre-match scheduling
@@ -29,7 +33,7 @@ export default async function LivePage() {
       </div>
 
       <div className="mt-6">
-        <LiveFeed games={liveGames} />
+        <LiveFeed games={liveGames} refreshSeconds={s.liveRefreshSeconds} />
       </div>
     </div>
   );
