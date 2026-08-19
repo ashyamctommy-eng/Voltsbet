@@ -1,28 +1,20 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
+import { getBetsApiFeed, apiMatchToFeedGame } from "@/lib/betsapi-feed";
 import BannerCarousel from "@/components/BannerCarousel";
 import MatchSlideshow from "@/components/MatchSlideshow";
-import MatchFeed from "@/components/MatchFeed";
+import MatchFeed, { type FeedGame as MatchFeedGame } from "@/components/MatchFeed";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const s = await getSettings();
-  const [banners, games, popularSports, promotions, testimonials] = await Promise.all([
+  const [banners, apiFeed, popularSports, promotions, testimonials] = await Promise.all([
     prisma.banner.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
-    prisma.game.findMany({
-      where: {
-        status: { notIn: ["FINISHED", "CANCELLED"] },
-        ...(s.hideSeededGames ? { source: "API" } : {}),
-      },
-      include: {
-        sport: true,
-        markets: { include: { outcomes: true }, orderBy: { sortOrder: "asc" } },
-      },
-      orderBy: [{ live: "desc" }, { startAt: "asc" }],
-      take: 200,
-    }),
+    // Live BetsAPI rendering (cached, 0 requests between refreshes). Throws
+    // when the key isn't configured or the quota is spent → DB fallback.
+    getBetsApiFeed().catch(() => null),
     prisma.sport.findMany({
       where: { active: true },
       include: { _count: { select: { games: { where: { status: { notIn: ["FINISHED", "CANCELLED"] } } } } } },
@@ -37,12 +29,38 @@ export default async function HomePage() {
     prisma.testimonial.findMany({ where: { status: "APPROVED" }, orderBy: { sortOrder: "asc" }, take: 4 }),
   ]);
 
+  // Live API feed when reachable, else the synced DB feed.
+  const games: MatchFeedGame[] = apiFeed?.length
+    ? apiFeed.map(apiMatchToFeedGame)
+    : await prisma.game.findMany({
+        where: {
+          status: { notIn: ["FINISHED", "CANCELLED"] },
+          ...(s.hideSeededGames ? { source: "API" } : {}),
+        },
+        include: {
+          sport: true,
+          markets: { include: { outcomes: true }, orderBy: { sortOrder: "asc" } },
+        },
+        orderBy: [{ live: "desc" }, { startAt: "asc" }],
+        take: 200,
+      });
+
   return (
     <div className="mx-auto max-w-[1600px] px-4">
       {/* Live / upcoming match slideshow */}
       <MatchSlideshow games={games} />
 
       {/* Match feed with time + market filters */}
+      {apiFeed?.length ? (
+        <div className="mt-4 flex items-center gap-2">
+          <span className="flex items-center gap-1.5 rounded-full bg-brand/10 px-2.5 py-1 text-[10px] font-bold text-brand">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand" /> LIVE — BetsAPI feed
+          </span>
+          <span className="text-[11px] font-semibold text-ink3">
+            {apiFeed.length} matches · no sync needed · odds refresh in ~5 min
+          </span>
+        </div>
+      ) : null}
       <MatchFeed games={games} />
 
       {/* Admin banners */}

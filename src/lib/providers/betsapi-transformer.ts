@@ -22,6 +22,8 @@ export type MatchView = {
   awayTeam: string;
   score: string;
   elapsedMinute: string;
+  /** Machine-readable kickoff (ISO) — display strings below derive from it. */
+  kickoff: string;
   kickoffTimeFormatted: string;
   kickoffDateFormatted: string;
   /** Relative kickoff label ("Today at 7:30 PM" / "Tomorrow at 1:00 AM"). */
@@ -84,6 +86,7 @@ export function transformBetsApiMatch(rawMatch: RawBetsApiMatch): MatchView {
     awayTeam,
     score: rawMatch.ss || "0-0",
     elapsedMinute,
+    kickoff: kickoffDate.toISOString(),
     kickoffTimeFormatted: kickoffDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     kickoffDateFormatted: kickoffDate.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }),
     kickoffLabel: formatKickoff(kickoffDate),
@@ -119,6 +122,7 @@ export function toMatchView(game: {
     awayTeam: game.awayName,
     score: isLive || finished ? `${game.homeScore ?? 0}-${game.awayScore ?? 0}` : "0-0",
     elapsedMinute: minuteMatch ? `${minuteMatch[1]}'` : clock.replace(/'$/, ""),
+    kickoff: d.toISOString(),
     kickoffTimeFormatted: d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     kickoffDateFormatted: d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }),
     kickoffLabel: formatKickoff(d),

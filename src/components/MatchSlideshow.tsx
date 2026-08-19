@@ -9,6 +9,8 @@ import { leagueRank } from "@/lib/league-rank";
 
 type SlideGame = {
   id: string;
+  /** True when rendered from the live BetsAPI feed (no DB fixture page). */
+  isApiMatch?: boolean;
   homeName: string;
   awayName: string;
   homeLogo: string | null;
@@ -121,11 +123,8 @@ function MatchSlide({ g, index, total }: { g: SlideGame; index: number; total: n
   const live = g.live || g.status === "LIVE" || g.status === "HALF_TIME";
   const ctx = liveContext(g.status, g.clock, g.period);
 
-  return (
-    <Link
-      href={`/fixture/${g.id}`}
-      className="card card-hover relative block overflow-hidden !border-brand/20"
-    >
+  const inner = (
+    <>
       <div className="pointer-events-none absolute -right-12 -top-14 h-44 w-44 rounded-full bg-brand/10 blur-2xl" />
 
       <div className="relative p-4">
@@ -193,6 +192,16 @@ function MatchSlide({ g, index, total }: { g: SlideGame; index: number; total: n
           <span className="text-xs font-bold text-brand">View match →</span>
         </div>
       </div>
+    </>
+  );
+
+  // API-fed matches have no DB fixture page — render as a non-link card.
+  if (g.isApiMatch) {
+    return <div className="card card-hover relative block overflow-hidden !border-brand/20">{inner}</div>;
+  }
+  return (
+    <Link href={`/fixture/${g.id}`} className="card card-hover relative block overflow-hidden !border-brand/20">
+      {inner}
     </Link>
   );
 }

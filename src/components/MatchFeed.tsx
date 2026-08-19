@@ -7,6 +7,7 @@ import { leagueRank } from "@/lib/league-rank";
 
 type FeedGame = {
   id: string;
+  isApiMatch?: boolean;
   homeName: string;
   awayName: string;
   homeLogo: string | null;
@@ -39,6 +40,8 @@ const MARKET_FILTERS = [
   { id: "btts", label: "Both Teams", keys: ["BTTS"] },
 ] as const;
 type MarketFilter = (typeof MARKET_FILTERS)[number]["id"];
+
+export type { FeedGame };
 
 /** Compact dropdown pill used for the date selector and league selector. */
 function Dropdown({

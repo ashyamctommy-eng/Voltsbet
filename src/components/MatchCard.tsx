@@ -15,6 +15,8 @@ type MarketLite = {
 
 type GameLite = {
   id: string;
+  /** True when rendered from the live BetsAPI feed (no DB fixture page). */
+  isApiMatch?: boolean;
   homeName: string;
   awayName: string;
   homeLogo: string | null;
@@ -89,12 +91,16 @@ export default function MatchCard({
         <span className="line-clamp-2 font-semibold leading-tight text-ink3">
           {view.leagueName}
         </span>
-        <Link
-          href={`/fixture/${game.id}`}
-          className="shrink-0 font-bold text-brand hover:underline"
-        >
-          +{openMarketCount} Markets ›
-        </Link>
+        {game.isApiMatch ? (
+          <span className="shrink-0 font-bold text-brand">+{openMarketCount} Markets ›</span>
+        ) : (
+          <Link
+            href={`/fixture/${game.id}`}
+            className="shrink-0 font-bold text-brand hover:underline"
+          >
+            +{openMarketCount} Markets ›
+          </Link>
+        )}
       </div>
 
       {/* Secondary line: LIVE badge + elapsed minute, or SVG clock + kickoff.
@@ -133,7 +139,11 @@ export default function MatchCard({
       {isFinished ? (
         <div className="mt-3 flex items-center justify-between rounded-lg bg-card2 px-3 py-2 text-xs text-ink3">
           <span>Final score</span>
-          <Link href={`/fixture/${game.id}`} className="font-semibold text-brand">Results →</Link>
+          {game.isApiMatch ? (
+            <span className="font-semibold text-brand">Results →</span>
+          ) : (
+            <Link href={`/fixture/${game.id}`} className="font-semibold text-brand">Results →</Link>
+          )}
         </div>
       ) : odds.length > 0 && mainMarket ? (
         <div className="mt-3 space-y-1.5">
