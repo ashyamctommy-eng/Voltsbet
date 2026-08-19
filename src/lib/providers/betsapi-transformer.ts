@@ -137,6 +137,17 @@ export function apiMatchToFeedGame(view: BetsApiMatchView): ApiFeedGame {
   };
 }
 
+/** Normalize an elapsed-time string to the display format "87:42'" (seconds
+ *  kept — the live clock ticks from it). Handles "87:42", "87:42'", "87". */
+function normalizeElapsed(clock: string): string {
+  const c = clock.trim();
+  if (/^\d{1,2}:\d{2}$/.test(c)) return `${c}'`;
+  if (/^\d{1,2}:\d{2}'$/.test(c)) return c;
+  if (/^\d+$/.test(c)) return `${c}'`;
+  if (/^\d+'$/.test(c)) return c;
+  return c;
+}
+
 /**
  * Serializer for RAW BetsAPI objects — the exact transformation spec:
  * status string-vs-int guarded, safe league/team extraction, unix→Date, and
@@ -157,7 +168,11 @@ export function transformBetsApiMatch(rawMatch: RawBetsApiMatch): MatchView {
   // timer may be an object ({tm}) in the parsed v3 format or a string in raw feeds
   const timer = rawMatch.timer;
   const elapsedMinute =
-    typeof timer === "string" ? timer : timer?.tm ? `${timer.tm}'` : "";
+    typeof timer === "string"
+      ? normalizeElapsed(timer)
+      : timer?.tm
+        ? normalizeElapsed(String(timer.tm))
+        : "";
 
   return {
     id: String(rawMatch.id),
@@ -193,7 +208,6 @@ export function toMatchView(game: {
   const finished = game.status === "FINISHED";
   const d = new Date(game.startAt);
   const clock = game.clock ?? "";
-  const minuteMatch = clock.match(/^(\d{1,2}):\d{2}$/);
 
   return {
     id: game.id,
@@ -203,7 +217,8 @@ export function toMatchView(game: {
     homeTeam: game.homeName,
     awayTeam: game.awayName,
     score: isLive || finished ? `${game.homeScore ?? 0}-${game.awayScore ?? 0}` : "0-0",
-    elapsedMinute: minuteMatch ? `${minuteMatch[1]}'` : clock.replace(/'$/, ""),
+    // Keep the seconds — the live card ticks "87:42'" forward.
+    elapsedMinute: normalizeElapsed(clock),
     kickoff: d.toISOString(),
     kickoffTimeFormatted: d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     kickoffDateFormatted: d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }),

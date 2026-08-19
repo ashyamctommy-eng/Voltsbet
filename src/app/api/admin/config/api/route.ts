@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { handle, ok, requireAdmin, verifyCsrf } from "@/lib/api";
 import { getSettings, setSetting } from "@/lib/settings";
+import { clearBetsApiFeedCache } from "@/lib/betsapi-feed";
 
 /**
  * Admin API config — BetsAPI (bet365 via RapidAPI) primary provider settings.
@@ -49,6 +50,9 @@ export const POST = handle(async (req: NextRequest) => {
   if (body?.primary === true) {
     await setSetting("odds.provider", "betsapi");
   }
+
+  // New creds should take effect immediately — drop the stale feed snapshot.
+  clearBetsApiFeedCache();
 
   return ok({
     message: body?.primary === true ? "Saved — BetsAPI is now the primary provider" : "API settings saved",

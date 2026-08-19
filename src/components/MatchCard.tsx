@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import OddsButton from "@/components/OddsButton";
 import TeamLogo from "@/components/TeamLogo";
@@ -33,6 +36,34 @@ type GameLite = {
   competitionName: string | null;
   markets: MarketLite[];
 };
+
+function clockToSeconds(clock: string | null | undefined): number | null {
+  if (!clock) return null;
+  const mm = clock.match(/^(\d{1,2}):(\d{2})'?$/); // "87:42" | "87:42'"
+  if (mm) return Number(mm[1]) * 60 + Number(mm[2]);
+  const m = clock.match(/^(\d{1,2})'?$/); // "87" | "87'"
+  if (m) return Number(m[1]) * 60;
+  return null;
+}
+
+/** Live elapsed-time counter — ticks "87:56'" forward every second. */
+function LiveElapsed({ clock }: { clock: string | null | undefined }) {
+  const base = clockToSeconds(clock);
+  const [secs, setSecs] = useState(() => base ?? 0);
+  useEffect(() => {
+    if (base == null) return;
+    const t0 = setTimeout(() => setSecs(base), 0);
+    const t = setInterval(() => setSecs((s) => s + 1), 1000);
+    return () => {
+      clearTimeout(t0);
+      clearInterval(t);
+    };
+  }, [base]);
+  if (base == null) return null;
+  const m = Math.floor(secs / 60);
+  const s = String(secs % 60).padStart(2, "0");
+  return <span className="tabular-nums">{m}:{s}&apos;</span>;
+}
 
 /**
  * Match card — renders from the standard MatchView contract (toMatchView).
@@ -114,7 +145,15 @@ export default function MatchCard({
           <IconClock className="h-3.5 w-3.5 shrink-0 text-ink3" />
         )}
         <span className="truncate text-xs font-medium text-ink2">
-          {isLive ? (view.elapsedMinute || ctx || "In play") : view.kickoffLabel}
+          {isLive ? (
+            view.elapsedMinute ? (
+              <LiveElapsed clock={view.elapsedMinute} />
+            ) : (
+              (ctx ?? "In play")
+            )
+          ) : (
+            view.kickoffLabel
+          )}
         </span>
       </div>
 

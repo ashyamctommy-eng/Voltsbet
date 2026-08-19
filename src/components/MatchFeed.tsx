@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import MatchCard from "@/components/MatchCard";
 import { IconChevronDown } from "@/components/icons";
 import { leagueRank } from "@/lib/league-rank";
@@ -35,7 +36,12 @@ const MARKET_FILTERS = [
 ] as const;
 type MarketFilter = (typeof MARKET_FILTERS)[number]["id"];
 
-/** Compact dropdown pill (date selector / league selector). */
+/** Compact dropdown pill (date selector / league selector).
+ *
+ * The menu is PORTALLED to document.body with fixed positioning: the filter
+ * bar is an overflow-x-auto scroll container, which clips absolutely
+ * positioned children (overflow-y computes to auto) — previously the date
+ * and league lists were rendered but invisible. */
 function Dropdown({
   label,
   options,
@@ -48,37 +54,86 @@ function Dropdown({
   onSelect: (value: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  const measure = () => {
+    const el = btnRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const width = Math.min(256, window.innerWidth - 16);
+    const left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8));
+    const dropH = 288;
+    // Flip upward when the menu would run past the bottom of the viewport.
+    const top = r.bottom + dropH > window.innerHeight ? Math.max(8, r.top - dropH - 6) : r.bottom + 6;
+    setPos({ top, left, width });
+  };
+
+  const openMenu = () => {
+    measure();
+    setOpen(true);
+  };
+
+  // Reposition on scroll/resize while open; Escape closes.
+  useEffect(() => {
+    if (!open) return;
+    const reposition = () => measure();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("resize", reposition);
+    window.addEventListener("scroll", reposition, true);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("resize", reposition);
+      window.removeEventListener("scroll", reposition, true);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
   return (
     <div className="relative shrink-0">
       <button
-        onClick={() => setOpen((o) => !o)}
+        ref={btnRef}
+        onClick={() => (open ? setOpen(false) : openMenu())}
+        aria-haspopup="listbox"
+        aria-expanded={open}
         className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold transition-colors ${PILL}`}
       >
         <span className="max-w-36 truncate">{label}</span>
         <IconChevronDown className="h-3 w-3 shrink-0" />
       </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-full z-40 mt-1 max-h-72 w-64 overflow-y-auto rounded-xl border border-line bg-card p-1 shadow-2xl">
-            {options.map((o) => (
-              <button
-                key={o.value}
-                onClick={() => {
-                  onSelect(o.value);
-                  setOpen(false);
-                }}
-                className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-white/5 ${
-                  o.value === activeValue ? "text-brand" : "text-ink2 hover:text-ink"
-                }`}
-              >
-                <span className="truncate">{o.label}</span>
-                {o.sublabel && <span className="shrink-0 text-[10px] text-ink3">{o.sublabel}</span>}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
+      {open &&
+        pos &&
+        createPortal(
+          <>
+            <div className="fixed inset-0 z-[90]" onClick={() => setOpen(false)} />
+            <div
+              role="listbox"
+              className="fixed z-[95] max-h-72 overflow-y-auto rounded-xl border border-line bg-card p-1 shadow-2xl"
+              style={{ top: pos.top, left: pos.left, width: pos.width }}
+            >
+              {options.map((o) => (
+                <button
+                  key={o.value}
+                  role="option"
+                  aria-selected={o.value === activeValue}
+                  onClick={() => {
+                    onSelect(o.value);
+                    setOpen(false);
+                  }}
+                  className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-white/5 ${
+                    o.value === activeValue ? "text-brand" : "text-ink2 hover:text-ink"
+                  }`}
+                >
+                  <span className="truncate">{o.label}</span>
+                  {o.sublabel && <span className="shrink-0 text-[10px] text-ink3">{o.sublabel}</span>}
+                </button>
+              ))}
+            </div>
+          </>,
+          document.body,
+        )}
     </div>
   );
 }
@@ -124,7 +179,7 @@ export default function MatchFeed({
 }) {
   // Client-side schedule (auto-fetched + cached when no server data).
   const [clientGames, setClientGames] = useState<FeedGame[] | null>(null);
-  const [feedError, setFeedError] = useState(false);
+  const [feedError, setFeedError] = useState<string | null>(null);
   useEffect(() => {
     if (games.length > 0 || !autoFetch) return;
     let alive = true;
@@ -136,13 +191,22 @@ export default function MatchFeed({
       }
       try {
         const res = await fetch("/api/betsapi/matches");
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+          let msg = `HTTP ${res.status}`;
+          try {
+            const j = (await res.json()) as { error?: { message?: string } };
+            if (j?.error?.message) msg = j.error.message;
+          } catch {
+            /* keep HTTP status fallback */
+          }
+          throw new Error(msg);
+        }
         const data: { matches?: BetsApiMatchView[] } = await res.json();
         const mapped: FeedGame[] = (data.matches ?? []).map(apiMatchToFeedGame);
         feedCache.set(sportKey, mapped);
         if (alive) setClientGames(mapped);
-      } catch {
-        if (alive) setFeedError(true);
+      } catch (e) {
+        if (alive) setFeedError(e instanceof Error ? e.message : "Live feed unavailable");
       }
     };
     void load();
@@ -339,7 +403,7 @@ export default function MatchFeed({
       <div ref={listRef} className="mt-3 scroll-mt-24 space-y-3">
         {feedError ? (
           <div className="card p-10 text-center text-sm text-ink3">
-            Live feed unavailable right now — check the API key in Admin → API Settings.
+            Live feed unavailable — {feedError}. Check the API key in Admin → API Settings.
           </div>
         ) : pageItems.length === 0 ? (
           <div className="card p-10 text-center text-sm text-ink3">

@@ -44,38 +44,47 @@ let cache: { at: number; matches: BetsApiMatchView[] } | null = null;
  * Throws when the feed is unreachable (no key / rate-limited / HTTP error) —
  * callers fall back to the DB feed. Per-event odds failures degrade to
  * `markets: []` instead of killing the whole list.
+ *
+ * Stale-while-error: if a refresh fails (quota window, transient outage) but
+ * we already served a snapshot, that snapshot is returned instead of
+ * dropping the feed — the UI stays populated until the quota resets.
  */
 export async function getBetsApiFeed(limit: number = FEED_EVENTS): Promise<BetsApiMatchView[]> {
   const ttlMs = FEED_TTL_SECONDS * 1000;
   if (cache && Date.now() - cache.at < ttlMs) return cache.matches;
 
-  const client = await BetsApiClient.fromSettings();
-  const margin = (await getSettings()).oddsMarginPercent;
+  try {
+    const client = await BetsApiClient.fromSettings();
+    const margin = (await getSettings()).oddsMarginPercent;
 
-  // Step 1 — fixture list (metadata only)
-  const up = await client.getUpcomingEvents(1);
-  const events = ((up.results ?? []) as RawBetsApiMatch[]).filter(
-    (e) => String(e.time_status) === "0", // pre-match only
-  );
+    // Step 1 — fixture list (metadata only)
+    const up = await client.getUpcomingEvents(1);
+    const events = ((up.results ?? []) as RawBetsApiMatch[]).filter(
+      (e) => String(e.time_status) === "0", // pre-match only
+    );
 
-  // Step 2 — prematch odds per fixture, sequential (1 request each)
-  const matches: BetsApiMatchView[] = [];
-  for (const ev of events.slice(0, Math.max(0, Math.min(limit, 50)))) {
-    const homeTeam = ev.home?.name ?? "Home";
-    const awayTeam = ev.away?.name ?? "Away";
-    let markets: ViewMarket[] = [];
-    try {
-      const pm = await client.getPrematchOdds(String(ev.id));
-      const first = ((pm.results ?? []) as PrematchLike[])[0] ?? null;
-      markets = extractOddsMarkets(first, homeTeam, awayTeam, margin);
-    } catch {
-      /* odds optional — match still returned, markets: [] */
+    // Step 2 — prematch odds per fixture, sequential (1 request each)
+    const matches: BetsApiMatchView[] = [];
+    for (const ev of events.slice(0, Math.max(0, Math.min(limit, 50)))) {
+      const homeTeam = ev.home?.name ?? "Home";
+      const awayTeam = ev.away?.name ?? "Away";
+      let markets: ViewMarket[] = [];
+      try {
+        const pm = await client.getPrematchOdds(String(ev.id));
+        const first = ((pm.results ?? []) as PrematchLike[])[0] ?? null;
+        markets = extractOddsMarkets(first, homeTeam, awayTeam, margin);
+      } catch {
+        /* odds optional — match still returned, markets: [] */
+      }
+      matches.push({ ...transformBetsApiMatch(ev), markets });
     }
-    matches.push({ ...transformBetsApiMatch(ev), markets });
-  }
 
-  cache = { at: Date.now(), matches };
-  return matches;
+    cache = { at: Date.now(), matches };
+    return matches;
+  } catch (e) {
+    if (cache) return cache.matches; // serve the last good snapshot
+    throw e;
+  }
 }
 
 /** Clear the in-process cache (used by tests / admin actions if ever needed). */
