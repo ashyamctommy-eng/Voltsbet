@@ -18,8 +18,8 @@ export type { BetsApiMatchView } from "@/lib/betsapi-feed";
  */
 export const GET = handle(async () => {
   try {
-    const matches = await getBetsApiFeed();
-    return ok({ count: matches.length, matches });
+    const { matches, source } = await getBetsApiFeed();
+    return ok({ count: matches.length, matches, source });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "BetsAPI feed unavailable";
     if (/quota|rate limit|rate_limit|exceeded/i.test(msg)) {

@@ -13,8 +13,9 @@ export default async function HomePage() {
   const s = await getSettings();
   const [banners, apiFeed, popularSports, promotions, testimonials] = await Promise.all([
     prisma.banner.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
-    // Live BetsAPI rendering (cached, 0 requests between refreshes). Throws
-    // when the key isn't configured or the quota is spent → DB fallback.
+    // Live BetsAPI rendering (cached, 0 requests between refreshes). When
+    // BetsAPI is quota-blocked the feed falls back to The Odds API pre-match
+    // odds, then to the DB — the homepage never goes empty.
     getBetsApiFeed().catch(() => null),
     prisma.sport.findMany({
       where: { active: true },
@@ -30,11 +31,11 @@ export default async function HomePage() {
     prisma.testimonial.findMany({ where: { status: "APPROVED" }, orderBy: { sortOrder: "asc" }, take: 4 }),
   ]);
 
-  // Live BetsAPI feed when reachable, else the synced DB feed.
-  // Live matches are filtered OUT of home entirely — they belong on /live.
+  // Live feed when reachable (BetsAPI, else The Odds API fallback), else the
+  // synced DB feed. Live matches are filtered OUT of home — they're on /live.
   const games: MatchFeedGame[] = (
-    apiFeed?.length
-      ? apiFeed.map(apiMatchToFeedGame)
+    apiFeed?.matches.length
+      ? apiFeed.matches.map(apiMatchToFeedGame)
       : await prisma.game.findMany({
           where: {
             status: { notIn: ["FINISHED", "CANCELLED"] },
@@ -55,13 +56,17 @@ export default async function HomePage() {
       <MatchSlideshow games={games} />
 
       {/* Match feed with time + market filters */}
-      {apiFeed?.length ? (
+      {apiFeed?.matches.length ? (
         <div className="mt-4 flex items-center gap-2">
           <span className="flex items-center gap-1.5 rounded-full bg-brand/10 px-2.5 py-1 text-[10px] font-bold text-brand">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand" /> LIVE — BetsAPI feed
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand" />
+            {apiFeed.source === "the-odds-api" ? "ODDS API fallback" : "LIVE — BetsAPI feed"}
           </span>
           <span className="text-[11px] font-semibold text-ink3">
-            {apiFeed.length} matches · no sync needed · odds refresh in ~5 min
+            {apiFeed.matches.length} matches ·{" "}
+            {apiFeed.source === "the-odds-api"
+              ? "BetsAPI quota blocked — serving free The Odds API pre-match odds"
+              : "no sync needed · odds refresh in ~5 min"}
           </span>
         </div>
       ) : null}
