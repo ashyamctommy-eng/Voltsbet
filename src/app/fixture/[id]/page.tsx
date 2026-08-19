@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { IconClock } from "@/components/icons";
 import TeamLogo from "@/components/TeamLogo";
 import FixtureMarkets from "@/components/FixtureMarkets";
-import { formatKickoffFull, liveContext } from "@/lib/kickoff";
+import KickoffFull from "@/components/KickoffFull";
+import { liveContext } from "@/lib/kickoff";
 
 export const dynamic = "force-dynamic";
 
@@ -73,7 +74,9 @@ export default async function FixturePage({ params }: { params: Promise<{ id: st
             ) : (
               <>
                 <IconClock className="h-4 w-4 text-ink3" />
-                <span className="font-medium">{formatKickoffFull(game.startAt)}</span>
+                <span className="font-medium">
+                  <KickoffFull iso={game.startAt.toISOString()} />
+                </span>
               </>
             )}
           </div>

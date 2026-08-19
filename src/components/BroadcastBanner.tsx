@@ -36,8 +36,8 @@ export default function BroadcastBanner() {
     const tick = () => {
       fetch("/api/broadcasts", { cache: "no-store" })
         .then((res) => (res.ok ? res.json() : null))
-        .then((data: { data?: { broadcasts?: Broadcast[] } } | null) => {
-          if (alive && data) setItems(data.data?.broadcasts ?? []);
+        .then((data: { broadcasts?: Broadcast[] } | null) => {
+          if (alive && data) setItems(data.broadcasts ?? []);
         })
         .catch(() => {
           /* offline — keep whatever we have */
