@@ -42,6 +42,6 @@ export const PATCH = handle(async (req: NextRequest, ctx: { params: Promise<{ id
   return ok({ user });
 });
 
-export const DELETE = handle(async (req: NextRequest) => {
+export const DELETE = handle(async () => {
   throw new ApiError(405, "Users are suspended, not deleted.", "NOT_ALLOWED");
 });

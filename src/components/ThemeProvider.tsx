@@ -13,12 +13,15 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Hydrate from localStorage, default dark (matches the current brand).
-    try {
-      const saved = window.localStorage.getItem("voltbet-theme");
-      if (saved === "light" || saved === "dark") setTheme(saved);
-    } catch {
-      /* ignore */
-    }
+    const t = setTimeout(() => {
+      try {
+        const saved = window.localStorage.getItem("voltbet-theme");
+        if (saved === "light" || saved === "dark") setTheme(saved);
+      } catch {
+        /* ignore */
+      }
+    }, 0);
+    return () => clearTimeout(t);
   }, []);
 
   useEffect(() => {

@@ -6,7 +6,7 @@ import { useBetSlip } from "@/components/BetSlipContext";
 import BetslipBar from "@/components/BetslipBar";
 import { IconHome, IconSearch, IconFlame, IconTv } from "@/components/icons";
 
-export default function MobileNav({ loggedIn, liveCount = 0 }: { loggedIn: boolean; liveCount?: number }) {
+export default function MobileNav({ liveCount = 0 }: { loggedIn: boolean; liveCount?: number }) {
   const pathname = usePathname();
   const { items, setOpen } = useBetSlip();
   const count = items.length;
@@ -25,7 +25,7 @@ export default function MobileNav({ loggedIn, liveCount = 0 }: { loggedIn: boole
       <BetslipBar />
 
       <nav className="fixed inset-x-0 bottom-0 z-40 flex items-stretch border-t border-line bg-[#0d1726]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md xl:hidden">
-        {tabs.map((t, i) =>
+        {tabs.map((t) =>
           t === null ? (
             <div key="betslip-slot" className="relative flex flex-1 items-center justify-center">
               {/* Central floating betslip counter */}

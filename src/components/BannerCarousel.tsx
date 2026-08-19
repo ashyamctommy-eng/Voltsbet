@@ -30,8 +30,6 @@ export default function BannerCarousel({ banners }: { banners: Banner[] }) {
 
   if (n === 0) return null;
 
-  const b = banners[idx];
-
   return (
     <div className="relative h-[240px] overflow-hidden rounded-2xl border border-line sm:h-[300px] lg:h-[340px]">
       {banners.map((bn, i) => (

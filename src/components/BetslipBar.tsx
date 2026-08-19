@@ -8,7 +8,7 @@ const BONUS_TIERS: Record<number, number> = { 2: 4, 3: 5, 4: 6, 5: 7, 6: 8, 7: 1
 
 /** Sticky betslip bar above the bottom nav — appears when picks exist. */
 export default function BetslipBar() {
-  const { items, stake, totalOdds, potentialWin, setOpen } = useBetSlip();
+  const { items, stake, totalOdds, setOpen } = useBetSlip();
   const count = items.length;
   if (count === 0) return null;
 

@@ -14,7 +14,7 @@ export const GET = handle(async (req: NextRequest) => {
   return ok({ deposits });
 });
 
-export const PATCH = handle(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
+export const PATCH = handle(async () => {
   await requireAdmin("deposits");
   throw new ApiError(404, "Not found.", "NOT_FOUND");
 });

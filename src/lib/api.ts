@@ -23,8 +23,10 @@ export function fail(status: number, message: string, code = "ERROR") {
   return NextResponse.json({ ok: false, error: { code, message } }, { status });
 }
 
-export function handle(fn: (req: NextRequest, ctx: any) => Promise<NextResponse>) {
-  return async (req: NextRequest, ctx: any) => {
+export type RouteCtx = { params: Promise<Record<string, string | string[]>> };
+
+export function handle<C = RouteCtx>(fn: (req: NextRequest, ctx: C) => Promise<NextResponse>) {
+  return async (req: NextRequest, ctx: C) => {
     try {
       return await fn(req, ctx);
     } catch (e) {

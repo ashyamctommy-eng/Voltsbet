@@ -23,7 +23,8 @@ export const POST = handle(async (req: NextRequest) => {
   const body = await req.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success) throw new ApiError(400, parsed.error.issues[0].message, "VALIDATION");
-  let { amount, method, destination } = parsed.data;
+  const { amount, method } = parsed.data;
+  let destination = parsed.data.destination;
 
   const settings = await getSettings();
   if (amount < settings.minStake) {

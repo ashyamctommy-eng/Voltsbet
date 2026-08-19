@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiFetch } from "@/lib/client";
 import { formatDateTime } from "@/lib/odds";

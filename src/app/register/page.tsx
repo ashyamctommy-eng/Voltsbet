@@ -18,13 +18,14 @@ export default function RegisterPage() {
 
   const set = (k: string, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }));
 
-  // Prefill referral code from ?ref=VOLT-XXXX (share links from the account page)
+  // Prefill referral code from ?ref=VOLT-XXXX (share links from the account page).
   useEffect(() => {
-    const ref = new URLSearchParams(window.location.search).get("ref");
-    if (ref) set("referralCode", ref);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const t = setTimeout(() => {
+      const ref = new URLSearchParams(window.location.search).get("ref");
+      if (ref) set("referralCode", ref);
+    }, 0);
+    return () => clearTimeout(t);
   }, []);
-
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError("");

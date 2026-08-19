@@ -13,8 +13,6 @@ import {
   IconFootball,
   IconBasketball,
   IconTennis,
-  IconDice,
-  IconPlane,
   IconLive,
   IconController,
   IconTv,
@@ -58,7 +56,8 @@ export default function Header({ user, siteName }: { user: HeaderUser; siteName:
 
   // Close overlays on route change
   useEffect(() => {
-    setMenuOpen(false);
+    const t = setTimeout(() => setMenuOpen(false), 0);
+    return () => clearTimeout(t);
   }, [pathname]);
 
   useEffect(() => {
@@ -251,19 +250,30 @@ function MobileSearch() {
 }
 
 // ── Desktop search (debounced, instant results) ──────────────
+type SearchHit = {
+  id: string;
+  name: string;
+  slug?: string;
+  icon?: string | null;
+  homeName?: string;
+  awayName?: string;
+  sport?: { icon?: string | null } | null;
+};
+
 function SearchBox() {
+  const router = useRouter();
   const [q, setQ] = useState("");
-  const [results, setResults] = useState<{ games: any[]; sports: any[] } | null>(null);
+  const [results, setResults] = useState<{ games: SearchHit[]; sports: SearchHit[] } | null>(null);
   const [focused, setFocused] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (q.trim().length < 2) {
-      setResults(null);
-      return;
+      const t = setTimeout(() => setResults(null), 0);
+      return () => clearTimeout(t);
     }
     const t = setTimeout(async () => {
-      const res = await apiFetch<{ games: any[]; sports: any[] }>(`/api/search?q=${encodeURIComponent(q)}`);
+      const res = await apiFetch<{ games: SearchHit[]; sports: SearchHit[] }>(`/api/search?q=${encodeURIComponent(q)}`);
       if (res.ok) setResults(res.data);
     }, 250);
     return () => clearTimeout(t);
@@ -286,7 +296,7 @@ function SearchBox() {
         onChange={(e) => setQ(e.target.value)}
         onFocus={() => setFocused(true)}
         onKeyDown={(e) => {
-          if (e.key === "Enter") window.location.href = `/search?q=${encodeURIComponent(q)}`;
+          if (e.key === "Enter") router.push(`/search?q=${encodeURIComponent(q)}`);
         }}
       />
       {focused && q.trim().length >= 2 && results && (
@@ -297,7 +307,7 @@ function SearchBox() {
           {results.sports.length > 0 && (
             <div className="border-b border-line px-4 py-2">
               <div className="text-[10px] font-bold uppercase tracking-wider text-ink3">Sports</div>
-              {results.sports.map((s: any) => (
+              {results.sports.map((s: SearchHit) => (
                 <Link key={s.id} href={`/sports/${s.slug}`} className="block py-1.5 text-sm text-ink2 hover:text-ink">
                   {s.icon} {s.name}
                 </Link>
@@ -307,9 +317,9 @@ function SearchBox() {
           {results.games.length > 0 && (
             <div className="px-4 py-2">
               <div className="text-[10px] font-bold uppercase tracking-wider text-ink3">Matches</div>
-              {results.games.map((g: any) => (
+              {results.games.map((g: SearchHit) => (
                 <Link key={g.id} href={`/match/${g.id}`} className="block py-1.5 text-sm text-ink2 hover:text-ink">
-                  {g.sport.icon} {g.homeName} vs {g.awayName}
+                  {g.sport?.icon ?? ""} {g.homeName} vs {g.awayName}
                 </Link>
               ))}
               <Link href={`/search?q=${encodeURIComponent(q)}`} className="block py-1.5 text-xs font-semibold text-brand">

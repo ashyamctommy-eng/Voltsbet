@@ -26,7 +26,7 @@ export const GET = handle(async () => {
 
 export const POST = handle(async (req: NextRequest) => {
   await verifyCsrf(req);
-  const admin = await requireAdmin("settings");
+  await requireAdmin("settings");
   const body = await req.json().catch(() => null);
   const s = await getSettings();
 

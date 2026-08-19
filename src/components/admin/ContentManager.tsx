@@ -35,7 +35,12 @@ export function ContentManager({
     }
   }, [endpoint]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      void load();
+    }, 0);
+    return () => clearTimeout(t);
+  }, [load]);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();

@@ -1,4 +1,3 @@
-import { NextRequest } from "next/server";
 import { handle, ok } from "@/lib/api";
 import { destroySession } from "@/lib/auth";
 

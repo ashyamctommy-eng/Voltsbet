@@ -62,7 +62,7 @@ export default function SupportWidget({ support }: { support: SupportConfig }) {
               <div className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-white/10 blur-xl" />
               <div className="relative flex items-start justify-between gap-3">
                 <div>
-                  <h2 className="text-lg font-black text-white">Need Help? — We're here to assist you 24/7</h2>
+                  <h2 className="text-lg font-black text-white">Need Help? — We&apos;re here to assist you 24/7</h2>
                   <p className="mt-0.5 text-xs text-sky-100/90">Available Monday - Sunday, 24 hours</p>
                 </div>
                 <button

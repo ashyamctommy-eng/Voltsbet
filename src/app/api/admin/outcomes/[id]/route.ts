@@ -45,7 +45,7 @@ export const DELETE = handle(async (req: NextRequest, ctx: { params: Promise<{ i
   const { id } = await ctx.params;
   const betCount = await prisma.betSelection.count({ where: { outcomeId: id } });
   if (betCount > 0) throw new ApiError(409, "Bets reference this outcome — suspend it instead.", "HAS_BETS");
-  const outcome = await prisma.outcome.delete({ where: { id } });
+  await prisma.outcome.delete({ where: { id } });
   await auditLog({ admin, action: "DELETE", entity: "OUTCOME", entityId: id });
   return ok({ message: "Deleted" });
 });

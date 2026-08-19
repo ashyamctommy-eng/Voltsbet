@@ -58,7 +58,12 @@ export default function DepositPage() {
     if (r.ok) setAccount(r.data);
   }, []);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      void refresh();
+    }, 0);
+    return () => clearTimeout(t);
+  }, [refresh]);
 
   const limits = account?.limits;
   const methods = limits?.depositMethods ?? ["CRYPTO"];

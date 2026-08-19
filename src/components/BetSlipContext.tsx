@@ -47,14 +47,17 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
   const loaded = useRef(false);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(LS_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as SlipItem[];
-        if (Array.isArray(parsed)) setItems(parsed);
-      }
-    } catch {}
-    loaded.current = true;
+    const t = setTimeout(() => {
+      try {
+        const raw = localStorage.getItem(LS_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw) as SlipItem[];
+          if (Array.isArray(parsed)) setItems(parsed);
+        }
+      } catch {}
+      loaded.current = true;
+    }, 0);
+    return () => clearTimeout(t);
   }, []);
 
   useEffect(() => {
@@ -66,9 +69,11 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
   // Auto-open the desktop rail when the first selection lands; on mobile the
   // floating mini-bar appears instead (the sheet only opens on explicit tap).
   useEffect(() => {
-    if (items.length > 0 && !open && window.innerWidth >= 1280) setOpen(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items.length]);
+    if (items.length === 0 || open) return;
+    if (typeof window === "undefined" || window.innerWidth < 1280) return;
+    const t = setTimeout(() => setOpen(true), 0);
+    return () => clearTimeout(t);
+  }, [items.length, open]);
 
   const add = useCallback((item: SlipItem) => {
     setItems((prev) => {

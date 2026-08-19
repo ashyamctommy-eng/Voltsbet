@@ -42,7 +42,12 @@ export default function AdminGameDetail() {
     }
   }, [id]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      void load();
+    }, 0);
+    return () => clearTimeout(t);
+  }, [load]);
 
   if (!game) return <div className="card p-8 text-center text-ink3">Loading…</div>;
 

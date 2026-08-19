@@ -3,6 +3,7 @@ export function fmtOdds(v: unknown): string {
 }
 
 export function oddsFlashClass(v: number | string): string {
+  void v;
   return "";
 }
 

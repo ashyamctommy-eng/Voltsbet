@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import MatchCard from "@/components/MatchCard";
-import { formatDateTime } from "@/lib/odds";
 
 export const dynamic = "force-dynamic";
 

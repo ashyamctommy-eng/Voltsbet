@@ -26,7 +26,7 @@ export const GET = handle(async (req: NextRequest) => {
   });
 });
 
-export const PATCH = handle(async (req: NextRequest) => {
+export const PATCH = handle(async () => {
   // Route conflict guard — PATCH goes to /api/admin/users/[id]
   throw new ApiError(404, "Not found.", "NOT_FOUND");
 });
