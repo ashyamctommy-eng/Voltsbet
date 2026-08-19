@@ -44,6 +44,7 @@ const GROUPS: { title: string; anchor: string; icon: React.ReactNode; fields: Fi
     fields: [
       { key: "odds.provider", label: "Odds provider", type: "select", options: ["the-odds-api", "api-football", "odds-api-io"], hint: "the-odds-api = The Odds API (the-odds-api.com, ODDS_API_KEY) · api-football = API-Football (api-sports.io, ODDS_API_IO_KEY) · odds-api-io = Odds-API.io (api.odds-api.io/v3, ODDS_IO_KEY)" },
       { key: "odds.marginPercent", label: "Odds margin %", type: "number", hint: "Overround added to feed odds — this is your edge. 0 = pass through, 6 = 6% book" },
+      { key: "odds.io.leagueSlugs", label: "Odds-API.io leagues (slugs)", type: "text", hint: "Comma-separated league slugs to import — leave empty for all. Slug matches exactly or as a prefix (e.g. 'international-clubs-uefa-champions-league' covers playoff + league phase). Env ODDS_IO_LEAGUE_SLUGS overrides this" },
       { key: "games.hideSeeded", label: "Disable seeded / virtual matches", type: "toggle", hint: "Show only live API-feed matches (source=API). Turns on automatically after the first successful sync that adds games. Env override: SHOW_SEEDED_GAMES=false" },
       { key: "betting.maxLiabilityPerMarket", label: "Max liability per market", type: "number", hint: "Reject bets that push exposure past this cap" },
     ],

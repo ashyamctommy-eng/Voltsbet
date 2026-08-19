@@ -45,6 +45,7 @@ export type SiteSettings = {
   oddsProvider: string; // the-odds-api | api-football | odds-api-io
   oddsMarginPercent: number; // overround added on top of feed odds (e.g. 6 = 6%)
   maxLiabilityPerMarket: number; // max exposure (potential payout) per market
+  oddsIoLeagueSlugs: string; // comma-separated league slugs to import (empty = all); env ODDS_IO_LEAGUE_SLUGS wins
   // Games display
   hideSeededGames: boolean; // show only synced (source=API) games in public lists; auto-on after first successful sync
   // Referrals
@@ -101,6 +102,7 @@ const DEFAULTS: SiteSettings = {
   oddsProvider: "the-odds-api",
   oddsMarginPercent: 6,
   maxLiabilityPerMarket: 500000,
+  oddsIoLeagueSlugs: "",
   hideSeededGames: false,
   referralEnabled: true,
   referralBonusPercent: 10,
@@ -166,6 +168,7 @@ export async function getSettings(): Promise<SiteSettings> {
   s.oddsProvider = raw["odds.provider"] ?? s.oddsProvider;
   s.oddsMarginPercent = Number(raw["odds.marginPercent"] ?? s.oddsMarginPercent);
   s.maxLiabilityPerMarket = Number(raw["betting.maxLiabilityPerMarket"] ?? s.maxLiabilityPerMarket);
+  s.oddsIoLeagueSlugs = raw["odds.io.leagueSlugs"] ?? s.oddsIoLeagueSlugs;
   s.hideSeededGames =
     process.env.SHOW_SEEDED_GAMES !== undefined
       ? process.env.SHOW_SEEDED_GAMES !== "true" // env wins: "false" = hide seeds

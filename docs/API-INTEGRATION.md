@@ -47,8 +47,12 @@ scores and results from an external provider — without being hard-coded to one
   `Totals` → OVER_UNDER, `Both Teams To Score` → BTTS (outcome names are
   lowercase so auto-settle matches). Margin applied via the same grid.
 - Switch: Admin → Settings → Odds & Risk → `odds.provider` = `odds-api-io`.
-- Budget: 1 full sync ≈ 1 events call + ceil(events/10) odds calls + 1 live call;
-  capped at 150 events by default (`ODDS_IO_MAX_EVENTS`), so ≈ 17 requests.
+- Curation: set `odds.io.leagueSlugs` (admin) or env `ODDS_IO_LEAGUE_SLUGS` to a
+  comma-separated list of league slugs — only those import (exact or prefix
+  match, so `international-clubs-uefa-champions-league` covers every phase).
+  Empty = import everything (capped by `ODDS_IO_MAX_EVENTS`).
+- Budget: 1 full sync ≈ 1 events call + 1 leagues call + ceil(events/10) odds calls
+  + 1 live call; with the curated ~30-league set that's ≈ 31 requests.
 
 ## Why not the others (as of 2026): Sportmonks is excellent but €100+/mo after a
 14-day trial; football-data.org has no odds. Start free with The Odds API; the

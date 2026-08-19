@@ -31,8 +31,17 @@ const ODDS_BATCH = 10;
 const MAX_EVENTS = Number(process.env.ODDS_IO_MAX_EVENTS ?? 150) || 150;
 /** Bookmaker override; defaults to the account's selected bookmakers. */
 const BOOKMAKERS_OVERRIDE = (process.env.ODDS_IO_BOOKMAKERS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-/** Optional curation: comma-separated league slugs — only these are imported. */
-const LEAGUE_SLUGS = (process.env.ODDS_IO_LEAGUE_SLUGS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+/** Optional curation: comma-separated league slugs — only these are imported.
+ *  Set via env ODDS_IO_LEAGUE_SLUGS or Admin → Odds & Risk → odds.io.leagueSlugs.
+ *  A slug matches exactly OR as a prefix ("international-clubs-uefa-champions-
+ *  league" also covers "-playoff-round" / "-league-phase" variants). */
+const ENV_LEAGUE_SLUGS = (process.env.ODDS_IO_LEAGUE_SLUGS ?? "")
+  .split(",").map((s) => s.trim()).filter(Boolean);
+
+function leagueMatches(slug: string | undefined, curated: string[]): boolean {
+  if (!slug || !curated.length) return curated.length === 0;
+  return curated.some((s) => slug === s || slug.startsWith(`${s}-`));
+}
 
 /** Status vocabulary accepted for upcoming fixtures ("pending" per the API,
  *  "NOT_STARTED" / "NS" per the spec/other providers). */
@@ -82,13 +91,19 @@ export class OddsIoProvider implements OddsProvider {
 
   async fetchUpcomingGames(sportKeys: string[]) {
     if (!sportKeys.includes("football")) return [];
-    const margin = (await getSettings()).oddsMarginPercent;
+    const settings = await getSettings();
+    const margin = settings.oddsMarginPercent;
+    // Env wins over the DB setting; empty = import everything (long tail).
+    const curated =
+      ENV_LEAGUE_SLUGS.length > 0
+        ? ENV_LEAGUE_SLUGS
+        : (settings.oddsIoLeagueSlugs ?? "").split(",").map((s) => s.trim()).filter(Boolean);
 
     const events = await this.get<Event[]>(`/events?sport=football`);
 
     // League registry (GET /v3/leagues) — authoritative league names/slugs.
     // Used to enrich events that carry a slug but no name, and to optionally
-    // curate the import set via ODDS_IO_LEAGUE_SLUGS.
+    // curate the import set via the curated slug list above.
     let leagueNameBySlug = new Map<string, string>();
     try {
       const leagues = await this.get<{ slug: string; name: string }[]>(`/leagues?sport=football`);
@@ -99,7 +114,7 @@ export class OddsIoProvider implements OddsProvider {
 
     const upcoming = events
       .filter((e) => UPCOMING_STATUSES.has(e.status))
-      .filter((e) => !LEAGUE_SLUGS.length || (e.league?.slug && LEAGUE_SLUGS.includes(e.league.slug)))
+      .filter((e) => leagueMatches(e.league?.slug, curated))
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
       .slice(0, MAX_EVENTS);
     if (!upcoming.length) return [];
