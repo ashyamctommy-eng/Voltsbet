@@ -11,6 +11,18 @@ type ApiConfig = {
   rapidHost: string;
   rapidBase: string;
   primary: boolean;
+  primaryProvider: string;
+  prematchProvider: string;
+  liveProvider: string;
+};
+
+const PROVIDER_OPTIONS = ["", "betsapi", "the-odds-api", "api-football", "odds-api-io", "oddspapi"];
+const PROVIDER_LABELS: Record<string, string> = {
+  betsapi: "betsapi (bet365)",
+  oddspapi: "oddspapi (Pinnacle)",
+  "the-odds-api": "the-odds-api",
+  "api-football": "api-football",
+  "odds-api-io": "odds-api-io",
 };
 
 type TestResult = {
@@ -30,6 +42,8 @@ export default function AdminApiSettings() {
   const [host, setHost] = useState("betsapi2.p.rapidapi.com");
   const [base, setBase] = useState("https://betsapi2.p.rapidapi.com");
   const [primary, setPrimary] = useState(false);
+  const [prematchRole, setPrematchRole] = useState("");
+  const [liveRole, setLiveRole] = useState("");
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [test, setTest] = useState<TestResult | null>(null);
@@ -42,6 +56,8 @@ export default function AdminApiSettings() {
       setHost(c.rapidHost);
       setBase(c.rapidBase);
       setPrimary(c.primary);
+      setPrematchRole(c.prematchProvider ?? "");
+      setLiveRole(c.liveProvider ?? "");
       if (!c.rapidKeySet) setKey("");
     });
   }, []);
@@ -51,7 +67,7 @@ export default function AdminApiSettings() {
     setSaving(true);
     const res = await apiFetch<{ message: string; primary: boolean }>("/api/admin/config/api", {
       method: "POST",
-      body: { rapidKey: key, rapidHost: host, rapidBase: base, primary },
+      body: { rapidKey: key, rapidHost: host, rapidBase: base, primary, prematchProvider: prematchRole, liveProvider: liveRole },
     });
     setSaving(false);
     if (!res.ok) return push("error", res.error.message);
@@ -148,6 +164,33 @@ export default function AdminApiSettings() {
             />
           </span>
         </label>
+
+        {/* Per-provider roles — which source feeds pre-match odds vs live scores */}
+        <div className="rounded-lg border border-line bg-card2/40 p-4">
+          <p className="text-sm font-bold">Provider roles</p>
+          <p className="mt-0.5 text-xs text-ink3">
+            Pre-match fixtures/odds and live scores can come from different sources (e.g. OddsPapi pre-match + bet365 live).
+            Empty = follow the primary provider (<b className="text-ink2">{PROVIDER_LABELS[config?.primaryProvider ?? ""] ?? config?.primaryProvider ?? "betsapi"}</b>).
+          </p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="label">Pre-match provider (role)</label>
+              <select className="input" value={prematchRole} onChange={(e) => setPrematchRole(e.target.value)}>
+                {PROVIDER_OPTIONS.map((o) => (
+                  <option key={o} value={o}>{o === "" ? "— Primary (default) —" : PROVIDER_LABELS[o]}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label">Live provider (role)</label>
+              <select className="input" value={liveRole} onChange={(e) => setLiveRole(e.target.value)}>
+                {PROVIDER_OPTIONS.map((o) => (
+                  <option key={o} value={o}>{o === "" ? "— Primary (default) —" : PROVIDER_LABELS[o]}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
 
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={testConnection} disabled={testing} className="btn border border-line bg-white/5 font-semibold hover:bg-white/10">

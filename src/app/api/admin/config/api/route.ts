@@ -21,6 +21,9 @@ export const GET = handle(async () => {
       rapidHost: s.apiRapidHost,
       rapidBase: s.apiRapidBase,
       primary: s.oddsProvider === "betsapi",
+      primaryProvider: s.oddsProvider,
+      prematchProvider: s.oddsPrematchProvider,
+      liveProvider: s.oddsLiveProvider,
     },
   });
 });
@@ -49,6 +52,14 @@ export const POST = handle(async (req: NextRequest) => {
 
   if (body?.primary === true) {
     await setSetting("odds.provider", "betsapi");
+  }
+
+  // Per-provider roles (pre-match source / live source) — empty = follow primary.
+  if (typeof body?.prematchProvider === "string") {
+    await setSetting("odds.prematchProvider", body.prematchProvider);
+  }
+  if (typeof body?.liveProvider === "string") {
+    await setSetting("odds.liveProvider", body.liveProvider);
   }
 
   // New creds should take effect immediately — drop the stale feed snapshot.
