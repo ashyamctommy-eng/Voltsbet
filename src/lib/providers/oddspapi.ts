@@ -303,13 +303,18 @@ export async function fetchOddspapiFeed(opts: {
   if (!kept.length) return [];
 
   let oddsByTourn: OddspapiOddsFixture[] = [];
-  try {
-    oddsByTourn = await client.get<OddspapiOddsFixture[]>("/odds-by-tournaments", {
-      bookmaker,
-      tournamentIds: tournIds.join(","),
-    });
-  } catch {
-    /* odds optional — fixtures still import without markets */
+  // The API caps tournamentIds at 5 per request — chunk the league set.
+  for (let i = 0; i < tournIds.length; i += 5) {
+    const chunk = tournIds.slice(i, i + 5);
+    try {
+      const part = await client.get<OddspapiOddsFixture[]>("/odds-by-tournaments", {
+        bookmaker,
+        tournamentIds: chunk.join(","),
+      });
+      oddsByTourn.push(...part);
+    } catch {
+      /* odds optional for this chunk — fixtures still import without markets */
+    }
   }
   const oddsByFixture = new Map(oddsByTourn.map((o) => [o.fixtureId, o]));
 
