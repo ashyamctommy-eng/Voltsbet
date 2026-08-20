@@ -12,11 +12,34 @@ type Game = {
   sport: { name: string; icon: string }; _count?: { markets: number };
 };
 
+type SyncResult = {
+  skipped?: boolean;
+  reason?: string;
+  created?: number;
+  updated?: number;
+  scoreUpdates?: number;
+  gamesSynced?: number;
+  prematchProvider?: string;
+  liveProvider?: string;
+  liveConfigured?: boolean;
+};
+
+/** Provider id → display label for the sync feedback line. */
+const PROVIDER_LABELS: Record<string, string> = {
+  betsapi: "betsapi (bet365)",
+  oddspapi: "oddspapi (Pinnacle)",
+  "the-odds-api": "the-odds-api",
+  "api-football": "api-football",
+  "odds-api-io": "odds-api-io",
+};
+const providerLabel = (id?: string) => (id ? (PROVIDER_LABELS[id] ?? id) : "—");
+
 export default function AdminGames() {
   const { push } = useToast();
   const [games, setGames] = useState<Game[]>([]);
   const [status, setStatus] = useState("");
   const [syncing, setSyncing] = useState(false);
+  const [lastSync, setLastSync] = useState<SyncResult | null>(null);
 
   useEffect(() => {
     load();
@@ -31,9 +54,10 @@ export default function AdminGames() {
 
   async function syncNow() {
     setSyncing(true);
-    const r = await apiFetch<{ skipped?: boolean; reason?: string; created?: number; updated?: number; scoreUpdates?: number }>("/api/admin/sync", { method: "POST", body: {} });
+    const r = await apiFetch<SyncResult>("/api/admin/sync", { method: "POST", body: {} });
     setSyncing(false);
     if (!r.ok) return push("error", r.error.message);
+    setLastSync(r.data);
     if (r.data.skipped) return push("info", `Sync skipped: ${r.data.reason}`);
     push("success", `Sync done: ${r.data.created} new, ${r.data.updated} updated, ${r.data.scoreUpdates} scores`);
     load();
@@ -58,6 +82,31 @@ export default function AdminGames() {
           <Link href="/admin/games/new" className="btn btn-primary">+ Add Manual Game</Link>
         </div>
       </div>
+
+      {/* Last sync feedback — counts + provider roles */}
+      {lastSync && (
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-white/5 px-3 py-2 text-[11px] font-medium text-ink2">
+          {lastSync.skipped ? (
+            <span>⟳ Last sync: skipped — {lastSync.reason}</span>
+          ) : (
+            <>
+              <span>
+                ⟳ Last sync: {lastSync.created} new · {lastSync.updated} updated ·{" "}
+                {lastSync.scoreUpdates} scores{lastSync.gamesSynced !== undefined ? ` · ${lastSync.gamesSynced} fixtures` : ""}
+              </span>
+              <span className="text-ink3">|</span>
+              <span>
+                pre-match: <b className="text-ink">{providerLabel(lastSync.prematchProvider)}</b>
+              </span>
+              <span className="text-ink3">|</span>
+              <span>
+                live: <b className="text-ink">{providerLabel(lastSync.liveProvider)}</b>
+                {lastSync.liveConfigured === false ? <span className="text-amber-400"> (live key missing — pre-match only)</span> : null}
+              </span>
+            </>
+          )}
+        </div>
+      )}
 
       <div className="card divide-y divide-line">
         {games.length === 0 && <div className="p-8 text-center text-sm text-ink3">No games found.</div>}
