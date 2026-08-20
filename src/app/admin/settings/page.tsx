@@ -11,6 +11,8 @@ type Field = {
   label: string;
   type: FieldType;
   options?: string[];
+  /** Label rendered for an empty-string option (defaults to "— none —"). */
+  emptyLabel?: string;
   hint?: string;
 };
 
@@ -42,7 +44,9 @@ const GROUPS: { title: string; anchor: string; icon: React.ReactNode; fields: Fi
     anchor: "odds-risk",
     icon: <IconGear className="h-4 w-4" />,
     fields: [
-      { key: "odds.provider", label: "Odds provider", type: "select", options: ["betsapi", "the-odds-api", "api-football", "odds-api-io", "oddspapi"], hint: "betsapi = Bet365 via RapidAPI (PRIMARY, creds in Admin → API Settings) · the-odds-api = The Odds API (ODDS_API_KEY) · api-football = API-Football (ODDS_API_IO_KEY) · odds-api-io = Odds-API.io (ODDS_IO_KEY) · oddspapi = OddsPapi v4 (ODDSPAPI_KEY, Pinnacle sharp lines)" },
+      { key: "odds.provider", label: "Primary provider", type: "select", options: ["betsapi", "the-odds-api", "api-football", "odds-api-io", "oddspapi"], hint: "Default source for everything. betsapi = Bet365 via RapidAPI (creds in Admin → API Settings) · the-odds-api = The Odds API (ODDS_API_KEY) · api-football = API-Football (ODDS_API_IO_KEY) · odds-api-io = Odds-API.io (ODDS_IO_KEY) · oddspapi = OddsPapi v4 (ODDSPAPI_KEY, Pinnacle sharp lines)" },
+      { key: "odds.prematchProvider", label: "Pre-match provider (role)", type: "select", options: ["", "betsapi", "the-odds-api", "api-football", "odds-api-io", "oddspapi"], emptyLabel: "— Primary (default) —", hint: "ROLE: source for upcoming fixtures + prematch odds. Empty = follow the primary. Oddspapi (Pinnacle) is the sharpest pre-match option; BetsAPI is bet365-depth." },
+      { key: "odds.liveProvider", label: "Live provider (role)", type: "select", options: ["", "betsapi", "the-odds-api", "api-football", "odds-api-io", "oddspapi"], emptyLabel: "— Primary (default) —", hint: "ROLE: source for in-play scores/timers. Empty = follow the primary. BetsAPI has the deepest live feed; OddsPapi live scores cost 1 request per fixture on free plans." },
       { key: "odds.marginPercent", label: "Odds margin %", type: "number", hint: "Overround added to feed odds — this is your edge. 0 = pass through, 6 = 6% book" },
       { key: "odds.io.leagueSlugs", label: "Odds-API.io leagues (slugs)", type: "text", hint: "Comma-separated league slugs to import — leave empty for all. Slug matches exactly or as a prefix (e.g. 'international-clubs-uefa-champions-league' covers playoff + league phase). Env ODDS_IO_LEAGUE_SLUGS overrides this" },
       { key: "games.hideSeeded", label: "Disable seeded / virtual matches", type: "toggle", hint: "Show only live API-feed matches (source=API). Turns on automatically after the first successful sync that adds games. Env override: SHOW_SEEDED_GAMES=false" },
@@ -229,7 +233,7 @@ export default function AdminSettings() {
                     <label className="label">{f.label}</label>
                     <select className="input" value={value} onChange={(e) => set(f.key, e.target.value)}>
                       {(f.options ?? []).map((o) => (
-                        <option key={o} value={o}>{o === "" ? "— none —" : o}</option>
+                        <option key={o} value={o}>{o === "" ? (f.emptyLabel ?? "— none —") : o}</option>
                       ))}
                     </select>
                   </div>

@@ -302,7 +302,7 @@ export async function fetchOddspapiFeed(opts: {
   const kept = wanted.filter((f) => tournIds.includes(f.tournamentId));
   if (!kept.length) return [];
 
-  let oddsByTourn: OddspapiOddsFixture[] = [];
+  const oddsByTourn: OddspapiOddsFixture[] = [];
   // The API caps tournamentIds at 5 per request — chunk the league set.
   for (let i = 0; i < tournIds.length; i += 5) {
     const chunk = tournIds.slice(i, i + 5);

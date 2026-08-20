@@ -19,6 +19,7 @@
 import { getSettings } from "@/lib/settings";
 import { BetsApiClient } from "@/lib/providers/betsapi-client";
 import { TheOddsApi } from "@/lib/providers/odds-api";
+import { fetchOddspapiFeed } from "@/lib/providers/oddspapi";
 import { formatKickoff } from "@/lib/kickoff";
 import {
   RawBetsApiMatch,
@@ -51,7 +52,7 @@ const FALLBACK_LEAGUES = [
   "soccer_uefa_champs_league",
 ];
 
-export type FeedSource = "betsapi" | "the-odds-api";
+export type FeedSource = "betsapi" | "oddspapi" | "the-odds-api";
 
 let cache: { at: number; matches: BetsApiMatchView[]; source: FeedSource } | null = null;
 
@@ -91,11 +92,11 @@ export async function getBetsApiFeed(
     return { matches, source: "betsapi" };
   } catch (e) {
     // BetsAPI is down (rate-limited, key missing, HTTP error) — try the free
-    // The Odds API fallback before giving up.
-    const fallback = await tryTheOddsApiFallback(limit);
-    if (fallback.length) {
-      cache = { at: Date.now(), matches: fallback, source: "the-odds-api" };
-      return { matches: fallback, source: "the-odds-api" };
+    // fallbacks (OddsPapi → The Odds API) before giving up.
+    const fallback = await tryFreeFallback(limit);
+    if (fallback.matches.length) {
+      cache = { at: Date.now(), matches: fallback.matches, source: fallback.source };
+      return fallback;
     }
     if (cache) return { matches: cache.matches, source: cache.source }; // stale snapshot
     throw e;
@@ -132,46 +133,68 @@ async function fetchBetsApiFeed(limit: number): Promise<BetsApiMatchView[]> {
 }
 
 /**
- * Fallback path — The Odds API (free 500 credits/month; 1 credit per league
- * per refresh, so the league set is capped). Only runs when BetsAPI failed
- * and ODDS_API_KEY is configured. Serves h2h (1X2) + totals for the top
- * soccer leagues, future fixtures only, chronological.
+ * Fallback chain — OddsPapi (Pinnacle sharp lines, 250 free req/month) then
+ * The Odds API (500 free credits/month). Only runs when BetsAPI failed and a
+ * fallback key is configured. Future fixtures only, chronological, capped.
  */
-async function tryTheOddsApiFallback(limit: number): Promise<BetsApiMatchView[]> {
-  if (!process.env.ODDS_API_KEY) return [];
-  try {
-    const provider = new TheOddsApi();
-    const sports = await provider.fetchSports();
-    const preferred = (process.env.ODDS_API_FALLBACK_LEAGUES ?? FALLBACK_LEAGUES.join(","))
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    const chosen = preferred.filter((k) => sports.some((s) => s.key === k));
-    const keys =
-      (chosen.length
-        ? chosen
-        : sports
-            .filter((s) => s.key.startsWith("soccer_"))
-            .map((s) => s.key)
-            .slice(0, FALLBACK_LEAGUE_LIMIT))
-        .slice(0, FALLBACK_LEAGUE_LIMIT);
-    if (!keys.length) return [];
+async function tryFreeFallback(limit: number): Promise<{ matches: BetsApiMatchView[]; source: FeedSource }> {
+  const cap = Math.max(0, Math.min(limit, 50));
 
-    const games = await provider.fetchUpcomingGames(keys);
-    return games
-      .filter((g) => g.startAt.getTime() > Date.now()) // pre-match only
-      .sort((a, b) => a.startAt.getTime() - b.startAt.getTime())
-      .slice(0, Math.max(0, Math.min(limit, 50)))
-      .map((g) => apiGameToMatchView(g));
-  } catch {
-    return []; // no fallback available — callers keep the stale snapshot / DB
+  if (process.env.ODDSPAPI_KEY) {
+    try {
+      const games = await fetchOddspapiFeed({
+        key: process.env.ODDSPAPI_KEY,
+        margin: (await getSettings()).oddsMarginPercent,
+        maxLeagues: 5, // keep the free-plan quota in check
+      });
+      const matches = games
+        .filter((g) => g.startAt.getTime() > Date.now())
+        .sort((a, b) => a.startAt.getTime() - b.startAt.getTime())
+        .slice(0, cap)
+        .map(apiGameToMatchView);
+      if (matches.length) return { matches, source: "oddspapi" };
+    } catch {
+      /* fall through to the next source */
+    }
   }
+
+  if (process.env.ODDS_API_KEY) {
+    try {
+      const provider = new TheOddsApi();
+      const sports = await provider.fetchSports();
+      const preferred = (process.env.ODDS_API_FALLBACK_LEAGUES ?? FALLBACK_LEAGUES.join(","))
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const chosen = preferred.filter((k) => sports.some((s) => s.key === k));
+      const keys =
+        (chosen.length
+          ? chosen
+          : sports
+              .filter((s) => s.key.startsWith("soccer_"))
+              .map((s) => s.key)
+              .slice(0, FALLBACK_LEAGUE_LIMIT))
+            .slice(0, FALLBACK_LEAGUE_LIMIT);
+      if (!keys.length) return { matches: [], source: "the-odds-api" };
+      const games = await provider.fetchUpcomingGames(keys);
+      const matches = games
+        .filter((g) => g.startAt.getTime() > Date.now())
+        .sort((a, b) => a.startAt.getTime() - b.startAt.getTime())
+        .slice(0, cap)
+        .map(apiGameToMatchView);
+      if (matches.length) return { matches, source: "the-odds-api" };
+    } catch {
+      /* no fallback available */
+    }
+  }
+  return { matches: [], source: "the-odds-api" };
 }
 
-/** Adapt an ApiGame (The Odds API) into the standard MatchView contract. */
+/** Adapt an ApiGame (OddsPapi / The Odds API) into the standard MatchView contract. */
 function apiGameToMatchView(g: {
   externalId: string;
   sportKey: string;
+  competitionName?: string;
   homeName: string;
   awayName: string;
   startAt: Date;
@@ -182,7 +205,7 @@ function apiGameToMatchView(g: {
     id: g.externalId,
     isLive: false,
     timeStatus: "0",
-    leagueName: LEAGUE_TITLES[g.sportKey] ?? "Football",
+    leagueName: g.competitionName ?? LEAGUE_TITLES[g.sportKey] ?? "Football",
     homeTeam: g.homeName,
     awayTeam: g.awayName,
     score: "0-0",

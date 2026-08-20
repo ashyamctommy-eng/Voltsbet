@@ -60,13 +60,19 @@ export default async function HomePage() {
         <div className="mt-4 flex items-center gap-2">
           <span className="flex items-center gap-1.5 rounded-full bg-brand/10 px-2.5 py-1 text-[10px] font-bold text-brand">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand" />
-            {apiFeed.source === "the-odds-api" ? "ODDS API fallback" : "LIVE — BetsAPI feed"}
+            {apiFeed.source === "oddspapi"
+              ? "ODDSPAPI fallback"
+              : apiFeed.source === "the-odds-api"
+                ? "ODDS API fallback"
+                : "LIVE — BetsAPI feed"}
           </span>
           <span className="text-[11px] font-semibold text-ink3">
             {apiFeed.matches.length} matches ·{" "}
-            {apiFeed.source === "the-odds-api"
-              ? "BetsAPI quota blocked — serving free The Odds API pre-match odds"
-              : "no sync needed · odds refresh in ~5 min"}
+            {apiFeed.source === "oddspapi"
+              ? "BetsAPI unavailable — serving OddsPapi (Pinnacle) pre-match odds"
+              : apiFeed.source === "the-odds-api"
+                ? "BetsAPI unavailable — serving free The Odds API pre-match odds"
+                : "no sync needed · odds refresh in ~5 min"}
           </span>
         </div>
       ) : null}

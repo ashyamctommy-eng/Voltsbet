@@ -52,22 +52,42 @@ const SPORT_KEY_MAP: Record<string, string> = {
   "3": "basketball", "2": "tennis", "4": "ice-hockey", // betsapi sport ids
 };
 
+/** Resolve the sync roles: pre-match source and live source. Each role falls
+ *  back to the legacy primary (odds.provider), then to BetsAPI. */
+export function resolveSyncRoles(s: {
+  oddsPrematchProvider?: string;
+  oddsLiveProvider?: string;
+  oddsProvider?: string;
+}): { prematch: string; live: string } {
+  const primary = s.oddsProvider || "betsapi";
+  return {
+    prematch: s.oddsPrematchProvider || primary,
+    live: s.oddsLiveProvider || primary,
+  };
+}
+
 export async function syncGames(providerId?: string) {
-  if (!providerId) providerId = (await getSettings()).oddsProvider || "the-odds-api";
-  const provider = PROVIDERS[providerId]?.();
-  if (!provider) throw new Error(`Unknown provider: ${providerId}`);
-  if (providerId === "betsapi") {
-    // BetsAPI credentials live in the DB (Admin → API Settings), not env.
-    const s = await getSettings();
-    if (!s.apiRapidKey) {
-      return { skipped: true, reason: "RapidAPI key not configured — set it in Admin → API Settings" };
-    }
-  } else {
-    const keyEnv = PROVIDER_KEY_ENV[providerId] ?? "ODDS_API_KEY";
-    if (!process.env[keyEnv]) {
-      return { skipped: true, reason: `${keyEnv} not set — keeping manual/seed games` };
-    }
-  }
+  const s = await getSettings();
+  // Per-provider roles: a pre-match source (fixtures + prematch odds) and a
+  // live source (in-play scores/timers) — e.g. oddspapi pre-match + betsapi
+  // live. Passing providerId forces both roles to that single provider.
+  const roles = providerId ? { prematch: providerId, live: providerId } : resolveSyncRoles(s);
+  const provider = PROVIDERS[roles.prematch]?.();
+  const liveSource = PROVIDERS[roles.live]?.();
+  if (!provider) throw new Error(`Unknown pre-match provider: ${roles.prematch}`);
+  if (!liveSource) throw new Error(`Unknown live provider: ${roles.live}`);
+
+  // Key guard per role — BetsAPI creds live in the DB (Admin → API Settings);
+  // other providers are gated by their env key.
+  const missingKey = (id: string): string | null => {
+    if (id === "betsapi") return s.apiRapidKey ? null : "RapidAPI key not configured — set it in Admin → API Settings";
+    const keyEnv = PROVIDER_KEY_ENV[id] ?? "ODDS_API_KEY";
+    return process.env[keyEnv] ? null : `${keyEnv} not set — keeping manual/seed games`;
+  };
+  const prematchMissing = missingKey(roles.prematch);
+  if (prematchMissing) return { skipped: true, reason: prematchMissing };
+  // A missing live-source key degrades gracefully: pre-match still syncs.
+  const liveConfigured = !missingKey(roles.live);
 
   const sports = await provider.fetchSports();
   const wanted = sports.filter((s) => SPORT_KEY_MAP[s.key]);
@@ -75,7 +95,7 @@ export async function syncGames(providerId?: string) {
 
   const [games, scores] = await Promise.all([
     provider.fetchUpcomingGames(sportKeys),
-    provider.fetchLiveScores(sportKeys),
+    liveConfigured ? liveSource.fetchLiveScores(sportKeys) : Promise.resolve([]),
   ]);
 
   let created = 0, updated = 0;
@@ -120,7 +140,7 @@ export async function syncGames(providerId?: string) {
   // Optional settlement sweep — providers with fetchResults() (betsapi) pull
   // finished outcomes for due games that aren't finished yet. Capped so the
   // request budget stays sane on rate-limited plans.
-  if (provider.fetchResults && providerId === "betsapi") {
+  if (provider.fetchResults && roles.prematch === "betsapi") {
     const due = await prisma.game.findMany({
       where: {
         source: "API",
@@ -164,7 +184,15 @@ export async function syncGames(providerId?: string) {
     }
   }
 
-  return { created, updated, scoreUpdates, gamesSynced: games.length };
+  return {
+    created,
+    updated,
+    scoreUpdates,
+    gamesSynced: games.length,
+    prematchProvider: roles.prematch,
+    liveProvider: roles.live,
+    liveConfigured,
+  };
 }
 
 async function buildPayload(

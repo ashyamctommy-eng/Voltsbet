@@ -42,7 +42,9 @@ export type SiteSettings = {
   heroTitle: string;
   heroSubtitle: string;
   // Odds & risk
-  oddsProvider: string; // the-odds-api | api-football | odds-api-io | betsapi
+  oddsProvider: string; // legacy PRIMARY (fallback for the role settings)
+  oddsPrematchProvider: string; // ROLE: pre-match source (empty = follow oddsProvider)
+  oddsLiveProvider: string; // ROLE: live source (empty = follow oddsProvider)
   oddsMarginPercent: number; // overround added on top of feed odds (e.g. 6 = 6%)
   maxLiabilityPerMarket: number; // max exposure (potential payout) per market
   oddsIoLeagueSlugs: string; // comma-separated league slugs to import (empty = all); env ODDS_IO_LEAGUE_SLUGS wins
@@ -105,6 +107,8 @@ const DEFAULTS: SiteSettings = {
   heroTitle: "Bet on the games you love",
   heroSubtitle: "Fast odds, instant crypto deposits, live betting.",
   oddsProvider: "betsapi", // primary: BetsAPI (bet365 via RapidAPI)
+  oddsPrematchProvider: "", // empty = follow oddsProvider
+  oddsLiveProvider: "", // empty = follow oddsProvider
   oddsMarginPercent: 6,
   maxLiabilityPerMarket: 500000,
   oddsIoLeagueSlugs: "",
@@ -175,6 +179,8 @@ export async function getSettings(): Promise<SiteSettings> {
   s.heroTitle = raw["home.heroTitle"] ?? s.heroTitle;
   s.heroSubtitle = raw["home.heroSubtitle"] ?? s.heroSubtitle;
   s.oddsProvider = raw["odds.provider"] ?? s.oddsProvider;
+  s.oddsPrematchProvider = raw["odds.prematchProvider"] ?? s.oddsPrematchProvider;
+  s.oddsLiveProvider = raw["odds.liveProvider"] ?? s.oddsLiveProvider;
   s.oddsMarginPercent = Number(raw["odds.marginPercent"] ?? s.oddsMarginPercent);
   s.maxLiabilityPerMarket = Number(raw["betting.maxLiabilityPerMarket"] ?? s.maxLiabilityPerMarket);
   s.oddsIoLeagueSlugs = raw["odds.io.leagueSlugs"] ?? s.oddsIoLeagueSlugs;
