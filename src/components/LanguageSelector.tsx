@@ -5,16 +5,39 @@ import { createPortal } from "react-dom";
 import { IconChevronDown, IconCheck, IconGlobe } from "@/components/icons";
 import { LANGUAGES, changeLanguage, getStoredLang } from "@/lib/i18n";
 
+type LangItem = { code: string; name: string; isDefault?: boolean };
+
 /**
  * Navbar language selector — 🌐 EN ▼. Renders as a portal (fixed position)
  * so it's never clipped by the sticky header's stacking/overflow.
- * Persists via localStorage `user_selected_lang`.
+ * The language list comes from the admin panel (GET /api/public/languages);
+ * while it loads (or offline) the built-in catalog is shown. Choice persists
+ * via localStorage `user_selected_lang`.
  */
 export default function LanguageSelector() {
   const [lang, setLang] = useState<string>(() => getStoredLang());
+  const [list, setList] = useState<LangItem[]>(() =>
+    LANGUAGES.map((l) => ({ code: l.code, name: l.name })),
+  );
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
+
+  // Admin-managed language list (DB) with built-in fallback.
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/public/languages", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((d: { languages?: LangItem[] }) => {
+        if (alive && d.languages?.length) setList(d.languages);
+      })
+      .catch(() => {
+        /* keep built-ins */
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const measure = () => {
     const el = btnRef.current;
@@ -74,7 +97,7 @@ export default function LanguageSelector() {
               className="fixed z-[95] w-44 overflow-hidden rounded-xl border border-line bg-[#10182c] p-1 shadow-2xl"
               style={{ top: pos.top, right: pos.right }}
             >
-              {LANGUAGES.map((l) => (
+              {list.map((l) => (
                 <button
                   key={l.code}
                   role="option"
@@ -85,7 +108,7 @@ export default function LanguageSelector() {
                   }`}
                 >
                   <span>
-                    <span className="mr-2 font-bold">{l.label}</span>
+                    <span className="mr-2 font-bold">{l.code.toUpperCase()}</span>
                     {l.name}
                   </span>
                   {l.code === lang && <IconCheck className="h-3.5 w-3.5 shrink-0" />}

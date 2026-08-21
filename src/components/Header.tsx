@@ -161,7 +161,7 @@ export default function Header({ user, siteName }: { user: HeaderUser; siteName:
                     <div className="py-1">
                       {[
                         ["/account", t("nav.profile")],
-                        ["/account/bets", t("nav.bets")],
+                        ["/account/bets", t("nav.my_bets")],
                         ["/account/deposit", t("nav.deposit")],
                         ["/account/withdraw", t("nav.withdraw")],
                         ["/account/settings", t("nav.settings")],

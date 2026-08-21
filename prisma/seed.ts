@@ -5,6 +5,7 @@
  */
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { resources } from "../src/lib/i18n-resources";
 import { randomBytes } from "crypto";
 import { teamLogo } from "../src/lib/team-logos";
 
@@ -695,6 +696,15 @@ async function main() {
       entity: "SYSTEM", newValue: JSON.stringify({ note: "Initial database seed" }),
     },
   });
+  // ── Extended UI keys (market names + nav extras) from the client bundle ──
+  // Keeps the admin panel dictionary in sync with the UI keys; existing
+  // seeded values win (update: {}), missing keys are added. Idempotent.
+  for (const lang of ["en", "sw", "fr", "pt", "es"]) {
+    const bundle = (resources as Record<string, { translation: Record<string, string> }>)[lang]?.translation ?? {};
+    for (const [key, value] of Object.entries(bundle)) {
+      await t(lang, key, String(value));
+    }
+  }
 
   console.log("Seed complete ✅");
   console.log("  Admin login:  admin@voltbet.test / Admin123!");
