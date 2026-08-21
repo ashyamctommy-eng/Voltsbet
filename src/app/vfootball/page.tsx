@@ -40,7 +40,7 @@ export default function VFootballPage() {
               <span className="shrink-0 text-lg font-extrabold tabular-nums">{f.score}</span>
               <div className="grid shrink-0 grid-cols-3 gap-1.5">
                 {f.odds.map((o, i) => (
-                  <span key={i} className="flex h-9 w-12 items-center justify-center rounded-lg bg-[#0d1a2c] text-xs font-bold text-ink2">
+                  <span key={i} className="flex h-9 w-12 items-center justify-center rounded-lg bg-card text-xs font-bold text-ink2">
                     {o}
                   </span>
                 ))}

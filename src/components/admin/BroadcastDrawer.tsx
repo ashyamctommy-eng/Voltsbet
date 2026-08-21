@@ -77,7 +77,7 @@ function BroadcastDrawer({ onClose }: { onClose: () => void }) {
       <aside className="absolute right-0 top-0 flex h-full w-full max-w-md flex-col border-l border-line bg-card shadow-2xl">
         <div className="flex items-center justify-between border-b border-line px-5 py-4">
           <h2 className="text-base font-extrabold">Broadcast Announcement</h2>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-ink3 hover:bg-white/5 hover:text-ink" aria-label="Close">
+          <button onClick={onClose} className="rounded-lg p-1.5 text-ink3 hover:bg-hover-tint hover:text-ink" aria-label="Close">
             <IconX className="h-5 w-5" />
           </button>
         </div>
@@ -146,7 +146,7 @@ function BroadcastDrawer({ onClose }: { onClose: () => void }) {
                 <li key={b.id} className="rounded-lg bg-card2 p-3">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-sm font-bold">{b.title}</span>
-                    <span className="shrink-0 rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-semibold text-ink3">
+                    <span className="shrink-0 rounded-full bg-hover-tint px-2 py-0.5 text-[10px] font-semibold text-ink3">
                       {b.targetType === "USER" ? `→ ${b.user?.username ?? b.userId ?? "user"}` : "ALL"}
                     </span>
                   </div>

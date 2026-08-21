@@ -81,7 +81,7 @@ export default function LanguageSelector() {
         }}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className="flex h-9 items-center gap-1.5 rounded-full border border-line bg-[#131d2e] px-3 text-xs font-bold text-ink transition-colors hover:border-line2"
+        className="flex h-9 items-center gap-1.5 rounded-full border border-line bg-card px-3 text-xs font-bold text-ink transition-colors hover:border-line2"
       >
         <IconGlobe className="h-4 w-4 text-ink3" />
         {lang.toUpperCase()}
@@ -94,7 +94,7 @@ export default function LanguageSelector() {
             <div className="fixed inset-0 z-[90]" onClick={() => setOpen(false)} />
             <div
               role="listbox"
-              className="fixed z-[95] w-44 overflow-hidden rounded-xl border border-line bg-[#10182c] p-1 shadow-2xl"
+              className="fixed z-[95] w-44 overflow-hidden rounded-xl border border-line bg-card p-1 shadow-2xl"
               style={{ top: pos.top, right: pos.right }}
             >
               {list.map((l) => (
@@ -103,7 +103,7 @@ export default function LanguageSelector() {
                   role="option"
                   aria-selected={l.code === lang}
                   onClick={() => pick(l.code)}
-                  className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-white/5 ${
+                  className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-hover-tint ${
                     l.code === lang ? "text-brand" : "text-ink2 hover:text-ink"
                   }`}
                 >

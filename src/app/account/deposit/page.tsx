@@ -341,7 +341,7 @@ export default function DepositPage() {
                 <div className="text-xs text-ink2">
                   Send <b className="text-ink">{cryptoAmount ? `${cryptoAmount.toFixed(COIN_META[crypto]?.dp ?? 4)} ${crypto}` : ""}</b> to this address
                 </div>
-                <div className="mt-2 flex items-center gap-2 rounded-lg bg-[#0a1120] p-3">
+                <div className="mt-2 flex items-center gap-2 rounded-lg bg-card2 p-3">
                   <span className="min-w-0 flex-1 break-all text-left font-mono text-xs text-brand">{pending.paymentAddress}</span>
                   <button
                     type="button"

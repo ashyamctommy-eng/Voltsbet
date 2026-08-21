@@ -41,7 +41,7 @@ export default function AdminAudit() {
               <span className="ml-auto text-xs text-ink3">{formatDateTime(new Date(l.createdAt))}</span>
             </div>
             {(l.prevValue || l.newValue) && (
-              <pre className="mt-2 overflow-x-auto rounded-lg bg-[#0a1120] p-2 text-[11px] text-ink2">
+              <pre className="mt-2 overflow-x-auto rounded-lg bg-card2 p-2 text-[11px] text-ink2">
                 {l.prevValue ? `prev: ${l.prevValue}\n` : ""}{l.newValue ? `new:  ${l.newValue}` : ""}
               </pre>
             )}

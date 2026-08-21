@@ -56,7 +56,7 @@ export default function SupportWidget({ support }: { support: SupportConfig }) {
       {open && (
         <div className="fixed inset-0 z-[80] flex items-end justify-center" role="dialog" aria-modal="true" aria-label="Support">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" onClick={() => { setOpen(false); setChat(false); }} />
-          <div className="sheet-up relative w-full max-w-md overflow-hidden rounded-t-2xl border border-line bg-[#0d1726] sm:rounded-2xl">
+          <div className="sheet-up relative w-full max-w-md overflow-hidden rounded-t-2xl border border-line bg-panel-bg sm:rounded-2xl">
             {/* Gradient header */}
             <div className="relative bg-gradient-to-r from-sky-600 to-blue-700 px-5 py-5">
               <div className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-white/10 blur-xl" />
@@ -79,7 +79,7 @@ export default function SupportWidget({ support }: { support: SupportConfig }) {
               <div className="space-y-3 p-5">
                 <button
                   onClick={() => setChat(true)}
-                  className="flex w-full items-center gap-4 rounded-2xl border border-line bg-[#131d2e] p-4 text-left transition-colors hover:border-sky-500/50"
+                  className="flex w-full items-center gap-4 rounded-2xl border border-line bg-card p-4 text-left transition-colors hover:border-sky-500/50"
                 >
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-500/15 text-sky-400">
                     <IconChat className="h-5 w-5" />
@@ -92,7 +92,7 @@ export default function SupportWidget({ support }: { support: SupportConfig }) {
 
                 <a
                   href={`tel:${support.phone.replace(/[^+\d]/g, "")}`}
-                  className="flex w-full items-center gap-4 rounded-2xl border border-line bg-[#131d2e] p-4 text-left transition-colors hover:border-sky-500/50"
+                  className="flex w-full items-center gap-4 rounded-2xl border border-line bg-card p-4 text-left transition-colors hover:border-sky-500/50"
                 >
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-green-500/15 text-green-400">
                     <IconPhone className="h-5 w-5" />
@@ -110,7 +110,7 @@ export default function SupportWidget({ support }: { support: SupportConfig }) {
                 {/* Messages */}
                 <div className="flex-1 space-y-2 overflow-y-auto p-4">
                   {msgs.map((m, i) => (
-                    <div key={i} className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm ${m.from === "bot" ? "rounded-bl-sm bg-[#131d2e] text-ink" : "ml-auto rounded-br-sm bg-brand/90 text-[#052e16]"}`}>
+                    <div key={i} className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm ${m.from === "bot" ? "rounded-bl-sm bg-card text-ink" : "ml-auto rounded-br-sm bg-brand/90 text-[#052e16]"}`}>
                       {m.text}
                     </div>
                   ))}

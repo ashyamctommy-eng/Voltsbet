@@ -175,7 +175,7 @@ function MatchSlide({ g, index, total }: { g: SlideGame; index: number; total: n
               {odds.map((o) => (
                 <span
                   key={o.name}
-                  className="flex h-10 items-center justify-center gap-1 rounded-lg border border-line2 bg-[#0d1a2c] text-sm font-bold text-ink"
+                  className="flex h-10 items-center justify-center gap-1 rounded-lg border border-line2 bg-card text-sm font-bold text-ink"
                 >
                   {o.label && <span className="text-[10px] font-semibold text-ink3">{o.label}</span>}
                   {Number(o.odds).toFixed(2)}

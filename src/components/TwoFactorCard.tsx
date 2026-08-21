@@ -76,7 +76,7 @@ export default function TwoFactorCard() {
               1. Scan the QR with <b className="text-ink">Google Authenticator</b> or <b className="text-ink">Authy</b>.
             </p>
             {state.otpauthUrl && (
-              <p className="break-all rounded-lg bg-[#0d1526] px-3 py-2 font-mono text-[11px] text-ink3">
+              <p className="break-all rounded-lg bg-card2 px-3 py-2 font-mono text-[11px] text-ink3">
                 {state.otpauthUrl}
               </p>
             )}

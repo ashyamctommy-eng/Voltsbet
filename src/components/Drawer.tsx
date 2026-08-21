@@ -87,7 +87,7 @@ export default function Drawer({
 
       {/* Off-canvas drawer from the left */}
       <aside
-        className={`absolute inset-y-0 left-0 flex w-[300px] max-w-[85vw] flex-col bg-[#0d1726] shadow-2xl transition-transform duration-200 ease-out ${
+        className={`absolute inset-y-0 left-0 flex w-[300px] max-w-[85vw] flex-col bg-panel-bg shadow-2xl transition-transform duration-200 ease-out ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
         role="dialog"
@@ -125,7 +125,7 @@ export default function Drawer({
                     key={label}
                     href={href}
                     onClick={onClose}
-                    className={`flex items-center gap-3 rounded-xl bg-[#131d2e] px-3.5 py-3 text-sm font-bold transition-transform active:scale-[0.98] ${
+                    className={`flex items-center gap-3 rounded-xl bg-card px-3.5 py-3 text-sm font-bold transition-transform active:scale-[0.98] ${
                       color
                     } ${active ? "ring-1 ring-brand/40" : ""}`}
                   >
@@ -153,9 +153,9 @@ export default function Drawer({
                   key={l.name}
                   href={l.href}
                   onClick={onClose}
-                  className="flex items-center gap-3 rounded-xl bg-[#131d2e] px-3.5 py-3 text-sm font-semibold text-ink2 transition-colors hover:text-ink"
+                  className="flex items-center gap-3 rounded-xl bg-card px-3.5 py-3 text-sm font-semibold text-ink2 transition-colors hover:text-ink"
                 >
-                  <span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-white/5">
+                  <span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-hover-tint">
                     <l.Flag className="h-4 w-5" />
                   </span>
                   {l.name}
@@ -176,7 +176,7 @@ export default function Drawer({
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={onClose}
-                  className="flex items-center gap-3 rounded-xl bg-[#131d2e] px-3.5 py-3 text-sm font-bold text-green-400"
+                  className="flex items-center gap-3 rounded-xl bg-card px-3.5 py-3 text-sm font-bold text-green-400"
                 >
                   <IconWhatsApp className="h-5 w-5" /> WhatsApp
                   <IconChevronRight className="ml-auto h-4 w-4 opacity-40" />
@@ -188,7 +188,7 @@ export default function Drawer({
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={onClose}
-                  className="flex items-center gap-3 rounded-xl bg-[#131d2e] px-3.5 py-3 text-sm font-bold text-sky-400"
+                  className="flex items-center gap-3 rounded-xl bg-card px-3.5 py-3 text-sm font-bold text-sky-400"
                 >
                   <IconTelegram className="h-5 w-5" /> Telegram
                   <IconChevronRight className="ml-auto h-4 w-4 opacity-40" />
@@ -197,7 +197,7 @@ export default function Drawer({
               <Link
                 href="/responsible-gambling"
                 onClick={onClose}
-                className="flex items-center gap-3 rounded-xl bg-[#131d2e] px-3.5 py-3 text-sm font-bold text-ink2"
+                className="flex items-center gap-3 rounded-xl bg-card px-3.5 py-3 text-sm font-bold text-ink2"
               >
                 <IconHelp className="h-5 w-5" /> Help &amp; Support
                 <IconChevronRight className="ml-auto h-4 w-4 opacity-40" />
@@ -208,7 +208,7 @@ export default function Drawer({
 
         {/* Pinned bottom: theme toggle */}
         <div className="border-t border-line px-4 py-4">
-          <div className="flex items-center justify-between rounded-xl bg-[#131d2e] px-4 py-3">
+          <div className="flex items-center justify-between rounded-xl bg-card px-4 py-3">
             <span className="flex items-center gap-2 text-sm font-semibold text-ink2">
               {theme === "dark" ? <IconMoon className="h-5 w-5" /> : <IconSun className="h-5 w-5" />}
               Dark Theme

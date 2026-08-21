@@ -161,7 +161,7 @@ export default function FixtureMarkets({ game, markets }: { game: FixtureCtx; ma
                 key={c.id}
                 onClick={() => setCat(c.id)}
                 className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-bold transition-colors ${
-                  cat === c.id ? "bg-brand text-[#052e16]" : "bg-[#1A2235] text-ink2 hover:text-ink"
+                  cat === c.id ? "bg-brand text-[#052e16]" : "bg-card text-ink2 hover:text-ink"
                 }`}
               >
                 {c.label} ({c.count})
@@ -234,12 +234,12 @@ export default function FixtureMarkets({ game, markets }: { game: FixtureCtx; ma
                       className={`flex items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-left transition-all active:scale-[0.98] ${
                         selected
                           ? SELECTED_CLS
-                          : "border border-line2 bg-[#0d1a2c] hover:border-line"
+                          : "border border-line2 bg-card hover:border-line"
                       } ${active ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}
                     >
                       <span className="flex min-w-0 items-center gap-1.5">
                         {o.label && (
-                          <span className="shrink-0 rounded bg-white/5 px-1.5 py-0.5 text-[10px] font-bold text-ink3">
+                          <span className="shrink-0 rounded bg-hover-tint px-1.5 py-0.5 text-[10px] font-bold text-ink3">
                             {o.label}
                           </span>
                         )}

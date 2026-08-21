@@ -66,7 +66,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               <Link
                 key={n.href}
                 href={n.href}
-                className="block rounded-lg px-3 py-2 text-sm font-medium text-ink2 transition-colors hover:bg-white/5 hover:text-ink"
+                className="block rounded-lg px-3 py-2 text-sm font-medium text-ink2 transition-colors hover:bg-hover-tint hover:text-ink"
               >
                 <span className="inline-flex items-center gap-2">
                   <n.Icon className="h-4 w-4 text-ink3" />

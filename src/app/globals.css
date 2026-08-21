@@ -6,24 +6,45 @@
   --color-brand-light: color-mix(in srgb, var(--vb-primary, #00e676) 18%, transparent);
   --color-accent: var(--vb-accent, #7c3aed);
   --color-accent-light: color-mix(in srgb, var(--vb-accent, #7c3aed) 18%, transparent);
-  --color-surface: var(--vb-secondary, #0b1220);
-  --color-card: #111a2e;
-  --color-card2: #16213a;
-  --color-line: #1e2a44;
-  --color-line2: #2a3a5e;
-  --color-ink: #e6edf7;
-  --color-ink2: #93a4c4;
-  --color-ink3: #5d6f94;
+
+  /* ── Semantic theme tokens (root context classes) ─────────────
+   *  bg-panel-bg · text-primary-text · border-card-border
+   *  plus legacy aliases (bg-surface, bg-card, text-ink, …) that
+   *  now map onto the same vars so the whole app follows the theme. */
+  --color-panel-bg: var(--panel-bg, #0b0e14);
+  --color-primary-text: var(--primary-text, #ffffff);
+  --color-card-border: var(--card-border, #2d3748);
+  --color-surface: var(--panel-bg, #0b0e14);
+  --color-card: var(--card-bg, #1a2235);
+  --color-card2: var(--card-bg-2, #232e4a);
+  --color-line: var(--card-border, #2d3748);
+  --color-line2: var(--line-2, #3a4660);
+  --color-ink: var(--primary-text, #ffffff);
+  --color-ink2: var(--text-secondary, #aebad2);
+  --color-ink3: var(--text-tertiary, #66738f);
   --color-good: #22c55e;
   --color-bad: #ef4444;
   --color-warn: #f59e0b;
   --color-info: #3b82f6;
+  /* Theme-adaptive hover/fill tint — follows the text color, so hovers and
+     chips stay visible in BOTH dark (light tint) and light (dark tint) mode. */
+  --color-hover-tint: color-mix(in srgb, currentColor 8%, transparent);
 }
 
+/* ── Dark mode defaults (the app's brand) ───────────────────── */
 :root {
   --vb-primary: #00e676;
-  --vb-secondary: #0b1220;
+  --vb-secondary: #0b0e14;
   --vb-accent: #7c3aed;
+
+  --panel-bg: #0b0e14;        /* primary app background */
+  --card-bg: #1a2235;         /* card panels */
+  --card-bg-2: #232e4a;       /* nested rows / insets */
+  --primary-text: #ffffff;    /* primary text */
+  --text-secondary: #aebad2;
+  --text-tertiary: #66738f;
+  --card-border: #2d3748;     /* card + odds box outline */
+  --line-2: #3a4660;
 }
 
 html {
@@ -31,23 +52,23 @@ html {
 }
 
 body {
-  background: var(--vb-secondary, #0b1220);
-  color: #e6edf7;
+  background: var(--panel-bg, #0b0e14);
+  color: var(--primary-text, #ffffff);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
 /* ── Cards & surfaces ─────────────────────────────────────── */
 .card {
-  background: linear-gradient(180deg, #131e36 0%, #10182c 100%);
-  border: 1px solid var(--color-line);
+  background: var(--card-bg, #1a2235);
+  border: 1px solid var(--card-border, #2d3748);
   border-radius: 0.9rem;
 }
 .card-hover {
   transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
 }
 .card-hover:hover {
-  border-color: var(--color-line2);
+  border-color: var(--line-2, #3a4660);
   transform: translateY(-1px);
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
 }
@@ -79,18 +100,21 @@ body {
 
 /* ── Inputs ───────────────────────────────────────────────── */
 .input {
-  @apply w-full rounded-lg border border-line bg-[#0d1526] px-3 py-2.5 text-sm text-ink outline-none transition-colors;
+  @apply w-full rounded-lg border px-3 py-2.5 text-sm outline-none transition-colors;
+  background: var(--card-bg, #1a2235);
+  border-color: var(--card-border, #2d3748);
+  color: var(--primary-text, #ffffff);
 }
 .input:focus { border-color: var(--vb-primary, #00e676); }
-.input::placeholder { color: var(--color-ink3); }
+.input::placeholder { color: var(--text-tertiary, #66738f); }
 .label { @apply mb-1.5 block text-xs font-medium text-ink2; }
 
 /* ── Odds buttons (classic sportsbook) ─────────────────────── */
 .odds-btn {
   @apply relative flex h-11 flex-1 items-center justify-center rounded-lg text-sm font-bold transition-all duration-100 select-none;
-  background: #0d1a2c;
-  border: 1px solid var(--color-line2);
-  color: #dbe7ff;
+  background: var(--card-bg, #1a2235);
+  border: 1px solid var(--card-border, #2d3748);
+  color: var(--primary-text, #ffffff);
 }
 .odds-btn:hover { border-color: var(--vb-primary, #00e676); color: var(--vb-primary, #00e676); }
 .odds-btn.selected {
@@ -101,9 +125,9 @@ body {
 .odds-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
-  background: #0a1120;
-  border-color: var(--color-line);
-  color: var(--color-ink3);
+  background: var(--card-bg-2, #232e4a);
+  border-color: var(--card-border, #2d3748);
+  color: var(--text-tertiary, #66738f);
 }
 /* Missing price placeholder ("-") — dimmer than a real disabled button */
 .odds-btn-muted {
@@ -137,9 +161,9 @@ body {
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #243250; border-radius: 8px; }
+::-webkit-scrollbar-thumb { background: var(--line-2, #3a4660); border-radius: 8px; }
 
-.divider { border-top: 1px solid var(--color-line); }
+.divider { border-top: 1px solid var(--card-border, #2d3748); }
 
 /* toast animations */
 @keyframes toast-in {
@@ -160,36 +184,24 @@ body {
 }
 .fade-in { animation: fade-in 0.15s ease; }
 
-/* ── Light theme (toggled from the drawer) ─────────────────── */
+/* ── Light mode (toggled from the drawer) ────────────────────
+ *  Only the semantic vars flip; every component consumes them
+ *  through bg-panel-bg / text-primary-text / border-card-border
+ *  (and their legacy aliases), so contrast is always correct. */
 html[data-theme="light"] {
   color-scheme: light;
-  --vb-secondary: #f2f5fa;
-  --color-surface: #ffffff;
-  --color-card: #ffffff;
-  --color-card2: #edf2f9;
-  --color-line: #dbe3ef;
-  --color-line2: #b9c7dd;
-  --color-ink: #0f1b33;
-  --color-ink2: #43536f;
-  --color-ink3: #7a8aa8;
+  --vb-secondary: #f4f6f8;
+  --panel-bg: #f4f6f8;        /* primary app background */
+  --card-bg: #ffffff;         /* card panels */
+  --card-bg-2: #edf2f9;       /* nested rows / insets */
+  --primary-text: #0f172a;    /* primary text */
+  --text-secondary: #43536f;
+  --text-tertiary: #7a8aa8;
+  --card-border: #d1d5db;     /* card + odds box border */
+  --line-2: #c4cedc;
 }
-html[data-theme="light"] body {
-  background: #f2f5fa;
-  color: #0f1b33;
-}
-html[data-theme="light"] .card {
-  background: linear-gradient(180deg, #ffffff 0%, #f4f7fc 100%);
-}
-html[data-theme="light"] .input {
-  background: #ffffff;
-  border-color: var(--color-line2);
-}
-html[data-theme="light"] .odds-btn {
-  background: #ffffff;
-}
-html[data-theme="light"] .odds-btn:disabled {
-  background: #edf2f9;
-  border-color: var(--color-line);
+html[data-theme="light"] .card-hover:hover {
+  box-shadow: 0 8px 24px rgb(15 23 42 / 0.08);
 }
 html[data-theme="light"] .skeleton {
   background: linear-gradient(90deg, #e8eef7 25%, #f5f8fd 50%, #e8eef7 75%);

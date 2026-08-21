@@ -74,7 +74,7 @@ export default function DepositModal({ onClose }: { onClose: () => void }) {
   return createPortal(
     <div className="fixed inset-0 z-[80] flex items-end justify-center sm:items-center" role="dialog" aria-modal="true" aria-label="Deposit">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="sheet-up relative w-full max-w-md rounded-t-2xl border border-line bg-[#0d1726] p-5 sm:rounded-2xl">
+      <div className="sheet-up relative w-full max-w-md rounded-t-2xl border border-line bg-panel-bg p-5 sm:rounded-2xl">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-black">Deposit</h2>
           <button onClick={onClose} aria-label="Close" className="flex h-8 w-8 items-center justify-center rounded-lg border border-line text-ink2 hover:text-ink">
@@ -124,7 +124,7 @@ export default function DepositModal({ onClose }: { onClose: () => void }) {
           </form>
         ) : (
           <div className="mt-4 space-y-4">
-            <div className="rounded-xl border border-line bg-[#0d1526] p-4 text-center">
+            <div className="rounded-xl border border-line bg-card p-4 text-center">
               <div className="text-xs text-ink3">Send {pending.cryptoCurrency ?? "USDT"} to this address</div>
               <div className="mt-2 break-all rounded-lg bg-black/30 p-3 font-mono text-[11px] text-brand">
                 {pending.paymentAddress ?? "generating…"}

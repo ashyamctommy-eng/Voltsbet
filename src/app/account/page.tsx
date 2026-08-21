@@ -79,7 +79,7 @@ export default async function AccountDashboard() {
                 Share your link — when a friend makes their first deposit, you earn a bonus.
               </p>
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                <code className="rounded-lg border border-line bg-[#0d1526] px-3 py-1.5 font-mono text-sm text-brand">
+                <code className="rounded-lg border border-line bg-card px-3 py-1.5 font-mono text-sm text-brand">
                   {user.referralCode}
                 </code>
                 <CopyButton

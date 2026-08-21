@@ -69,7 +69,7 @@ export default function AdminDashboard() {
           </Link>
         </div>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <div className="rounded-2xl border border-line bg-[#0d1526] p-4">
+          <div className="rounded-2xl border border-line bg-card p-4">
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-2 text-sm font-bold">
                 <IconCoins className="h-4 w-4 text-warn" /> NOWPayments
@@ -83,7 +83,7 @@ export default function AdminDashboard() {
               <Row k="Min / Max" v={`${settings["crypto.minDeposit"] || "—"} / ${settings["crypto.maxDeposit"] || "—"}`} />
             </div>
           </div>
-          <div className="rounded-2xl border border-line bg-[#0d1526] p-4">
+          <div className="rounded-2xl border border-line bg-card p-4">
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-2 text-sm font-bold">
                 <IconSmartphone className="h-4 w-4 text-brand" /> M-Pesa (Daraja)

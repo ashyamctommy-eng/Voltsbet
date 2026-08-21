@@ -20,8 +20,9 @@ const feedCache = new Map<string, ApiFeedGame[]>();
 /** Pagination — 30 matches per page. */
 const ITEMS_PER_PAGE = 30;
 
-/** Unified dark-slate pill (Screenshot 2 style): borderless #1A2235 default. */
-const PILL = "bg-[#1A2235] text-ink2 hover:bg-[#232e47] hover:text-ink";
+/** Unified filter pill — theme-aware card surface (bg-card in dark = #1A2235,
+ *  white in light). Hover tints via the adaptive hover-tint token. */
+const PILL = "bg-card text-ink2 hover:bg-hover-tint hover:text-ink";
 /** Active pill: brand green fill. */
 const PILL_ACTIVE = "bg-brand text-[#052e16]";
 
@@ -122,7 +123,7 @@ function Dropdown({
                     onSelect(o.value);
                     setOpen(false);
                   }}
-                  className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-white/5 ${
+                  className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-hover-tint ${
                     o.value === activeValue ? "text-brand" : "text-ink2 hover:text-ink"
                   }`}
                 >
@@ -340,7 +341,7 @@ export default function MatchFeed({
         />
 
         <span className="ml-auto flex shrink-0 items-center gap-1">
-          <span className="hidden rounded-full bg-[#1A2235] p-0.5 sm:flex">
+          <span className="hidden rounded-full bg-card p-0.5 sm:flex">
             <button
               onClick={() => selectSort("soonest")}
               className={`rounded-full px-2.5 py-1 text-[11px] font-bold transition-colors ${
@@ -379,7 +380,7 @@ export default function MatchFeed({
           </button>
         ))}
         {/* Mobile sort toggle */}
-        <span className="ml-auto flex rounded-full bg-[#1A2235] p-0.5 sm:hidden">
+        <span className="ml-auto flex rounded-full bg-card p-0.5 sm:hidden">
           <button
             onClick={() => selectSort("soonest")}
             className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
@@ -421,7 +422,7 @@ export default function MatchFeed({
           <button
             onClick={() => goPage(currentPage - 1)}
             disabled={currentPage <= 1}
-            className="h-8 rounded-lg bg-[#1A2235] px-3 text-xs font-bold text-ink2 transition-colors hover:text-ink disabled:opacity-40"
+            className="h-8 rounded-lg bg-card px-3 text-xs font-bold text-ink2 transition-colors hover:text-ink disabled:opacity-40"
           >
             Prev
           </button>
@@ -434,7 +435,7 @@ export default function MatchFeed({
                 onClick={() => goPage(p)}
                 aria-current={p === currentPage ? "page" : undefined}
                 className={`h-8 min-w-8 rounded-lg px-2 text-xs font-bold transition-colors ${
-                  p === currentPage ? PILL_ACTIVE : "bg-[#1A2235] text-ink2 hover:text-ink"
+                  p === currentPage ? PILL_ACTIVE : "bg-card text-ink2 hover:text-ink"
                 }`}
               >
                 {p}
@@ -444,7 +445,7 @@ export default function MatchFeed({
           <button
             onClick={() => goPage(currentPage + 1)}
             disabled={currentPage >= totalPages}
-            className="h-8 rounded-lg bg-[#1A2235] px-3 text-xs font-bold text-ink2 transition-colors hover:text-ink disabled:opacity-40"
+            className="h-8 rounded-lg bg-card px-3 text-xs font-bold text-ink2 transition-colors hover:text-ink disabled:opacity-40"
           >
             Next
           </button>

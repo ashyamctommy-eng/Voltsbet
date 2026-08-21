@@ -192,7 +192,7 @@ export default function MatchCard({
                 <TeamLogo name={row.leg} src={logoFor(row.leg)} className="h-5 w-5 shrink-0" />
                 <span className="truncate text-sm font-semibold">{row.leg}</span>
                 {row.label && (
-                  <span className="shrink-0 rounded bg-white/5 px-1.5 py-0.5 text-[10px] font-bold text-ink3">
+                  <span className="shrink-0 rounded bg-hover-tint px-1.5 py-0.5 text-[10px] font-bold text-ink3">
                     {row.label}
                   </span>
                 )}

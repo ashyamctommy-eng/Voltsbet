@@ -1,16 +1,14 @@
 import Link from "next/link";
 import { getSettings } from "@/lib/settings";
+import VoltBetLogo from "@/components/VoltBetLogo";
 
 export default async function Footer() {
   const s = await getSettings();
   return (
-    <footer className="mt-16 border-t border-line bg-[#0a101f]">
+    <footer className="mt-16 border-t border-line bg-panel-bg">
       <div className="mx-auto grid max-w-[1600px] gap-8 px-4 py-10 sm:grid-cols-2 lg:grid-cols-4">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand text-sm font-black text-[#052e16]">V</span>
-            <span className="font-extrabold">{s.siteName}</span>
-          </div>
+          <VoltBetLogo />
           <p className="mt-3 text-sm text-ink3">{s.tagline}. Fast odds, live betting, instant crypto deposits.</p>
         </div>
         <div>

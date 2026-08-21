@@ -84,7 +84,7 @@ export default function BetSlip() {
     <>
       {/* ── Desktop rail ── */}
       <aside
-        className={`fixed inset-y-0 right-0 z-40 hidden w-[350px] flex-col border-l border-line bg-[#0d1526] transition-transform duration-200 xl:flex ${
+        className={`fixed inset-y-0 right-0 z-40 hidden w-[350px] flex-col border-l border-line bg-panel-bg transition-transform duration-200 xl:flex ${
           open && items.length > 0 ? "translate-x-0" : "translate-x-full"
         }`}
       >
@@ -95,7 +95,7 @@ export default function BetSlip() {
       {open && items.length > 0 && (
         <div className="fixed inset-0 z-50 xl:hidden">
           <div className="fade-in absolute inset-0 bg-black/60" onClick={() => setOpen(false)} />
-          <div className="sheet-up absolute inset-x-0 bottom-0 rounded-t-2xl border-t border-line bg-[#0d1526]">
+          <div className="sheet-up absolute inset-x-0 bottom-0 rounded-t-2xl border-t border-line bg-panel-bg">
             <div className="mx-auto mt-2.5 mb-1 h-1 w-10 shrink-0 rounded-full bg-line2" />
             <SlipBody {...slipBody} onClose={() => setOpen(false)} />
           </div>
@@ -183,7 +183,7 @@ function SlipBody(props: {
   return (
     <div className="flex max-h-[85vh] flex-col xl:h-full xl:max-h-none">
       {/* ── Header: Betslip · Clear All · ✕ ── */}
-      <div className="sticky top-0 z-10 border-b border-line bg-[#0d1526] px-4 py-3">
+      <div className="sticky top-0 z-10 border-b border-line bg-panel-bg px-4 py-3">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-extrabold">Betslip</h2>
           <div className="flex items-center gap-3">
@@ -193,7 +193,7 @@ function SlipBody(props: {
               </button>
             )}
             <button
-              className="rounded-lg p-1 text-ink3 transition-colors hover:bg-white/5 hover:text-ink"
+              className="rounded-lg p-1 text-ink3 transition-colors hover:bg-hover-tint hover:text-ink"
               onClick={onClose}
               aria-label="Close betslip"
             >
@@ -264,7 +264,7 @@ function SlipBody(props: {
 
       {/* ── Footer: stake controls + green CTA ── */}
       {items.length > 0 && (
-        <div className="sticky bottom-0 border-t border-line bg-[#0d1526] p-4 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+        <div className="sticky bottom-0 border-t border-line bg-panel-bg p-4 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
           <div className="flex items-center justify-between text-sm">
             <span className="text-ink2">Total Odds</span>
             <span className="text-base font-bold text-green-400">{totalOdds ? fmtOdds(totalOdds) : "—"}</span>

@@ -186,13 +186,13 @@ export default function AdminSettings() {
 
       {/* Sticky section quick-nav */}
       <div className="sticky top-16 z-30 -mx-1 px-1 py-2">
-        <div className="no-scrollbar flex gap-1.5 overflow-x-auto rounded-2xl border border-line bg-[#0d1726]/95 p-1.5 backdrop-blur-md">
+        <div className="no-scrollbar flex gap-1.5 overflow-x-auto rounded-2xl border border-line bg-panel-bg/95 p-1.5 backdrop-blur-md">
           {GROUPS.map((g) => (
             <button
               key={g.title}
               type="button"
               onClick={() => jump(g.anchor)}
-              className="flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold text-ink2 transition-colors hover:bg-white/5 hover:text-ink"
+              className="flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold text-ink2 transition-colors hover:bg-hover-tint hover:text-ink"
             >
               <span className="text-brand">{g.icon}</span>
               {g.title.replace(" (NOWPayments)", "").replace(" (Daraja)", "")}
@@ -213,7 +213,7 @@ export default function AdminSettings() {
               if (f.type === "toggle") {
                 const on = value === "true";
                 return (
-                  <div key={f.key} className="flex items-center justify-between rounded-xl border border-line bg-[#0d1526] px-4 py-3">
+                  <div key={f.key} className="flex items-center justify-between rounded-xl border border-line bg-card px-4 py-3">
                     <span className="text-sm font-medium text-ink2">{f.label}</span>
                     <button
                       type="button"

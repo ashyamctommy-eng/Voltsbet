@@ -26,7 +26,7 @@ export default function MobileNav({ liveCount = 0 }: { loggedIn: boolean; liveCo
       {/* Sticky betslip bar (shows when picks exist) */}
       <BetslipBar />
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 flex items-stretch border-t border-line bg-[#0d1726]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md xl:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-40 flex items-stretch border-t border-line bg-panel-bg/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md xl:hidden">
         {tabs.map((t) =>
           t === null ? (
             <div key="betslip-slot" className="relative flex flex-1 items-center justify-center">
@@ -34,7 +34,7 @@ export default function MobileNav({ liveCount = 0 }: { loggedIn: boolean; liveCo
               <button
                 onClick={() => setOpen(true)}
                 aria-label={`Bet slip, ${count} selection${count === 1 ? "" : "s"}`}
-                className={`absolute -top-5 flex h-14 w-14 items-center justify-center rounded-full border-4 border-[#0d1726] text-lg font-black shadow-[0_6px_20px_rgba(245,158,11,0.45)] transition-transform active:scale-95 ${
+                className={`absolute -top-5 flex h-14 w-14 items-center justify-center rounded-full border-4 border-panel-bg text-lg font-black shadow-[0_6px_20px_rgba(245,158,11,0.45)] transition-transform active:scale-95 ${
                   count > 0
                     ? "bg-gradient-to-br from-amber-300 to-orange-500 text-[#3a1f00]"
                     : "bg-gradient-to-br from-amber-200 to-orange-300 text-[#7a4a00]"

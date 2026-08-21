@@ -101,7 +101,7 @@ export default function AdminApiSettings() {
       {/* Active API designation */}
       <div
         className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${
-          isPrimary ? "border-green-500/40 bg-green-500/10" : "border-line bg-white/5"
+          isPrimary ? "border-green-500/40 bg-green-500/10" : "border-line bg-hover-tint"
         }`}
       >
         <IconPlug className={`h-5 w-5 ${isPrimary ? "text-green-400" : "text-ink3"}`} />
@@ -193,7 +193,7 @@ export default function AdminApiSettings() {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={testConnection} disabled={testing} className="btn border border-line bg-white/5 font-semibold hover:bg-white/10">
+          <button type="button" onClick={testConnection} disabled={testing} className="btn border border-line bg-hover-tint font-semibold hover:bg-white/10">
             {testing ? "Testing…" : "Test Primary Connection"}
           </button>
           <button className="btn btn-primary inline-flex items-center gap-2" disabled={saving}>

@@ -73,8 +73,8 @@ export default async function SportPage({ params }: { params: Promise<{ slug: st
         {/* Left sport nav */}
         <aside className="hidden w-52 shrink-0 lg:block">
           <div className="sticky top-20 space-y-1">
-            <Link href="/sports" className="block rounded-lg px-3 py-2 text-sm font-medium text-ink2 hover:bg-white/5 hover:text-ink">All Sports</Link>
-            <Link href="/live" className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-ink2 hover:bg-white/5 hover:text-ink">
+            <Link href="/sports" className="block rounded-lg px-3 py-2 text-sm font-medium text-ink2 hover:bg-hover-tint hover:text-ink">All Sports</Link>
+            <Link href="/live" className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-ink2 hover:bg-hover-tint hover:text-ink">
               <span className="live-dot" /> Live
             </Link>
             {sports.map((sp) => (
@@ -82,7 +82,7 @@ export default async function SportPage({ params }: { params: Promise<{ slug: st
                 key={sp.id}
                 href={`/sports/${sp.slug}`}
                 className={`block rounded-lg px-3 py-2 text-sm font-medium ${
-                  sp.id === sport.id ? "bg-brand/10 font-semibold text-brand" : "text-ink2 hover:bg-white/5 hover:text-ink"
+                  sp.id === sport.id ? "bg-brand/10 font-semibold text-brand" : "text-ink2 hover:bg-hover-tint hover:text-ink"
                 }`}
               >
                 {sp.icon} {sp.name}

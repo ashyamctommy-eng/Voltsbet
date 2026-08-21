@@ -117,10 +117,10 @@ export default async function OpsPage() {
         <span className="flex items-center gap-2 rounded-lg bg-red-500/10 px-3 py-1.5 text-xs font-bold text-red-400">
           <span className="live-dot h-2 w-2" /> {liveCount} live now
         </span>
-        <span className="flex items-center gap-2 rounded-lg bg-white/5 px-3 py-1.5 text-xs font-bold text-ink2">
+        <span className="flex items-center gap-2 rounded-lg bg-hover-tint px-3 py-1.5 text-xs font-bold text-ink2">
           <IconCalendar className="h-3.5 w-3.5" /> {upcomingCount} upcoming
         </span>
-        <span className="flex items-center gap-2 rounded-lg bg-white/5 px-3 py-1.5 text-xs font-bold text-ink2">
+        <span className="flex items-center gap-2 rounded-lg bg-hover-tint px-3 py-1.5 text-xs font-bold text-ink2">
           <IconLightning className="h-3.5 w-3.5" /> Ops reference — links + costs
         </span>
       </div>
@@ -145,7 +145,7 @@ export default async function OpsPage() {
                   </Link>
                 </td>
                 <td className="px-4 py-3">
-                  <code className="rounded bg-white/5 px-1.5 py-0.5 text-xs text-ink2">{op.route}</code>
+                  <code className="rounded bg-hover-tint px-1.5 py-0.5 text-xs text-ink2">{op.route}</code>
                 </td>
                 <td className="max-w-md px-4 py-3 text-xs leading-relaxed text-ink2">{op.description}</td>
                 <td className="px-4 py-3">

@@ -29,7 +29,7 @@ export default async function AccountLayout({ children }: { children: React.Reac
               <Link
                 key={t.href}
                 href={t.href}
-                className="block rounded-lg px-3 py-2 text-sm font-medium text-ink2 transition-colors hover:bg-white/5 hover:text-ink"
+                className="block rounded-lg px-3 py-2 text-sm font-medium text-ink2 transition-colors hover:bg-hover-tint hover:text-ink"
               >
                 {t.label}
               </Link>
