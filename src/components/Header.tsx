@@ -7,6 +7,8 @@ import { apiFetch } from "@/lib/client";
 import { useToast } from "@/components/BetSlipContext";
 import { useDrawer } from "@/components/DrawerProvider";
 import DepositModal from "@/components/DepositModal";
+import LanguageSelector from "@/components/LanguageSelector";
+import { useTranslation } from "react-i18next";
 import {
   IconMenu,
   IconSearch,
@@ -32,23 +34,24 @@ const CATEGORY_TABS = [
   { label: "Football", href: "/sports/football", Icon: IconFootball },
   { label: "Basketball", href: "/sports/basketball", Icon: IconBasketball },
   { label: "Tennis", href: "/sports/tennis", Icon: IconTennis },
-  { label: "Live", href: "/live", Icon: IconLive },
+  { labelKey: "nav.live", label: "Live", href: "/live", Icon: IconLive },
   { label: "Esports", href: "/sports/esports", Icon: IconController },
   { label: "Cricket", href: "/sports/cricket", Icon: IconTv },
 ];
 
 const DESKTOP_NAV = [
-  { label: "Home", href: "/", exact: true },
-  { label: "Sports", href: "/sports" },
-  { label: "Live", href: "/live" },
-  { label: "Promotions", href: "/promotions" },
-  { label: "Results", href: "/results" },
+  { labelKey: "nav.home", label: "Home", href: "/", exact: true },
+  { labelKey: "nav.sports", label: "Sports", href: "/sports" },
+  { labelKey: "nav.live", label: "Live", href: "/live" },
+  { labelKey: "nav.promotions", label: "Promotions", href: "/promotions" },
+  { labelKey: "nav.results", label: "Results", href: "/results" },
 ];
 
 export default function Header({ user, siteName }: { user: HeaderUser; siteName: string }) {
   const pathname = usePathname();
   const router = useRouter();
   const { push } = useToast();
+  const { t } = useTranslation();
   const { open: openDrawer } = useDrawer();
   const [menuOpen, setMenuOpen] = useState(false);
   const [walletOpen, setWalletOpen] = useState(false);
@@ -106,12 +109,13 @@ export default function Header({ user, siteName }: { user: HeaderUser; siteName:
               href={n.href}
               className={n.exact ? (pathname === n.href ? activeLink : link) : isActive(n.href) ? activeLink : link}
             >
-              {n.label}
+              {t(n.labelKey)}
             </Link>
           ))}
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
+          <LanguageSelector />
           <div className="hidden md:block">
             <SearchBox />
           </div>
@@ -156,11 +160,11 @@ export default function Header({ user, siteName }: { user: HeaderUser; siteName:
                     </div>
                     <div className="py-1">
                       {[
-                        ["/account", "My Account"],
-                        ["/account/bets", "My Bets"],
-                        ["/account/deposit", "Deposit"],
-                        ["/account/withdraw", "Withdraw"],
-                        ["/account/settings", "Settings"],
+                        ["/account", t("nav.profile")],
+                        ["/account/bets", t("nav.bets")],
+                        ["/account/deposit", t("nav.deposit")],
+                        ["/account/withdraw", t("nav.withdraw")],
+                        ["/account/settings", t("nav.settings")],
                       ].map(([href, label]) => (
                         <Link
                           key={href}
@@ -177,7 +181,7 @@ export default function Header({ user, siteName }: { user: HeaderUser; siteName:
                         </Link>
                       )}
                       <button className="block w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-white/5" onClick={logout}>
-                        Logout
+                        {t("nav.logout")}
                       </button>
                     </div>
                   </div>
@@ -186,8 +190,8 @@ export default function Header({ user, siteName }: { user: HeaderUser; siteName:
             </div>
           ) : (
             <div className="flex items-center gap-1.5 sm:gap-2">
-              <Link href="/login" className="btn btn-ghost btn-sm !px-3">Login</Link>
-              <Link href="/register" className="btn btn-primary btn-sm !px-3">Sign Up</Link>
+              <Link href="/login" className="btn btn-ghost btn-sm !px-3">{t("nav.login")}</Link>
+              <Link href="/register" className="btn btn-primary btn-sm !px-3">{t("nav.register")}</Link>
             </div>
           )}
         </div>
@@ -196,7 +200,7 @@ export default function Header({ user, siteName }: { user: HeaderUser; siteName:
       {/* ── Category scrollbar ─────────────────────────────── */}
       <div className="border-t border-line bg-[#0d1726]/60">
         <div className="no-scrollbar mx-auto flex max-w-[1600px] items-stretch gap-1 overflow-x-auto px-2 sm:px-4">
-          {CATEGORY_TABS.map(({ label, href, Icon }) => {
+          {CATEGORY_TABS.map(({ labelKey, label, href, Icon }) => {
             const active = pathname === href || (href !== "/live" && isActive(href)) || (href === "/live" && isActive("/live"));
             return (
               <Link
@@ -207,7 +211,7 @@ export default function Header({ user, siteName }: { user: HeaderUser; siteName:
                 }`}
               >
                 <Icon className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
-                {label}
+                {labelKey ? t(labelKey) : label}
               </Link>
             );
           })}

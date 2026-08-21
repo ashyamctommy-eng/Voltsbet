@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import OddsButton from "@/components/OddsButton";
 import { formatDateTime, fmtOdds } from "@/lib/odds";
 import TeamLogo from "@/components/TeamLogo";
+import FixtureMarkets from "@/components/FixtureMarkets";
 
 export const dynamic = "force-dynamic";
 
@@ -87,50 +87,31 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
           <div className="card p-8 text-center text-sm text-amber-400">Markets for this match are currently closed or suspended.</div>
         )}
 
-        {openMarkets.map((market) => (
-          <div key={market.id} className="card overflow-hidden">
-            <div className="flex items-center justify-between border-b border-line px-4 py-3">
-              <h3 className="font-bold">{market.name}</h3>
-              <span className="text-xs text-ink3">{market.settlementMethod ?? ""}</span>
-            </div>
-            <div className="grid gap-2 p-4 sm:grid-cols-2 lg:grid-cols-3">
-              {market.outcomes.map((o) =>
-                o.status === "ACTIVE" ? (
-                  <div key={o.id} className="flex items-center gap-3 rounded-lg bg-card2 px-3 py-2">
-                    <span className="flex-1 text-sm">
-                      {o.label && <span className="mr-1.5 font-semibold text-ink3">{o.label}</span>}
-                      <span className="font-medium">{o.name}</span>
-                    </span>
-                    <OddsButton
-                      outcomeId={o.id}
-                      gameId={game.id}
-                      sport={game.sport.name}
-                      competition={game.competitionName ?? game.sport.name}
-                      home={game.homeName}
-                      away={game.awayName}
-                      startAt={game.startAt.toISOString()}
-                      market={market.name}
-                      marketKey={market.key}
-                      outcome={o.name}
-                      label={o.label}
-                      odds={Number(o.odds)}
-                      gameStatus={game.status}
-                      live={live}
-                    />
-                  </div>
-                ) : (
-                  <div key={o.id} className="flex items-center gap-3 rounded-lg bg-card2 px-3 py-2 opacity-60">
-                    <span className="flex-1 text-sm text-ink2">
-                      {o.label && <span className="mr-1.5 font-semibold">{o.label}</span>}
-                      {o.name}
-                    </span>
-                    <span className="text-xs font-semibold text-amber-400">Suspended</span>
-                  </div>
-                )
-              )}
-            </div>
-          </div>
-        ))}
+        <FixtureMarkets
+          game={{
+            id: game.id,
+            sport: game.sport.name,
+            competition: game.competitionName ?? game.competition?.name ?? game.sport.name,
+            homeName: game.homeName,
+            awayName: game.awayName,
+            startAt: game.startAt.toISOString(),
+            status: game.status,
+            live,
+          }}
+          markets={openMarkets.map((m) => ({
+            id: m.id,
+            name: m.name,
+            key: m.key,
+            status: m.status,
+            outcomes: m.outcomes.map((o) => ({
+              id: o.id,
+              name: o.name,
+              label: o.label,
+              odds: o.odds,
+              status: o.status,
+            })),
+          }))}
+        />
 
         {closedMarkets.length > 0 && (
           <>

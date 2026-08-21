@@ -4,19 +4,21 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useBetSlip } from "@/components/BetSlipContext";
 import BetslipBar from "@/components/BetslipBar";
+import { useTranslation } from "react-i18next";
 import { IconHome, IconSearch, IconFlame, IconTv } from "@/components/icons";
 
 export default function MobileNav({ liveCount = 0 }: { loggedIn: boolean; liveCount?: number }) {
   const pathname = usePathname();
   const { items, setOpen } = useBetSlip();
+  const { t } = useTranslation();
   const count = items.length;
 
   const tabs = [
-    { href: "/", label: "Home", Icon: IconHome, active: pathname === "/" },
-    { href: "/search", label: "Search", Icon: IconSearch, active: pathname.startsWith("/search") },
+    { href: "/", label: t("nav.home"), Icon: IconHome, active: pathname === "/" },
+    { href: "/search", label: t("nav.search"), Icon: IconSearch, active: pathname.startsWith("/search") },
     null, // center betslip slot
-    { href: "/account", label: "Refer", Icon: IconFlame, active: pathname.startsWith("/account"), flame: true },
-    { href: "/live", label: "Live", Icon: IconTv, active: pathname.startsWith("/live"), badge: liveCount },
+    { href: "/account", label: t("nav.refer"), Icon: IconFlame, active: pathname.startsWith("/account"), flame: true },
+    { href: "/live", label: t("nav.live"), Icon: IconTv, active: pathname.startsWith("/live"), badge: liveCount },
   ];
 
   return (
