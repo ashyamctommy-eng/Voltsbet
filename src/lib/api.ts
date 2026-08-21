@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser, getCsrfToken } from "./auth";
+import { cookies } from "next/headers";
+import { getCurrentUser, getCsrfToken, makeToken, CSRF_COOKIE } from "./auth";
 import { prisma } from "./prisma";
 import type { User } from "@prisma/client";
 
@@ -52,9 +53,30 @@ export async function verifyCsrf(req: NextRequest) {
     req.headers.get("sec-fetch-site") === "same-origin" ||
     req.headers.get("sec-fetch-site") === "none" ||
     req.headers.get("sec-fetch-site") === null;
-  if (!cookie || cookie.length < 16 || header !== cookie || !sameOrigin) {
+  if (!sameOrigin) {
     throw new ApiError(403, "Invalid or missing CSRF token. Refresh the page and try again.", "CSRF");
   }
+  if (cookie.length >= 16 && header === cookie) return;
+
+  // Self-heal: same-origin request with a valid session but a missing CSRF
+  // cookie (e.g. a browser restart before this fix dropped the session-cookie
+  // CSRF token) — issue a fresh token instead of a dead-end 403. A cookie
+  // MISMATCH (header present, wrong value) is still rejected.
+  if (cookie.length < 16 && header.length < 16) {
+    const user = await getCurrentUser();
+    if (user) {
+      const store = await cookies();
+      store.set(CSRF_COOKIE, makeToken(), {
+        httpOnly: false,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        expires: new Date(Date.now() + 30 * 86400_000),
+      });
+      return;
+    }
+  }
+  throw new ApiError(403, "Invalid or missing CSRF token. Refresh the page and try again.", "CSRF");
 }
 
 export async function requireUser(): Promise<User> {

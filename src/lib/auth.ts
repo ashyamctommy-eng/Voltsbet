@@ -39,13 +39,17 @@ export async function createSession(
     path: "/",
     expires: expiresAt,
   });
-  // CSRF double-submit token (non-HttpOnly so client JS can echo it)
+  // CSRF double-submit token (non-HttpOnly so client JS can echo it).
+  // Lifetime matches the session cookie — otherwise a browser restart keeps
+  // you logged in (persistent session) but drops the CSRF cookie, breaking
+  // every state-changing admin action with INVALID CSRF.
   const csrf = makeToken();
   store.set(CSRF_COOKIE, csrf, {
     httpOnly: false,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
+    expires: expiresAt,
   });
   return token;
 }
