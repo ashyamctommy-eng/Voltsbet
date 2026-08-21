@@ -12,7 +12,7 @@ type LangItem = { code: string; name: string; isDefault?: boolean };
  * so it's never clipped by the sticky header's stacking/overflow.
  * The language list comes from the admin panel (GET /api/public/languages);
  * while it loads (or offline) the built-in catalog is shown. Choice persists
- * via localStorage `user_selected_lang`.
+ * via localStorage `user_lang` and overrides IP auto-detection.
  */
 export default function LanguageSelector() {
   const [lang, setLang] = useState<string>(() => getStoredLang());

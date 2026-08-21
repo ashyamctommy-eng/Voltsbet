@@ -13,15 +13,22 @@
 
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
-import { LANG_KEY, resources } from "./i18n-resources";
+import { LANG_KEY, LEGACY_LANG_KEY, resources, countryToLang } from "./i18n-resources";
 
 export { LANG_KEY, LANGUAGES } from "./i18n-resources";
 export type { LangCode } from "./i18n-resources";
 
-/** Read the persisted language (guarded — runs on the client only). */
+/** Read the persisted language (guarded — runs on the client only).
+ *  Migrates the pre-refactor `user_selected_lang` key to `user_lang` on
+ *  first read so returning visitors keep their choice. */
 export function getStoredLang(): string {
   if (typeof window === "undefined") return "en";
   try {
+    const legacy = window.localStorage.getItem(LEGACY_LANG_KEY);
+    if (legacy && Object.keys(resources).includes(legacy) && !window.localStorage.getItem(LANG_KEY)) {
+      window.localStorage.setItem(LANG_KEY, legacy);
+      window.localStorage.removeItem(LEGACY_LANG_KEY);
+    }
     const v = window.localStorage.getItem(LANG_KEY);
     return v && Object.keys(resources).includes(v) ? v : "en";
   } catch {
@@ -57,9 +64,67 @@ export async function changeLanguage(lang: string): Promise<void> {
   void i18n.changeLanguage(lang);
   try {
     window.localStorage.setItem(LANG_KEY, lang);
+    window.localStorage.removeItem(LEGACY_LANG_KEY);
+    syncHtmlLang(lang);
   } catch {
     /* private mode — ignore */
   }
+}
+
+/** Keep the document's ISO language attributes in sync with the active
+ *  language: `<html lang="…" xml:lang="…">` (root index.html). */
+export function syncHtmlLang(lang: string): void {
+  if (typeof document === "undefined") return;
+  document.documentElement.lang = lang;
+  document.documentElement.setAttribute("xml:lang", lang);
+}
+
+const GEO_URL = "https://ipapi.co/json/";
+const GEO_TIMEOUT_MS = 3500;
+let geoDetected = false; // never re-detect in this session
+
+/**
+ * Auto-geolocation translator — called once per app load, BEFORE the user
+ * makes any manual choice:
+ *   - a stored override (`user_lang`) wins and is applied as-is;
+ *   - otherwise the visitor's IP country is resolved (ipapi.co) and mapped
+ *     to a supported language (KE/TZ/UG → sw, FR/CI/SN → fr, ES/AR → es,
+ *     default en), which is then applied + persisted.
+ * Safe to call repeatedly: it no-ops after the first run per session.
+ */
+export async function detectAndApplyLang(): Promise<string> {
+  if (typeof window === "undefined") return "en";
+  // A stored choice (any language, incl. explicit "en") always wins and
+  // disables re-detection — presence of the key is the gate, not its value.
+  let hasStored = false;
+  try {
+    hasStored = !!window.localStorage.getItem(LANG_KEY);
+  } catch {
+    /* private mode — key unreadable, fall through to detection */
+  }
+  if (hasStored || geoDetected) {
+    void syncHtmlLang(i18n.language ?? "en");
+    return i18n.language ?? "en";
+  }
+  // No stored choice → detect from IP (once per session).
+  geoDetected = true;
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), GEO_TIMEOUT_MS);
+    const res = await fetch(GEO_URL, { signal: ctrl.signal, cache: "no-store" });
+    clearTimeout(timer);
+    if (res.ok) {
+      const data = (await res.json()) as { country_code?: string; error?: boolean };
+      if (!data?.error && data.country_code) {
+        const lang = countryToLang(data.country_code);
+        await changeLanguage(lang);
+        return lang;
+      }
+    }
+  } catch {
+    /* offline / blocked — English fallback */
+  }
+  return "en";
 }
 
 if (!i18n.isInitialized) {

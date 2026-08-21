@@ -28,7 +28,9 @@ export default async function AccountDashboard() {
     userBlockReason(user.status, "bet"),
   ]);
 
-  const displayCur = user.displayCurrencyCode ?? user.currencyCode;
+  // Wallet balance → user's display currency when set, else the platform's
+  // admin-configured default operating currency (settings.currencyDefault).
+  const displayCur = user.displayCurrencyCode ?? s.currencyDefault;
   const walletCur = wallet?.currencyCode ?? "KES";
   const balance = wallet ? await convert(Number(wallet.balance), walletCur, displayCur) : 0;
   const balanceLabel = await formatMoney(balance, displayCur);

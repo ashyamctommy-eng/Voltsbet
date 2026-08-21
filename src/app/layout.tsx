@@ -6,7 +6,9 @@ import { prisma } from "@/lib/prisma";
 import { convert, formatMoney } from "@/lib/currency";
 import { BetSlipProvider, ToastProvider } from "@/components/BetSlipContext";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { CurrencyProvider } from "@/components/CurrencyProvider";
 import { DrawerProvider } from "@/components/DrawerProvider";
+import I18nSync from "@/components/I18nSync";
 import Header, { HeaderUser } from "@/components/Header";
 import Footer from "@/components/Footer";
 import MobileNav from "@/components/MobileNav";
@@ -34,7 +36,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       prisma.wallet.findUnique({ where: { userId: user.id } }),
       prisma.notification.count({ where: { OR: [{ userId: user.id }, { userId: null }], read: false } }),
     ]);
-    const displayCur = user.displayCurrencyCode ?? user.currencyCode;
+    // Wallet balance → user's display currency when set, else the platform's
+    // admin-configured default operating currency (settings.currencyDefault).
+    const displayCur = user.displayCurrencyCode ?? s.currencyDefault;
     const balance = wallet ? await convert(Number(wallet.balance), wallet.currencyCode, displayCur) : 0;
     headerUser = {
       username: user.username,
@@ -58,38 +62,41 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     >
       <body className="min-h-screen">
         <ThemeProvider>
-          <ToastProvider>
-            <BetSlipProvider>
-              <DrawerProvider
-                isStaff={!!user && user.role !== "CUSTOMER"}
-                support={{
-                  whatsappEnabled: s.whatsappEnabled,
-                  whatsapp: s.whatsapp,
-                  telegramEnabled: s.telegramEnabled,
-                  telegram: s.telegram,
-                }}
-              >
-                <VoltBetSplashLoader />
-                <BroadcastBanner />
-                <Header user={headerUser} siteName={s.siteName} />
-                {/* Mobile bottom padding clears the nav bar (~64px) plus the
-                    floating betslip mini-bar (sits at 68px, ~56px tall). */}
-                <main className="min-h-[60vh] pb-32 xl:pb-0">{children}</main>
-                <Footer />
-                <MobileNav loggedIn={!!user} liveCount={liveGames} />
-                <SupportWidget
+          <I18nSync />
+          <CurrencyProvider>
+            <ToastProvider>
+              <BetSlipProvider>
+                <DrawerProvider
+                  isStaff={!!user && user.role !== "CUSTOMER"}
                   support={{
-                    phone: s.supportPhone,
                     whatsappEnabled: s.whatsappEnabled,
                     whatsapp: s.whatsapp,
                     telegramEnabled: s.telegramEnabled,
                     telegram: s.telegram,
                   }}
-                />
-                <BetSlip />
-              </DrawerProvider>
-            </BetSlipProvider>
-          </ToastProvider>
+                >
+                  <VoltBetSplashLoader />
+                  <BroadcastBanner />
+                  <Header user={headerUser} siteName={s.siteName} />
+                  {/* Mobile bottom padding clears the bottom nav (~64px) plus the
+                      floating yellow betslip bar (sits at 62px, ~56px tall). */}
+                  <main className="min-h-[60vh] pb-32 xl:pb-0">{children}</main>
+                  <Footer />
+                  <MobileNav loggedIn={!!user} liveCount={liveGames} />
+                  <SupportWidget
+                    support={{
+                      phone: s.supportPhone,
+                      whatsappEnabled: s.whatsappEnabled,
+                      whatsapp: s.whatsapp,
+                      telegramEnabled: s.telegramEnabled,
+                      telegram: s.telegram,
+                    }}
+                  />
+                  <BetSlip />
+                </DrawerProvider>
+              </BetSlipProvider>
+            </ToastProvider>
+          </CurrencyProvider>
         </ThemeProvider>
       </body>
     </html>

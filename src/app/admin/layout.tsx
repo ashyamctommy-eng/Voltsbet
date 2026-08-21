@@ -42,6 +42,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     { resource: "crypto", href: "/admin/settings#payments", label: "Payments", Icon: IconCoins },
     { resource: "settings", href: "/admin/api-settings", label: "API Settings", Icon: IconPlug },
     { resource: "settings", href: "/admin/settings", label: "Website Settings", Icon: IconGear },
+    { resource: "settings", href: "/admin/settings/currency", label: "Default Currency", Icon: IconCoins },
     { resource: "dashboard", href: "/admin/ops", label: "Ops", Icon: IconController },
     { resource: "audit", href: "/admin/audit", label: "Audit Logs", Icon: IconScroll },
   ];

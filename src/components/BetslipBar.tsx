@@ -1,58 +1,56 @@
 "use client";
 
 import { useBetSlip } from "@/components/BetSlipContext";
-import { IconChevronRight } from "@/components/icons";
+import { useCurrency } from "@/components/CurrencyProvider";
 
-/** Accumulator bonus tiers (matches the message shown in the betslip sheet). */
-const BONUS_TIERS: Record<number, number> = { 2: 4, 3: 5, 4: 6, 5: 7, 6: 8, 7: 10 };
-
-/** Sticky betslip bar above the bottom nav — appears when picks exist. */
+/**
+ * Betika-style sticky yellow bottom betslip bar — appears above the bottom
+ * nav whenever selections exist. Tapping it slides up the full betslip sheet.
+ *
+ *   [ Odds 3.05 ]   (2)   [ Payout KES 3.05 ]
+ *        left        center        right
+ */
 export default function BetslipBar() {
   const { items, stake, totalOdds, setOpen } = useBetSlip();
+  const { fmt } = useCurrency();
   const count = items.length;
   if (count === 0) return null;
 
-  const tier = BONUS_TIERS[count];
-  const nextTier = BONUS_TIERS[count + 1];
-  const previewStake = parseFloat(stake) || 100; // projection baseline until a stake is set
+  // Projection baseline until the user sets a stake (matches the sheet).
+  const previewStake = parseFloat(stake) || 100;
   const payout = previewStake * totalOdds;
-
-  const bonusMsg =
-    count < 2
-      ? `Add ${2 - count} more selection${2 - count > 1 ? "s" : ""} for 4% bonus`
-      : tier
-        ? nextTier
-          ? `Accumulator bonus ${tier}% applied — add 1 more for ${nextTier}%`
-          : `Accumulator bonus ${tier}% applied`
-        : "Tap to view your bet slip";
 
   return (
     <button
       onClick={() => setOpen(true)}
-      className="fixed inset-x-0 bottom-[62px] z-40 block w-full text-left xl:hidden"
-      aria-label={`Open bet slip, ${count} selections`}
+      className="fixed inset-x-0 bottom-[62px] z-40 block w-full border-t border-black/10 bg-[#FFD700] text-black shadow-[0_-6px_18px_rgba(0,0,0,0.35)] xl:hidden"
+      aria-label={`Open bet slip, ${count} selection${count === 1 ? "" : "s"}`}
     >
-      {/* Green bonus strip */}
-      <div className="flex items-center justify-between bg-gradient-to-r from-emerald-600 to-green-600 px-4 py-1.5">
-        <span className="truncate text-[11px] font-bold text-white">{bonusMsg}</span>
-        <span className="shrink-0 pl-2 text-[10px] font-black uppercase tracking-wide text-white/80">More →</span>
-      </div>
-
-      {/* Orange odds/payout strip */}
-      <div className="flex items-center justify-between bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-2 shadow-[0_-6px_16px_rgba(0,0,0,0.25)]">
-        <div className="flex items-center gap-3 text-white">
-          <span className="text-sm font-black">
-            Odds <span className="tabular-nums">{totalOdds.toFixed(2)}</span>
+      <span className="flex w-full items-center justify-between gap-2 px-4 py-3">
+        {/* Left — combined odds */}
+        <span className="flex min-w-0 flex-col items-start">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-black/60">Odds</span>
+          <span className="text-base font-black leading-tight tabular-nums">
+            {totalOdds ? totalOdds.toFixed(2) : "—"}
           </span>
-          <span className="h-4 w-px bg-white/30" />
-          <span className="text-xs font-bold">
-            Payout <span className="tabular-nums">{Math.round(payout).toLocaleString()}</span>
-          </span>
-        </div>
-        <span className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wide text-white">
-          {count} picks <IconChevronRight className="h-3.5 w-3.5" />
         </span>
-      </div>
+
+        {/* Center — circular selection count badge */}
+        <span
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-black/80 bg-[#FFD700] text-sm font-black tabular-nums shadow-[0_2px_8px_rgba(0,0,0,0.35)]"
+          aria-hidden
+        >
+          {count}
+        </span>
+
+        {/* Right — potential return */}
+        <span className="flex min-w-0 flex-col items-end">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-black/60">Payout</span>
+          <span className="truncate text-base font-black leading-tight tabular-nums">
+            {fmt(Math.round(payout * 100) / 100)}
+          </span>
+        </span>
+      </span>
     </button>
   );
 }

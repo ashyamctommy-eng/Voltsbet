@@ -4,8 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useBetSlip } from "@/components/BetSlipContext";
 import { useToast } from "@/components/BetSlipContext";
+import { useCurrency } from "@/components/CurrencyProvider";
 import { apiFetch } from "@/lib/client";
 import { fmtOdds } from "@/lib/odds";
+import { IconX, IconTrash } from "@/components/icons";
 
 type PlaceResponse = {
   bet: { id: string; code: string; status: string };
@@ -19,7 +21,8 @@ type SlipAccount = {
   limits: { minStake: number; maxStake: number; maxPayout: number };
 };
 
-const QUICK_STAKES = [500, 1000, 5000, 10000];
+/** Betika-style quick stake INCREMENTS — each adds to the current stake. */
+const QUICK_STAKES = [50, 100, 500, 1000];
 
 export default function BetSlip() {
   const { items, remove, clear, open, setOpen, mode, setMode, stake, setStake, totalOdds, potentialWin } = useBetSlip();
@@ -79,29 +82,6 @@ export default function BetSlip() {
 
   return (
     <>
-      {/* ── Mobile floating mini-bar ── */}
-      {items.length > 0 && !open && (
-        <button
-          onClick={() => setOpen(true)}
-          className="fixed inset-x-3 bottom-[68px] z-50 xl:hidden"
-        >
-          <span className="flex w-full items-center justify-between rounded-xl border border-brand/40 bg-[#0c1a14]/95 px-4 py-3 shadow-2xl backdrop-blur">
-            <span className="flex items-center gap-2 text-sm font-semibold">
-              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-brand px-1 text-[11px] font-black text-[#052e16]">
-                {items.length}
-              </span>
-              <span className="text-ink">
-                {totalOdds ? fmtOdds(totalOdds) : "—"} <span className="text-[11px] font-medium text-ink2">total odds</span>
-              </span>
-            </span>
-            <span className="text-xs text-ink2">
-              {potentialWin > 0 ? `Win ${potentialWin.toLocaleString("en-US", { maximumFractionDigits: 2 })}` : "Set stake"}
-            </span>
-            <span className="rounded-lg bg-brand px-3 py-1.5 text-xs font-bold text-[#052e16]">View slip</span>
-          </span>
-        </button>
-      )}
-
       {/* ── Desktop rail ── */}
       <aside
         className={`fixed inset-y-0 right-0 z-40 hidden w-[350px] flex-col border-l border-line bg-[#0d1526] transition-transform duration-200 xl:flex ${
@@ -111,12 +91,12 @@ export default function BetSlip() {
         <SlipBody {...slipBody} onClose={() => setOpen(false)} desktop />
       </aside>
 
-      {/* ── Mobile sheet ── */}
+      {/* ── Mobile sheet (slides up from the sticky yellow bar) ── */}
       {open && items.length > 0 && (
         <div className="fixed inset-0 z-50 xl:hidden">
           <div className="fade-in absolute inset-0 bg-black/60" onClick={() => setOpen(false)} />
-          <div className="sheet-up absolute inset-x-0 bottom-0 max-h-[80vh] overflow-y-auto rounded-t-2xl border-t border-line bg-[#0d1526] p-4 pb-24">
-            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line2" />
+          <div className="sheet-up absolute inset-x-0 bottom-0 rounded-t-2xl border-t border-line bg-[#0d1526]">
+            <div className="mx-auto mt-2.5 mb-1 h-1 w-10 shrink-0 rounded-full bg-line2" />
             <SlipBody {...slipBody} onClose={() => setOpen(false)} />
           </div>
         </div>
@@ -180,7 +160,8 @@ function SlipBody(props: {
   onClose: () => void;
   desktop?: boolean;
 }) {
-  const { items, mode, setMode, stake, setStake, totalOdds, potentialWin, remove, clear, place, placing, stakeNum, balance, minStake, account, onClose, desktop } = props;
+  const { items, mode, setMode, stake, setStake, totalOdds, potentialWin, remove, clear, place, placing, stakeNum, balance, minStake, account, onClose } = props;
+  const { fmt } = useCurrency();
   const multiple = items.length > 1;
   const shown = mode === "SINGLE" ? items.slice(0, 1) : items;
 
@@ -188,41 +169,57 @@ function SlipBody(props: {
   const reason = stakeNum <= 0
     ? "Enter your stake"
     : stakeNum < minStake
-      ? `Minimum stake is ${minStake}`
+      ? `Minimum stake is ${fmt(minStake)}`
       : stakeNum > balance
         ? "Insufficient balance"
         : "";
 
+  /** Quick stake increments (+50/+100/+500/+1000) — add to the current stake. */
+  const bumpStake = (q: number) => {
+    const next = stakeNum + q;
+    setStake(String(next));
+  };
+
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-line px-4 py-3">
-        <div className="flex items-center gap-2">
-          <h2 className="font-bold">Bet Slip</h2>
-          {multiple && (
-            <div className="flex overflow-hidden rounded-lg border border-line2 text-xs font-semibold">
-              <button
-                className={`px-3 py-1.5 ${mode === "SINGLE" ? "bg-brand text-[#052e16]" : "text-ink2 hover:text-ink"}`}
-                onClick={() => setMode("SINGLE")}
-              >
-                Singles
+    <div className="flex max-h-[85vh] flex-col xl:h-full xl:max-h-none">
+      {/* ── Header: Betslip · Clear All · ✕ ── */}
+      <div className="sticky top-0 z-10 border-b border-line bg-[#0d1526] px-4 py-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-extrabold">Betslip</h2>
+          <div className="flex items-center gap-3">
+            {items.length > 0 && (
+              <button className="text-xs font-semibold text-ink3 transition-colors hover:text-red-400" onClick={clear}>
+                Clear All
               </button>
-              <button
-                className={`px-3 py-1.5 ${mode === "MULTIPLE" ? "bg-brand text-[#052e16]" : "text-ink2 hover:text-ink"}`}
-                onClick={() => setMode("MULTIPLE")}
-              >
-                Accumulator
-              </button>
-            </div>
-          )}
+            )}
+            <button
+              className="rounded-lg p-1 text-ink3 transition-colors hover:bg-white/5 hover:text-ink"
+              onClick={onClose}
+              aria-label="Close betslip"
+            >
+              <IconX className="h-5 w-5" />
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          {items.length > 0 && (
-            <button className="text-xs text-ink3 hover:text-red-400" onClick={clear}>Clear</button>
-          )}
-          {!desktop && <button className="text-ink3 hover:text-ink" onClick={onClose}>✕</button>}
-        </div>
+        {multiple && (
+          <div className="mt-2 flex overflow-hidden rounded-lg border border-line2 text-xs font-semibold">
+            <button
+              className={`px-3 py-1.5 ${mode === "SINGLE" ? "bg-brand text-[#052e16]" : "text-ink2 hover:text-ink"}`}
+              onClick={() => setMode("SINGLE")}
+            >
+              Singles
+            </button>
+            <button
+              className={`px-3 py-1.5 ${mode === "MULTIPLE" ? "bg-brand text-[#052e16]" : "text-ink2 hover:text-ink"}`}
+              onClick={() => setMode("MULTIPLE")}
+            >
+              Accumulator
+            </button>
+          </div>
+        )}
       </div>
 
+      {/* ── Body: selection cards ── */}
       <div className="flex-1 overflow-y-auto px-4 py-3">
         {items.length === 0 ? (
           <div className="mt-8 text-center">
@@ -247,11 +244,15 @@ function SlipBody(props: {
                       {item.market} · {item.outcome}
                     </div>
                   </div>
-                  <button className="rounded p-1 text-ink3 hover:text-red-400" onClick={() => remove(item.outcomeId)} aria-label="Remove selection">
-                    ✕
+                  <button
+                    className="rounded-lg p-1.5 text-ink3 transition-colors hover:bg-red-500/10 hover:text-red-400"
+                    onClick={() => remove(item.outcomeId)}
+                    aria-label={`Remove ${item.home} vs ${item.away}`}
+                  >
+                    <IconTrash className="h-4 w-4" />
                   </button>
                 </div>
-                <div className="mt-2 flex items-center justify-between">
+                <div className="mt-2 flex items-center justify-between border-t border-line pt-2">
                   <span className="text-xs text-ink3">{item.label ? `${item.label} · ` : ""}Odds</span>
                   <span className="font-bold text-green-400">{fmtOdds(item.odds)}</span>
                 </div>
@@ -261,8 +262,9 @@ function SlipBody(props: {
         )}
       </div>
 
+      {/* ── Footer: stake controls + green CTA ── */}
       {items.length > 0 && (
-        <div className="border-t border-line p-4">
+        <div className="sticky bottom-0 border-t border-line bg-[#0d1526] p-4 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
           <div className="flex items-center justify-between text-sm">
             <span className="text-ink2">Total Odds</span>
             <span className="text-base font-bold text-green-400">{totalOdds ? fmtOdds(totalOdds) : "—"}</span>
@@ -291,17 +293,15 @@ function SlipBody(props: {
                 <button
                   key={q}
                   type="button"
-                  className={`rounded-lg border px-2.5 py-1.5 text-xs font-bold transition-colors ${
-                    Number(stake) === q ? "border-brand bg-brand/10 text-brand" : "border-line2 text-ink2 hover:border-ink3"
-                  }`}
-                  onClick={() => setStake(String(q))}
+                  className="rounded-lg border border-line2 px-2.5 py-1.5 text-xs font-bold text-ink2 transition-colors hover:border-brand hover:text-brand"
+                  onClick={() => bumpStake(q)}
                 >
-                  {q.toLocaleString()}
+                  +{q.toLocaleString()}
                 </button>
               ))}
               <button
                 type="button"
-                className="rounded-lg border border-line2 px-2.5 py-1.5 text-xs font-bold text-ink2 hover:border-ink3"
+                className="rounded-lg border border-line2 px-2.5 py-1.5 text-xs font-bold text-ink2 transition-colors hover:border-ink3"
                 onClick={() => setStake(String(balance))}
               >
                 Max
@@ -311,11 +311,14 @@ function SlipBody(props: {
 
           <div className="mt-3 flex items-center justify-between text-sm">
             <span className="text-ink2">Potential Win</span>
-            <span className="text-base font-bold">{potentialWin > 0 ? potentialWin.toLocaleString("en-US", { maximumFractionDigits: 2 }) : "—"}</span>
+            <span className="text-base font-bold text-green-400">
+              {potentialWin > 0 ? fmt(Math.round(potentialWin * 100) / 100) : "—"}
+            </span>
           </div>
 
-          <button className="btn btn-primary mt-4 w-full py-3 text-base" disabled={!canPlace} onClick={place}>
-            {placing ? "Placing…" : "Place Bet"}
+          {/* Full-width green Place Bet CTA */}
+          <button className="mt-4 w-full rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 py-3.5 text-base font-black text-[#052e16] shadow-[0_6px_20px_rgba(0,230,118,0.35)] transition-transform active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none" disabled={!canPlace} onClick={place}>
+            {placing ? "Placing…" : `Place Bet${stakeNum > 0 ? ` · ${fmt(Math.round(potentialWin * 100) / 100)}` : ""}`}
           </button>
           {reason ? (
             <p className="mt-2 text-center text-[11px] font-medium text-amber-400">{reason}</p>

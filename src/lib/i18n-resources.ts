@@ -4,7 +4,34 @@
  * the prisma seed can share it. DB translations (admin-managed) override
  * these at runtime; these are the offline fallback and the seed source.
  */
-export const LANG_KEY = "user_selected_lang";
+/**
+ * localStorage key for the user's language choice. Manual overrides (and the
+ * auto-detected language, until overridden) persist here and win over IP
+ * geo-detection on every subsequent visit.
+ */
+export const LANG_KEY = "user_lang";
+/** Pre-refactor key — migrated to LANG_KEY on first read (one-time). */
+export const LEGACY_LANG_KEY = "user_selected_lang";
+
+/**
+ * Auto-geolocation map — country codes → supported languages.
+ * Used on first visit (no stored override) to detect the user's language
+ * from their IP country. Extend per market: add `CC: "xx"` entries.
+ */
+export const COUNTRY_LANG_MAP: Record<string, LangCode> = {
+  // East Africa → Swahili
+  KE: "sw", TZ: "sw", UG: "sw",
+  // Francophone West/Central Africa → French
+  FR: "fr", CI: "fr", SN: "fr",
+  // Spanish-speaking markets → Spanish
+  ES: "es", AR: "es",
+};
+
+/** Map an ISO country code to a supported language (default: English). */
+export function countryToLang(countryCode: string | null | undefined): LangCode {
+  if (!countryCode) return "en";
+  return COUNTRY_LANG_MAP[countryCode.toUpperCase()] ?? "en";
+}
 export const LANGUAGES = [
   { code: "en", label: "EN", name: "English" },
   { code: "sw", label: "SW", name: "Kiswahili" },

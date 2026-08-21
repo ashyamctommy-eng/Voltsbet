@@ -8,6 +8,7 @@ import { useToast } from "@/components/BetSlipContext";
 import { useDrawer } from "@/components/DrawerProvider";
 import DepositModal from "@/components/DepositModal";
 import LanguageSelector from "@/components/LanguageSelector";
+import BetikaLogo from "@/components/BetikaLogo";
 import { useTranslation } from "react-i18next";
 import {
   IconMenu,
@@ -97,8 +98,8 @@ export default function Header({ user, siteName }: { user: HeaderUser; siteName:
         </button>
 
         <Link href="/" className="flex shrink-0 items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand text-base font-black text-[#052e16]">V</span>
-          <span className="text-base font-extrabold tracking-tight sm:text-lg">{siteName}</span>
+          <BetikaLogo className="h-8 w-auto" />
+          <span className="sr-only">{siteName}</span>
         </Link>
 
         {/* Desktop nav */}
