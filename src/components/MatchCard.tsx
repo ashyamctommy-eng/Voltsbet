@@ -116,7 +116,7 @@ export default function MatchCard({
     : odds.map((o) => ({ leg: o.name, label: o.label, outcome: o }));
 
   return (
-    <div className="card card-hover p-4">
+    <div className="card card-hover p-3 sm:p-4">
       {/* Card header: leagueName left · green markets count right */}
       <div className="flex items-center justify-between gap-2 text-xs">
         <span className="line-clamp-2 font-semibold leading-tight text-ink3">
@@ -187,7 +187,7 @@ export default function MatchCard({
       ) : odds.length > 0 && mainMarket ? (
         <div className="mt-3 space-y-1.5">
           {outcomeRows.map((row, i) => (
-            <div key={i} className="flex items-center justify-between gap-3 rounded-lg bg-card2 px-3 py-2">
+            <div key={i} className="flex items-center justify-between gap-2.5 rounded-lg bg-card2 px-2.5 py-1.5 sm:gap-3 sm:px-3 sm:py-2 [&_.odds-btn]:w-28 [&_.odds-btn]:flex-none">
               <span className="flex min-w-0 items-center gap-2">
                 <TeamLogo name={row.leg} src={logoFor(row.leg)} className="h-5 w-5 shrink-0" />
                 <span className="truncate text-sm font-semibold">{row.leg}</span>

@@ -81,6 +81,16 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
       if (exists) {
         return prev.map((p) => (p.outcomeId === item.outcomeId ? { ...p, odds: item.odds } : p));
       }
+      // One selection per market: outcomes of the same game + market are
+      // mutually exclusive (1/X/2, Over/Under, BTTS Yes/No…), so picking a
+      // new leg REPLACES the previous pick from that market instead of
+      // stacking nonsensical combos (e.g. betting 1 AND X AND 2).
+      const sameMarket = prev.some(
+        (p) => p.gameId === item.gameId && p.marketKey === item.marketKey,
+      );
+      if (sameMarket) {
+        return [...prev.filter((p) => !(p.gameId === item.gameId && p.marketKey === item.marketKey)), item];
+      }
       return [...prev, item];
     });
     setHasOddsChange(false);
