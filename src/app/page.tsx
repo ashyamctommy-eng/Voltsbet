@@ -55,7 +55,7 @@ export default async function HomePage() {
       {/* Live / upcoming match slideshow */}
       <MatchSlideshow games={games} />
 
-      {/* Match feed with time + market filters */}
+      {/* Match feed with time + market filters — defaults to Football */}
       {apiFeed?.matches.length ? (
         <div className="mt-4 flex items-center gap-2">
           <span className="flex items-center gap-1.5 rounded-full bg-brand/10 px-2.5 py-1 text-[10px] font-bold text-brand">
@@ -76,7 +76,7 @@ export default async function HomePage() {
           </span>
         </div>
       ) : null}
-      <MatchFeed games={games} />
+      <MatchFeed games={games} sports={popularSports} />
 
       {/* Admin banners */}
       {banners.length > 0 && (

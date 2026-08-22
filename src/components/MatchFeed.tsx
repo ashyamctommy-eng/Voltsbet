@@ -164,19 +164,26 @@ const bookable = (g: FeedGame) =>
 /**
  * Match feed — pre-match only, chronological (soonest first), 30/page.
  *
- * Filters chain reactively in client state (date → league → market) and sync
- * to the URL (?date=YYYY-MM-DD&league=...) via history.replaceState — no page
- * reloads, shareable links, and the rolling 7-day window stays DST-safe.
- * Live matches are NEVER rendered here — they belong on /live.
+ * Filters chain reactively in client state (sport → date → league → market)
+ * and sync to the URL (?date=YYYY-MM-DD&league=...) via history.replaceState —
+ * no page reloads, shareable links, and the rolling 7-day window stays
+ * DST-safe. Live matches are NEVER rendered here — they belong on /live.
+ *
+ * The landing page defaults the feed to FOOTBALL (the brand's primary sport)
+ * so pre-matches render immediately; a sport pill row switches the scope.
  */
 export default function MatchFeed({
   games,
   sportKey = "football",
   autoFetch = true,
+  sports,
 }: {
   games: FeedGame[];
   sportKey?: string;
   autoFetch?: boolean;
+  /** Sport pills (slug + name + icon). When provided the feed defaults to
+   *  FOOTBALL and a pill row lets users switch to other sports. */
+  sports?: { slug: string; name: string; icon: string | null }[];
 }) {
   // Client-side schedule (auto-fetched + cached when no server data).
   const [clientGames, setClientGames] = useState<FeedGame[] | null>(null);
@@ -216,6 +223,11 @@ export default function MatchFeed({
     };
   }, [games, sportKey, autoFetch]);
   const feed = clientGames ?? games;
+
+  // Sport scope — landing page defaults to FOOTBALL (no click needed).
+  const [sport, setSport] = useState<string>(() =>
+    sports?.some((s) => s.slug === "football") ? "football" : "all",
+  );
 
   // Rolling 7-day date selector — default lands on "Today".
   const dateOptions = useMemo(() => buildDateOptions(), []);
@@ -260,22 +272,30 @@ export default function MatchFeed({
     return () => window.removeEventListener("popstate", onPop);
   }, [dateOptions]);
 
+  /** Sport-scoped feed (landing defaults to football; pills switch scope).
+   *  League options + the match list derive from this, so the league
+   *  dropdown always reflects the active sport. */
+  const scoped = useMemo(
+    () => (sport === "all" ? feed : feed.filter((g) => g.sport?.slug === sport)),
+    [feed, sport],
+  );
+
   /** Distinct competitions from the loaded feed, top leagues first. */
   const leagueOptions = useMemo(() => {
     const set = new Map<string, string>();
-    for (const g of feed) {
+    for (const g of scoped) {
       if (g.competitionName) set.set(g.competitionName, g.competitionName);
     }
     return [...set.values()]
       .sort((a, b) => leagueRank(a) - leagueRank(b) || a.localeCompare(b))
       .slice(0, 30);
-  }, [feed]);
+  }, [scoped]);
 
   /** Active pre-match fixtures: bookable first, then suspended, both
    *  chronological ascending. Live matches never appear here. */
   const filtered = useMemo(() => {
     const { from, to } = dayWindow(dateValue);
-    const list = feed
+    const list = scoped
       .filter((g) => !isLiveStatus(g.status, g.live))
       .filter((g) => {
         const t = new Date(g.startAt).getTime();
@@ -294,7 +314,7 @@ export default function MatchFeed({
       // Strict ascending kickoff: 6:00 PM above 7:00 PM above 7:30 PM.
       return new Date(a.startAt).getTime() - new Date(b.startAt).getTime();
     });
-  }, [feed, dateValue, league, sortMode]);
+  }, [scoped, dateValue, league, sortMode]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const currentPage = Math.min(page, totalPages);
@@ -311,6 +331,12 @@ export default function MatchFeed({
     setLeague(v);
     setPage(1);
   };
+  /** Sport switch resets league (options are sport-scoped) + pagination. */
+  const selectSport = (slug: string) => {
+    setSport(slug);
+    setLeague("");
+    setPage(1);
+  };
   const selectSort = (m: SortMode) => {
     setSortMode(m);
     setPage(1);
@@ -322,6 +348,31 @@ export default function MatchFeed({
 
   return (
     <section className="mt-4">
+      {/* Sport scope pills — landing page defaults to Football. */}
+      {sports && sports.length > 0 && (
+        <div className="no-scrollbar -mx-4 mb-2 flex items-center gap-1 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          <button
+            onClick={() => selectSport("all")}
+            className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-bold transition-colors ${
+              sport === "all" ? PILL_ACTIVE : PILL
+            }`}
+          >
+            All Sports
+          </button>
+          {sports.map((sp) => (
+            <button
+              key={sp.slug}
+              onClick={() => selectSport(sp.slug)}
+              className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-bold transition-colors ${
+                sport === sp.slug ? PILL_ACTIVE : PILL
+              }`}
+            >
+              {sp.icon} {sp.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Filter bar (Screenshot 2 style): Date | Leagues | sort + count */}
       <div className="no-scrollbar -mx-4 flex items-center gap-1 overflow-x-auto px-4 sm:mx-0 sm:px-0">
         <Dropdown

@@ -202,7 +202,12 @@ export default function Header({ user, siteName }: { user: HeaderUser; siteName:
       <div className="border-t border-line bg-panel-bg/60">
         <div className="no-scrollbar mx-auto flex max-w-[1600px] items-stretch gap-1 overflow-x-auto px-2 sm:px-4">
           {CATEGORY_TABS.map(({ labelKey, label, href, Icon }) => {
-            const active = pathname === href || (href !== "/live" && isActive(href)) || (href === "/live" && isActive("/live"));
+            const active =
+              pathname === href ||
+              (href !== "/live" && isActive(href)) ||
+              (href === "/live" && isActive("/live")) ||
+              // The landing page IS the Football tab — active by default.
+              (href === "/sports/football" && pathname === "/");
             return (
               <Link
                 key={label}
