@@ -89,6 +89,16 @@ export default function MatchCard({
   const isLive = view.isLive;
   const isFinished = game.status === "FINISHED";
 
+  // Card header: country • league. The Odds API league names already carry a
+  // country prefix ("England - Premier League") — strip it to avoid
+  // "England • England - Premier League" duplication.
+  const country = countryForLeague(view.leagueName);
+  const leagueName =
+    country && view.leagueName.toLowerCase().startsWith(country.toLowerCase() + " - ")
+      ? view.leagueName.slice(country.length + 3)
+      : view.leagueName;
+  const leagueFlag = flagForLeague(view.leagueName);
+
   const candidates = game.markets.filter((m) => m.status === "OPEN" && m.outcomes.some((o) => o.status === "ACTIVE"));
   const openMarketCount = game.markets.filter((m) => m.status === "OPEN").length;
   const mainMarket =
@@ -120,10 +130,10 @@ export default function MatchCard({
       {/* Header: country • league left · kickoff time right */}
       <div className="flex items-center justify-between gap-2 text-xs">
         <span className="truncate font-semibold text-ink2">
-          {flagForLeague(view.leagueName) && (
-            <span className="mr-1">{flagForLeague(view.leagueName)}</span>
+          {leagueFlag && (
+            <span className="mr-1">{leagueFlag}</span>
           )}
-          {[countryForLeague(view.leagueName), view.leagueName].filter(Boolean).join(" • ")}
+          {[country, leagueName].filter(Boolean).join(" • ")}
         </span>
         <span className="shrink-0 text-xs font-medium tabular-nums text-ink3">
           {isLive ? (

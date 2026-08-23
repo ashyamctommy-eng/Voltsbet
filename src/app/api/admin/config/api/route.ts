@@ -1,14 +1,18 @@
 import { NextRequest } from "next/server";
 import { handle, ok, requireAdmin, verifyCsrf } from "@/lib/api";
 import { getSettings, setSetting } from "@/lib/settings";
-import { clearBetsApiFeedCache } from "@/lib/betsapi-feed";
+import { clearPrematchFeedCache } from "@/lib/feed";
 
 /**
- * Admin API config — BetsAPI (bet365 via RapidAPI) primary provider settings.
+ * Admin API config — BetsAPI (bet365 via RapidAPI) LIVE engine credentials.
+ *
+ * BetsAPI powers the /live in-play surface (refreshLiveScores + the live
+ * proxy). Pre-match odds come from the sync providers (the-odds-api /
+ * api-football — see Admin → Settings → Odds & Risk). This page no longer
+ * switches the pre-match provider; role overrides are still honored there.
  *
  * GET  /api/admin/config/api      → current config (key masked)
- * POST /api/admin/config/api      → persist creds; `primary: true` also flips
- *                                   odds.provider → "betsapi"
+ * POST /api/admin/config/api      → persist creds + optional provider roles
  */
 export const GET = handle(async () => {
   const admin = await requireAdmin("settings");
@@ -20,7 +24,6 @@ export const GET = handle(async () => {
       rapidKeySet: !!s.apiRapidKey,
       rapidHost: s.apiRapidHost,
       rapidBase: s.apiRapidBase,
-      primary: s.oddsProvider === "betsapi",
       primaryProvider: s.oddsProvider,
       prematchProvider: s.oddsPrematchProvider,
       liveProvider: s.oddsLiveProvider,
@@ -50,23 +53,21 @@ export const POST = handle(async (req: NextRequest) => {
   await setSetting("api.rapidHost", rapidHost);
   await setSetting("api.rapidBase", rapidBase);
 
-  if (body?.primary === true) {
-    await setSetting("odds.provider", "betsapi");
-  }
-
   // Per-provider roles (pre-match source / live source) — empty = follow primary.
-  if (typeof body?.prematchProvider === "string") {
+  const VALID_PROVIDERS = new Set(["the-odds-api", "api-football"]);
+  if (typeof body?.prematchProvider === "string" && VALID_PROVIDERS.has(body.prematchProvider)) {
     await setSetting("odds.prematchProvider", body.prematchProvider);
+  } else if (typeof body?.prematchProvider === "string" && body.prematchProvider === "") {
+    await setSetting("odds.prematchProvider", "");
   }
-  if (typeof body?.liveProvider === "string") {
+  if (typeof body?.liveProvider === "string" && VALID_PROVIDERS.has(body.liveProvider)) {
     await setSetting("odds.liveProvider", body.liveProvider);
+  } else if (typeof body?.liveProvider === "string" && body.liveProvider === "") {
+    await setSetting("odds.liveProvider", "");
   }
 
   // New creds should take effect immediately — drop the stale feed snapshot.
-  clearBetsApiFeedCache();
+  clearPrematchFeedCache();
 
-  return ok({
-    message: body?.primary === true ? "Saved — BetsAPI is now the primary provider" : "API settings saved",
-    primary: body?.primary === true ? true : s.oddsProvider === "betsapi",
-  });
+  return ok({ message: "BetsAPI live credentials saved", primary: false });
 });

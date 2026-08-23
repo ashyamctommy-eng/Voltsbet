@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
-import { getBetsApiFeed, apiMatchToFeedGame } from "@/lib/betsapi-feed";
+import { getPrematchFeed, apiMatchToFeedGame } from "@/lib/feed";
 import { isLiveStatus } from "@/lib/game-status";
 import BannerCarousel from "@/components/BannerCarousel";
 import MatchSlideshow from "@/components/MatchSlideshow";
@@ -13,10 +13,10 @@ export default async function HomePage() {
   const s = await getSettings();
   const [banners, apiFeed, popularSports, promotions, testimonials] = await Promise.all([
     prisma.banner.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
-    // Live BetsAPI rendering (cached, 0 requests between refreshes). When
-    // BetsAPI is quota-blocked the feed falls back to The Odds API pre-match
-    // odds, then to the DB — the homepage never goes empty.
-    getBetsApiFeed().catch(() => null),
+    // Today's pre-match rendering (cached, 0 requests between refreshes).
+    // Source chain: The Odds API → API-Football → DB — the homepage never
+    // goes empty and never mixes providers on one load.
+    getPrematchFeed().catch(() => null),
     prisma.sport.findMany({
       where: { active: true },
       include: { _count: { select: { games: { where: { status: { notIn: ["FINISHED", "CANCELLED"] } } } } } },
@@ -60,19 +60,13 @@ export default async function HomePage() {
         <div className="mt-4 flex items-center gap-2">
           <span className="flex items-center gap-1.5 rounded-full bg-brand/10 px-2.5 py-1 text-[10px] font-bold text-brand">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand" />
-            {apiFeed.source === "oddspapi"
-              ? "ODDSPAPI fallback"
-              : apiFeed.source === "the-odds-api"
-                ? "ODDS API fallback"
-                : "LIVE — BetsAPI feed"}
+            {apiFeed.source === "api-football" ? "API-FOOTBALL" : "THE ODDS API"}
           </span>
           <span className="text-[11px] font-semibold text-ink3">
             {apiFeed.matches.length} matches ·{" "}
-            {apiFeed.source === "oddspapi"
-              ? "BetsAPI unavailable — serving OddsPapi (Pinnacle) pre-match odds"
-              : apiFeed.source === "the-odds-api"
-                ? "BetsAPI unavailable — serving free The Odds API pre-match odds"
-                : "no sync needed · odds refresh in ~5 min"}
+            {apiFeed.source === "api-football"
+              ? "Pre-match odds — API-Football"
+              : "Today's pre-match odds — The Odds API"}
           </span>
         </div>
       ) : null}

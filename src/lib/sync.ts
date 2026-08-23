@@ -14,26 +14,17 @@ import { teamLogo } from "@/lib/team-logos";
 import { getSettings, setSetting } from "@/lib/settings";
 import { deriveDoubleChance, deriveDrawNoBet } from "@/lib/derived-markets";
 import { ApiFootballProvider } from "@/lib/providers/api-football";
-import { OddsIoProvider } from "@/lib/providers/odds-api-io";
-import { OddspapiProvider } from "@/lib/providers/oddspapi";
-import { BetsApiProvider } from "@/lib/providers/betsapi";
 
 export const PROVIDERS: Record<string, () => OddsProvider> = {
-  "the-odds-api": () => new TheOddsApi(),
-  "api-football": () => new ApiFootballProvider(),
-  "odds-api-io": () => new OddsIoProvider(),
-  "betsapi": () => new BetsApiProvider(), // PRIMARY — Bet365 via RapidAPI / BetsAPI
-  "oddspapi": () => new OddspapiProvider(), // OddsPapi v4 — 300+ books, Pinnacle sharp lines
+  "the-odds-api": () => new TheOddsApi(), // primary — free 500 req/month, clean h2h/totals
+  "api-football": () => new ApiFootballProvider(), // API-Football — 100 req/day, global + African leagues
 };
 
 /** Env var that gates each provider — checked before syncing so a missing key
- *  never silently skips (and never blocks the other providers). Providers
- *  without an env entry (betsapi) are gated by their DB config instead. */
+ *  never silently skips (and never blocks the other provider). */
 export const PROVIDER_KEY_ENV: Record<string, string> = {
   "the-odds-api": "ODDS_API_KEY",
   "api-football": "ODDS_API_IO_KEY",
-  "odds-api-io": "ODDS_IO_KEY",
-  "oddspapi": "ODDSPAPI_KEY",
 };
 
 // Map provider sport keys → local sport slugs. Extend per your feed.
@@ -44,9 +35,7 @@ export const PROVIDER_KEY_ENV: Record<string, string> = {
 const SPORT_KEY_MAP: Record<string, string> = {
   soccer_epl: "football", soccer_spain_la_liga: "football",
   soccer_italy_serie_a: "football", soccer_germany_bundesliga: "football",
-  football: "football", // api-football (API-Football) + odds-api-io (Odds-API.io) sport key
-  "1": "football", // betsapi soccer (bet365 via RapidAPI)
-  "10": "football", // oddspapi soccer (OddsPapi v4)
+  football: "football", // api-football (API-Football) sport key
   basketball_nba: "basketball",
   baseball_mlb: "baseball", icehockey_nhl: "ice-hockey",
   "3": "basketball", "2": "tennis", "4": "ice-hockey", // betsapi sport ids
@@ -69,8 +58,8 @@ export function resolveSyncRoles(s: {
 export async function syncGames(providerId?: string) {
   const s = await getSettings();
   // Per-provider roles: a pre-match source (fixtures + prematch odds) and a
-  // live source (in-play scores/timers) — e.g. oddspapi pre-match + betsapi
-  // live. Passing providerId forces both roles to that single provider.
+  // live source (in-play scores/timers). Empty = follow the primary.
+  // Passing providerId forces both roles to that single provider.
   const roles = providerId ? { prematch: providerId, live: providerId } : resolveSyncRoles(s);
   const provider = PROVIDERS[roles.prematch]?.();
   const liveSource = PROVIDERS[roles.live]?.();

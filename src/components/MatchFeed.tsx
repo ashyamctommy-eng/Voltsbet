@@ -272,7 +272,7 @@ export default function MatchFeed({
         return;
       }
       try {
-        const res = await fetch("/api/betsapi/matches");
+        const res = await fetch("/api/feed/matches");
         if (!res.ok) {
           let msg = `HTTP ${res.status}`;
           try {

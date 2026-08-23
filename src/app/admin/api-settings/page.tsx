@@ -10,19 +10,15 @@ type ApiConfig = {
   rapidKeySet: boolean;
   rapidHost: string;
   rapidBase: string;
-  primary: boolean;
   primaryProvider: string;
   prematchProvider: string;
   liveProvider: string;
 };
 
-const PROVIDER_OPTIONS = ["", "betsapi", "the-odds-api", "api-football", "odds-api-io", "oddspapi"];
+const PROVIDER_OPTIONS = ["", "the-odds-api", "api-football"];
 const PROVIDER_LABELS: Record<string, string> = {
-  betsapi: "betsapi (bet365)",
-  oddspapi: "oddspapi (Pinnacle)",
-  "the-odds-api": "the-odds-api",
+  "the-odds-api": "the-odds-api (primary)",
   "api-football": "api-football",
-  "odds-api-io": "odds-api-io",
 };
 
 type TestResult = {
@@ -41,7 +37,6 @@ export default function AdminApiSettings() {
   const [key, setKey] = useState("");
   const [host, setHost] = useState("betsapi2.p.rapidapi.com");
   const [base, setBase] = useState("https://betsapi2.p.rapidapi.com");
-  const [primary, setPrimary] = useState(false);
   const [prematchRole, setPrematchRole] = useState("");
   const [liveRole, setLiveRole] = useState("");
   const [saving, setSaving] = useState(false);
@@ -55,7 +50,6 @@ export default function AdminApiSettings() {
       setConfig(c);
       setHost(c.rapidHost);
       setBase(c.rapidBase);
-      setPrimary(c.primary);
       setPrematchRole(c.prematchProvider ?? "");
       setLiveRole(c.liveProvider ?? "");
       if (!c.rapidKeySet) setKey("");
@@ -67,13 +61,12 @@ export default function AdminApiSettings() {
     setSaving(true);
     const res = await apiFetch<{ message: string; primary: boolean }>("/api/admin/config/api", {
       method: "POST",
-      body: { rapidKey: key, rapidHost: host, rapidBase: base, primary, prematchProvider: prematchRole, liveProvider: liveRole },
+      body: { rapidKey: key, rapidHost: host, rapidBase: base, prematchProvider: prematchRole, liveProvider: liveRole },
     });
     setSaving(false);
     if (!res.ok) return push("error", res.error.message);
     push("success", res.data.message);
     setKey("");
-    setPrimary(res.data.primary);
     const refetch = await apiFetch<{ config: ApiConfig }>("/api/admin/config/api");
     if (refetch.ok) setConfig(refetch.data.config);
   }
@@ -94,22 +87,14 @@ export default function AdminApiSettings() {
     push(res.data.ok ? "success" : "error", res.data.ok ? `Connected — ${res.data.events} pre-match events` : "Connection failed");
   }
 
-  const isPrimary = primary || config?.primary;
-
   return (
     <div className="mx-auto max-w-2xl space-y-5">
-      {/* Active API designation */}
-      <div
-        className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${
-          isPrimary ? "border-green-500/40 bg-green-500/10" : "border-line bg-hover-tint"
-        }`}
-      >
-        <IconPlug className={`h-5 w-5 ${isPrimary ? "text-green-400" : "text-ink3"}`} />
+      {/* Live engine designation */}
+      <div className="flex items-center gap-3 rounded-xl border border-sky-500/30 bg-sky-500/10 px-4 py-3">
+        <IconPlug className="h-5 w-5 text-sky-400" />
         <div className="text-sm">
-          <p className={`font-extrabold ${isPrimary ? "text-green-400" : "text-ink2"}`}>
-            {isPrimary ? "PRIMARY PROVIDER:" : "PROVIDER (not primary):"} Bet365 (via RapidAPI / BetsAPI)
-          </p>
-          <p className="text-xs text-ink3">betsapi2.p.rapidapi.com · v3/bet365/prematch · v3/bet365/inplay</p>
+          <p className="font-extrabold text-sky-400">LIVE ENGINE: BetsAPI (bet365) — /live in-play scores</p>
+          <p className="text-xs text-ink3">betsapi2.p.rapidapi.com · v3/bet365/inplay · pre-match odds come from the sync providers (Admin → Settings → Odds & Risk)</p>
         </div>
       </div>
 
@@ -146,31 +131,12 @@ export default function AdminApiSettings() {
           />
         </div>
 
-        <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg bg-card2 px-4 py-3">
-          <span className="text-sm font-semibold">
-            Set as primary provider
-            <span className="block text-xs font-normal text-ink3">Switches the live odds engine to Bet365 (via RapidAPI)</span>
-          </span>
-          <span className="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full bg-white/10 transition-colors" style={{ background: primary ? "var(--vb-primary,#00e676)" : undefined }}>
-            <input
-              type="checkbox"
-              className="peer sr-only"
-              checked={primary}
-              onChange={(e) => setPrimary(e.target.checked)}
-            />
-            <span
-              className="absolute h-5 w-5 rounded-full bg-white shadow transition-all"
-              style={{ left: primary ? 22 : 2 }}
-            />
-          </span>
-        </label>
-
         {/* Per-provider roles — which source feeds pre-match odds vs live scores */}
         <div className="rounded-lg border border-line bg-card2/40 p-4">
           <p className="text-sm font-bold">Provider roles</p>
           <p className="mt-0.5 text-xs text-ink3">
-            Pre-match fixtures/odds and live scores can come from different sources (e.g. OddsPapi pre-match + bet365 live).
-            Empty = follow the primary provider (<b className="text-ink2">{PROVIDER_LABELS[config?.primaryProvider ?? ""] ?? config?.primaryProvider ?? "betsapi"}</b>).
+            Pre-match fixtures/odds and live scores can come from different sync providers.
+            Empty = follow the primary provider (<b className="text-ink2">{PROVIDER_LABELS[config?.primaryProvider ?? ""] ?? config?.primaryProvider ?? "the-odds-api"}</b>).
           </p>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <div>

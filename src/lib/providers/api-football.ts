@@ -4,8 +4,7 @@
  * Covers global + African football leagues with real-time in-play metadata and
  * full market availability (1X2, Double Chance, BTTS, Over/Under…) with no
  * region locks. Requires env: ODDS_API_IO_KEY  (free tier: 100 requests/day).
- * Provider id: "api-football" (NOT the same company as odds-api.io — see
- * src/lib/providers/odds-api-io.ts for that one).
+ * Provider id: "api-football".
  *
  * Response mapping implemented per v3 docs:
  *   /fixtures → status.short (NS/1H/HT/2H/FT…), status.elapsed (minute),
@@ -81,7 +80,7 @@ export class ApiFootballProvider implements OddsProvider {
   private async get<T>(path: string): Promise<T> {
     if (!this.key) throw new Error("ODDS_API_IO_KEY is not set");
     const res = await fetch(`${BASE}${path}`, { headers: { "x-apisports-key": this.key } });
-    if (!res.ok) throw new Error(`Odds-API.io ${res.status}: ${await res.text().catch(() => "")}`);
+    if (!res.ok) throw new Error(`API-Football ${res.status}: ${await res.text().catch(() => "")}`);
     const json = (await res.json()) as { response: T; errors?: unknown };
     // The API reports failures via `errors` — as an object (e.g. {"token":
     // "Invalid API key…"}) or as an array. Both must be treated as errors;
@@ -91,7 +90,7 @@ export class ApiFootballProvider implements OddsProvider {
         ? json.errors.length > 0
         : json.errors != null && Object.keys(json.errors).length > 0;
     if (hasErrors) {
-      throw new Error(`Odds-API.io error: ${JSON.stringify(json.errors)}`);
+      throw new Error(`API-Football error: ${JSON.stringify(json.errors)}`);
     }
     return json.response;
   }

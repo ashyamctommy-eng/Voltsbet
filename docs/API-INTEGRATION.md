@@ -29,31 +29,6 @@ scores and results from an external provider — without being hard-coded to one
   keeps you under the 100/day cap. Tune with `ODDS_API_IO_DAYS_AHEAD` and
   `ODDS_API_IO_MAX_ODDS_PAGES`.
 
-## Alternate provider: Odds-API.io (api.odds-api.io/v3)
-
-- **The company at odds-api.io — NOT the same as API-Football above.** Free plan:
-  2 **recreational** bookmakers (sharp/exchange books are paid), 100 req/hour.
-- Global + African football confirmed (South Africa Premiership, Egypt Premier
-  League, Tunisia Ligue 1, Angola, Tanzania, Uganda, Zimbabwe, …) plus 34 sports.
-- Sign up → key + bookmaker selection: https://odds-api.io/dashboard
-- Endpoints used (verified live 2026-08):
-  - `GET /events?sport=football` — events, next 14 days by default, status
-    `pending | live | settled | cancelled`, scores included, hard cap 5000
-  - `GET /odds/multi?eventIds=…&bookmakers=…` — odds for ≤10 events per call
-  - `GET /events/live` — in-play events with clock (minute, period)
-  - `GET /bookmakers/selected` — the account's selected bookmakers
-- Auth: `?apiKey=` query param (env `ODDS_IO_KEY`).
-- Markets mapped: `ML` → MATCH_RESULT, `Double Chance` → DOUBLE_CHANCE,
-  `Totals` → OVER_UNDER, `Both Teams To Score` → BTTS (outcome names are
-  lowercase so auto-settle matches). Margin applied via the same grid.
-- Switch: Admin → Settings → Odds & Risk → `odds.provider` = `odds-api-io`.
-- Curation: set `odds.io.leagueSlugs` (admin) or env `ODDS_IO_LEAGUE_SLUGS` to a
-  comma-separated list of league slugs — only those import (exact or prefix
-  match, so `international-clubs-uefa-champions-league` covers every phase).
-  Empty = import everything (capped by `ODDS_IO_MAX_EVENTS`).
-- Budget: 1 full sync ≈ 1 events call + 1 leagues call + ceil(events/10) odds calls
-  + 1 live call; with the curated ~30-league set that's ≈ 31 requests.
-
 ## Why not the others (as of 2026): Sportmonks is excellent but €100+/mo after a
 14-day trial; football-data.org has no odds. Start free with The Odds API; the
 provider layer makes swapping later a non-event.
@@ -61,9 +36,10 @@ provider layer makes swapping later a non-event.
 ## How it fits the codebase
 
 ```
-src/lib/providers/odds-api.ts       TheOddsApi class (The Odds API, the-odds-api.com)
-src/lib/providers/api-football.ts   ApiFootballProvider (API-Football, api-sports.io)
-src/lib/providers/odds-api-io.ts    OddsIoProvider (Odds-API.io, api.odds-api.io/v3)
+src/lib/providers/odds-api.ts       TheOddsApi class (The Odds API — PRIMARY pre-match)
+src/lib/providers/api-football.ts   ApiFootballProvider (API-Football — fallback)
+src/lib/feed.ts                     getPrematchFeed(): homepage feed, The Odds API → API-Football → DB
+src/lib/live-scores.ts              BetsAPI in-play engine for /live
 src/lib/sync.ts                     syncGames(): fetch → upsert → dedup (externalId unique)
 src/app/api/admin/sync/route.ts     manual trigger (admin button on Games page)
 ```
@@ -78,7 +54,10 @@ fetchLiveScores(sportKeys)       → ApiScore[] (status, score, period, clock)
 
 ### Setup
 
-1. Set `ODDS_API_KEY` in `.env` / Railway vars / VPS env.
+1. Set `ODDS_API_KEY` (The Odds API — primary) and optionally `ODDS_API_IO_KEY`
+   (API-Football — feed fallback) in `.env` / Railway vars / VPS env. The Odds
+   API is the default provider; switch to API-Football via Admin → Settings →
+   Odds & Risk → `odds.provider` = `api-football`.
 2. Map provider sport keys to local slugs in `SPORT_KEY_MAP` in `src/lib/sync.ts`
    (e.g. `soccer_epl → football`). Extend for the sports you offer.
 3. Run sync: **Admin → Games → ⟳ Sync API**, or wire automation:
@@ -127,8 +106,10 @@ One request = one sport + one market set. Example budget for a light start:
 > pay $30/mo when you want more sports or faster updates. The architecture doesn't
 > care — only the quota does.
 
-## Live in-play data
+## Live in-play data (/live)
 
-The Odds API's scores endpoint gives basic live scores/status. For deep in-play
-(shot-by-shot, full live markets), providers like Sportmonks or LSports are the
-industry standard — implement the same `OddsProvider` interface and you're done.
+The `/live` page runs on the **BetsAPI (bet365) in-play engine** — credentials in
+Admin → API Settings. `refreshLiveScores()` (src/lib/live-scores.ts) polls in-play
+matches into the DB; the live page renders them with score/minute/period. The sync
+providers' `fetchLiveScores()` covers the same ground for DB settlement when no
+BetsAPI creds are configured.
