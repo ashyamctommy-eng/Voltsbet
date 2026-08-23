@@ -30,8 +30,10 @@ export type { BetsApiMatchView, ApiFeedGame } from "@/lib/providers/betsapi-tran
 
 /** Feed size (matches rendered). */
 const FEED_EVENTS = Number(process.env.FEED_EVENTS ?? process.env.BETSAPI_FEED_EVENTS ?? 12) || 12;
-/** In-process TTL so the homepage doesn't re-hit the API on every load. */
-const FEED_TTL_SECONDS = Number(process.env.FEED_TTL_SECONDS ?? 300) || 300;
+/** In-process TTL — the API is only a cold-start bootstrap now (the homepage
+ *  renders synced DB games first), so a long TTL keeps the free-tier quota
+ *  intact even when the DB is empty. */
+const FEED_TTL_SECONDS = Number(process.env.FEED_TTL_SECONDS ?? 6 * 60 * 60) || 21600;
 
 /** Preferred soccer leagues for the feed; override via ODDS_API_FALLBACK_LEAGUES
  *  (1 credit each against The Odds API). */

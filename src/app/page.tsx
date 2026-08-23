@@ -9,14 +9,37 @@ import MatchFeed, { type FeedGame as MatchFeedGame } from "@/components/MatchFee
 
 export const dynamic = "force-dynamic";
 
+/** DB games are considered "fresh" for display within this window after the
+ *  last sync — the homepage then renders from the DB (0 API requests) and the
+ *  free-tier quota stays intact. Only a cold/empty DB triggers a live API
+ *  bootstrap. */
+const DB_FRESH_MS = 8 * 60 * 60 * 1000;
+
+/** True when the DB holds API-synced games updated within the freshness
+ *  window (module-level so the component body stays pure). */
+function hasFreshApiGames(games: { source: string; updatedAt: Date }[]): boolean {
+  const now = Date.now();
+  return games.some((g) => g.source === "API" && now - g.updatedAt.getTime() < DB_FRESH_MS);
+}
+
 export default async function HomePage() {
   const s = await getSettings();
-  const [banners, apiFeed, popularSports, promotions, testimonials] = await Promise.all([
+  const [banners, dbGames, popularSports, promotions, testimonials] = await Promise.all([
     prisma.banner.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
-    // Today's pre-match rendering (cached, 0 requests between refreshes).
-    // Source chain: The Odds API → API-Football → DB — the homepage never
-    // goes empty and never mixes providers on one load.
-    getPrematchFeed().catch(() => null),
+    // Synced DB games (cron sync keeps them fresh). Rendered first when recent
+    // — this is the free-tier-friendly path: 0 API requests per page load.
+    prisma.game.findMany({
+      where: {
+        status: { notIn: ["FINISHED", "CANCELLED"] },
+        ...(s.hideSeededGames ? { source: "API" } : {}),
+      },
+      include: {
+        sport: true,
+        markets: { include: { outcomes: true }, orderBy: { sortOrder: "asc" } },
+      },
+      orderBy: [{ live: "desc" }, { startAt: "asc" }],
+      take: 200,
+    }),
     prisma.sport.findMany({
       where: { active: true },
       include: { _count: { select: { games: { where: { status: { notIn: ["FINISHED", "CANCELLED"] } } } } } },
@@ -31,23 +54,15 @@ export default async function HomePage() {
     prisma.testimonial.findMany({ where: { status: "APPROVED" }, orderBy: { sortOrder: "asc" }, take: 4 }),
   ]);
 
-  // Live feed when reachable (BetsAPI, else The Odds API fallback), else the
-  // synced DB feed. Live matches are filtered OUT of home — they're on /live.
+  const dbFresh = hasFreshApiGames(dbGames);
+  // API bootstrap ONLY when the DB has no recent synced games (fresh deploy /
+  // pre-first-cron). TTL-cached server-side (6h), so it runs at most a few
+  // times a day even then. Live matches are filtered OUT of home — /live.
+  const apiFeed = dbFresh ? null : await getPrematchFeed().catch(() => null);
   const games: MatchFeedGame[] = (
     apiFeed?.matches.length
       ? apiFeed.matches.map(apiMatchToFeedGame)
-      : await prisma.game.findMany({
-          where: {
-            status: { notIn: ["FINISHED", "CANCELLED"] },
-            ...(s.hideSeededGames ? { source: "API" } : {}),
-          },
-          include: {
-            sport: true,
-            markets: { include: { outcomes: true }, orderBy: { sortOrder: "asc" } },
-          },
-          orderBy: [{ live: "desc" }, { startAt: "asc" }],
-          take: 200,
-        })
+      : (dbGames as MatchFeedGame[])
   ).filter((g) => !isLiveStatus(g.status, g.live));
 
   return (
