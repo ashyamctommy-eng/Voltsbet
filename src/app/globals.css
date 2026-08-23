@@ -51,6 +51,14 @@ html {
   color-scheme: dark;
 }
 
+/* Lock viewport zoom on mobile: allow panning both axes but block pinch /
+   double-tap zoom gestures, and neutralize iOS text-size adjustment. */
+html, body {
+  touch-action: pan-x pan-y;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   background: var(--panel-bg, #0b0e14);
   color: var(--primary-text, #ffffff);

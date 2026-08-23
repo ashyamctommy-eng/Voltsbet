@@ -6,6 +6,8 @@ import type { User } from "@prisma/client";
 
 const BETTABLE_GAME_STATUSES = ["SCHEDULED", "LIVE", "HALF_TIME"];
 
+export { BET_CANCEL_WINDOW_MS } from "./bet-cancel";
+
 export type BetSelectionInput = {
   outcomeId: string;
   oddsAtPlacement: number; // odds the user saw when they tapped

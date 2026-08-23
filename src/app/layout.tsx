@@ -21,13 +21,22 @@ export const metadata: Metadata = {
   title: { default: "VoltBet — Sports Betting", template: "%s | VoltBet" },
   description: "Fast odds, live betting and instant crypto deposits.",
 };
-export const viewport: Viewport = { themeColor: "#0b1220", width: "device-width", initialScale: 1 };
+export const viewport: Viewport = {
+  themeColor: "#0b1220",
+  width: "device-width",
+  initialScale: 1,
+  // Lock viewport zoom on mobile — pinch + double-tap zoom disabled (the app
+  // is a native-feel sportsbook; text-size adjust is also neutralized).
+  maximumScale: 1,
+  userScalable: false,
+};
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const [s, user, liveGames] = await Promise.all([
+  const [s, user, liveGames, sports] = await Promise.all([
     getSettings(),
     getCurrentUser(),
     prisma.game.count({ where: { status: { in: ["LIVE", "HALF_TIME"] } } }),
+    prisma.sport.findMany({ where: { active: true }, orderBy: [{ isPopular: "desc" }, { sortOrder: "asc" }], take: 8 }),
   ]);
 
   let headerUser: HeaderUser = null;
@@ -77,7 +86,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 >
                   <VoltBetSplashLoader />
                   <BroadcastBanner />
-                  <Header user={headerUser} siteName={s.siteName} />
+                  <Header user={headerUser} siteName={s.siteName} sports={sports} />
                   {/* Mobile bottom padding clears the bottom nav (~64px) plus the
                       floating yellow betslip bar (sits at 62px, ~56px tall). */}
                   <main className="min-h-[60vh] pb-32 xl:pb-0">{children}</main>

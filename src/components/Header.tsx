@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/client";
 import { useToast } from "@/components/BetSlipContext";
@@ -9,16 +9,12 @@ import { useDrawer } from "@/components/DrawerProvider";
 import DepositModal from "@/components/DepositModal";
 import LanguageSelector from "@/components/LanguageSelector";
 import VoltBetLogo from "@/components/VoltBetLogo";
+import { FEED_VIEWS, type FeedView } from "@/components/MatchFeed";
 import { useTranslation } from "react-i18next";
 import {
   IconMenu,
   IconSearch,
-  IconFootball,
-  IconBasketball,
-  IconTennis,
   IconLive,
-  IconController,
-  IconTv,
   IconWallet,
   IconUser,
 } from "@/components/icons";
@@ -31,14 +27,7 @@ export type HeaderUser = {
   unreadNotifications: number;
 } | null;
 
-const CATEGORY_TABS = [
-  { label: "Football", href: "/sports/football", Icon: IconFootball },
-  { label: "Basketball", href: "/sports/basketball", Icon: IconBasketball },
-  { label: "Tennis", href: "/sports/tennis", Icon: IconTennis },
-  { labelKey: "nav.live", label: "Live", href: "/live", Icon: IconLive },
-  { label: "Esports", href: "/sports/esports", Icon: IconController },
-  { label: "Cricket", href: "/sports/cricket", Icon: IconTv },
-];
+type HeaderSport = { slug: string; name: string; icon: string | null };
 
 const DESKTOP_NAV = [
   { labelKey: "nav.home", label: "Home", href: "/", exact: true },
@@ -48,15 +37,36 @@ const DESKTOP_NAV = [
   { labelKey: "nav.results", label: "Results", href: "/results" },
 ];
 
-export default function Header({ user, siteName }: { user: HeaderUser; siteName: string }) {
+export default function Header({
+  user,
+  siteName,
+  sports,
+}: {
+  user: HeaderUser;
+  siteName: string;
+  /** Active sports from the DB (provider-driven category tabs). */
+  sports?: HeaderSport[];
+}) {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { push } = useToast();
   const { t } = useTranslation();
   const { open: openDrawer } = useDrawer();
   const [menuOpen, setMenuOpen] = useState(false);
   const [walletOpen, setWalletOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // Category tabs — sports from the provider/DB, Live pinned last.
+  const categoryTabs: { labelKey?: string; label: string; href: string; icon?: string | null }[] = [
+    ...(sports ?? []).map((sp) => ({ label: sp.name, href: `/sports/${sp.slug}`, icon: sp.icon })),
+    { labelKey: "nav.live", label: "Live", href: "/live" },
+  ];
+
+  // Sub-navigation pills (Highlights/Upcoming/Countries/Zoom Soccer) — the
+  // landing feed view. Active pill follows ?view= (default: Highlights).
+  const activeView: FeedView =
+    (searchParams?.get("view") as FeedView) ?? "highlights";
 
   // Close overlays on route change
   useEffect(() => {
@@ -198,10 +208,10 @@ export default function Header({ user, siteName }: { user: HeaderUser; siteName:
         </div>
       </div>
 
-      {/* ── Category scrollbar ─────────────────────────────── */}
+      {/* ── Category scrollbar (provider-driven sports) ────────── */}
       <div className="border-t border-line bg-panel-bg/60">
         <div className="no-scrollbar mx-auto flex max-w-[1600px] items-stretch gap-1 overflow-x-auto px-2 sm:px-4">
-          {CATEGORY_TABS.map(({ labelKey, label, href, Icon }) => {
+          {categoryTabs.map(({ labelKey, label, href, icon }) => {
             const active =
               pathname === href ||
               (href !== "/live" && isActive(href)) ||
@@ -210,17 +220,41 @@ export default function Header({ user, siteName }: { user: HeaderUser; siteName:
               (href === "/sports/football" && pathname === "/");
             return (
               <Link
-                key={label}
+                key={href}
                 href={href}
                 className={`flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2.5 text-xs font-bold transition-colors sm:text-sm ${
                   active ? "border-brand text-brand" : "border-transparent text-ink2 hover:text-ink"
                 }`}
               >
-                <Icon className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
+                {icon ? <span aria-hidden>{icon}</span> : labelKey === "nav.live" ? <IconLive className="h-4 w-4 sm:h-[18px] sm:w-[18px]" /> : null}
                 {labelKey ? t(labelKey) : label}
               </Link>
             );
           })}
+        </div>
+      </div>
+
+      {/* ── Sub-navigation pills: Highlights | Upcoming | Countries | Zoom Soccer ── */}
+      <div className="border-t border-line/70 bg-panel-bg/40">
+        <div className="no-scrollbar mx-auto flex max-w-[1600px] items-center gap-1 overflow-x-auto px-2 py-1.5 sm:px-4">
+          {FEED_VIEWS.map((v) => {
+            const active = activeView === v.id;
+            return (
+              <Link
+                key={v.id}
+                href={`/?view=${v.id}`}
+                className={`shrink-0 rounded-full px-3.5 py-1.5 text-[11px] font-bold transition-colors sm:text-xs ${
+                  active ? "bg-brand text-[#052e16]" : "bg-card text-ink2 hover:text-ink"
+                }`}
+                aria-current={active ? "page" : undefined}
+              >
+                {v.label}
+              </Link>
+            );
+          })}
+          <span className="ml-auto hidden shrink-0 text-[11px] font-semibold text-ink3 md:block">
+            {sports?.find((s) => s.slug === "football")?.name ?? "Football"} pre-match odds
+          </span>
         </div>
       </div>
 

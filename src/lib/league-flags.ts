@@ -141,3 +141,33 @@ export function flagForLeague(name: string | null | undefined): string {
   if (lower.includes("afc") || lower.includes("asian")) return "🌏";
   return "";
 }
+
+/**
+ * Country name for a competition — powers the "England • Premier League"
+ * card header. BetsAPI-style names carry the country prefix ("England -
+ * Premier League"); known leagues without a prefix get a fallback map.
+ */
+const LEAGUE_COUNTRY_FALLBACK: [string, string][] = [
+  ["premier league", "England"], ["championship", "England"], ["fa cup", "England"],
+  ["la liga", "Spain"], ["serie a", "Italy"], ["bundesliga", "Germany"],
+  ["ligue 1", "France"], ["eredivisie", "Netherlands"], ["primeira liga", "Portugal"],
+  ["scottish premiership", "Scotland"], ["super lig", "Turkey"], ["superliga", "Argentina"],
+  ["serie a brazil", "Brazil"], ["brazil", "Brazil"], ["mls", "USA"], ["major league soccer", "USA"],
+  ["nba", "USA"], ["mlb", "USA"], ["nfl", "USA"], ["nhl", "USA"],
+  ["champions league", "Europe"], ["europa league", "Europe"], ["conference league", "Europe"],
+  ["world cup", "International"], ["afcon", "Africa"], ["caf", "Africa"],
+];
+
+export function countryForLeague(name: string | null | undefined): string {
+  if (!name) return "";
+  const lower = name.toLowerCase();
+  // "England - Premier League" → "England" (first country token before " - ").
+  const prefix = lower.split(" - ")[0].trim();
+  for (const [country] of COUNTRY_FLAGS) {
+    if (prefix === country.toLowerCase()) return country;
+  }
+  for (const [key, country] of LEAGUE_COUNTRY_FALLBACK) {
+    if (lower.includes(key)) return country;
+  }
+  return "";
+}

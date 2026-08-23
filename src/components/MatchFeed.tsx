@@ -1,18 +1,31 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { createPortal } from "react-dom";
 import MatchCard from "@/components/MatchCard";
+import OddsButton from "@/components/OddsButton";
 import { IconChevronDown } from "@/components/icons";
 import { leagueRank } from "@/lib/league-rank";
 import { buildDateOptions, dayWindow, dateParamToValue, valueToDateParam } from "@/lib/feed-dates";
-import { flagForLeague } from "@/lib/league-flags";
+import { flagForLeague, countryForLeague } from "@/lib/league-flags";
 import { isLiveStatus } from "@/lib/game-status";
-import { apiMatchToFeedGame, type ApiFeedGame, type BetsApiMatchView } from "@/lib/providers/betsapi-transformer";
+import { apiMatchToFeedGame, toMatchView, type ApiFeedGame, type BetsApiMatchView } from "@/lib/providers/betsapi-transformer";
 
 type FeedGame = ApiFeedGame;
 
 export type { FeedGame };
+
+/** Sub-navigation view modes (header pills → ?view=). */
+export type FeedView = "highlights" | "upcoming" | "countries" | "zoom";
+export const FEED_VIEWS: { id: FeedView; label: string }[] = [
+  { id: "highlights", label: "Highlights" },
+  { id: "upcoming", label: "Upcoming" },
+  { id: "countries", label: "Countries" },
+  { id: "zoom", label: "Zoom Soccer" },
+];
+const isFeedView = (v: string | null): v is FeedView =>
+  v === "highlights" || v === "upcoming" || v === "countries" || v === "zoom";
 
 /** Module-level client cache: date/league switches never refetch once loaded. */
 const feedCache = new Map<string, ApiFeedGame[]>();
@@ -161,6 +174,67 @@ const bookable = (g: FeedGame) =>
   g.status !== "CANCELLED" &&
   g.markets.some((m) => m.outcomes.some((o) => Number(o.odds) > 1));
 
+/** Zoom Soccer — compact dense row: kickoff | stacked teams | 1/X/2 odds. */
+function ZoomRow({ game, preferMarkets }: { game: FeedGame; preferMarkets?: string[] }) {
+  const candidates = game.markets.filter((m) => m.status === "OPEN" && m.outcomes.some((o) => o.status === "ACTIVE"));
+  const main =
+    (preferMarkets ? candidates.find((m) => preferMarkets.includes(m.key)) : undefined) ??
+    candidates.find((m) => m.key === "h2h" || m.key === "MATCH_RESULT") ??
+    candidates[0];
+  const odds = main?.outcomes.filter((o) => o.status === "ACTIVE").slice(0, 3) ?? [];
+  const view = toMatchView(game);
+  const isOneXTwo = main?.key === "MATCH_RESULT" || main?.key === "h2h";
+  const rows = isOneXTwo
+    ? [
+        { label: "1", name: view.homeTeam, o: odds.find((x) => x.label === "1" || x.name === view.homeTeam) },
+        { label: "X", name: "Draw", o: odds.find((x) => (x.label ?? "").toLowerCase() === "x" || x.name.toLowerCase() === "draw") },
+        { label: "2", name: view.awayTeam, o: odds.find((x) => x.label === "2" || x.name === view.awayTeam) },
+      ]
+    : odds.map((o) => ({ label: o.label, name: o.name, o }));
+  return (
+    <div className="card card-hover flex items-center gap-3 px-3 py-2">
+      <span className="w-[4.5rem] shrink-0 text-[11px] font-medium tabular-nums text-ink3">
+        {view.kickoffTimeFormatted}
+      </span>
+      <div className="min-w-0 flex-1 space-y-0.5">
+        {rows.map((r, i) => (
+          <div key={i} className="flex items-center gap-1.5 text-sm font-semibold">
+            <span className="w-2 shrink-0 text-[10px] font-bold text-ink3">{r.label}</span>
+            <span className={i === 1 ? "truncate font-medium text-ink2" : "truncate"}>{r.name}</span>
+          </div>
+        ))}
+      </div>
+      <div className="flex shrink-0 items-center gap-1 [&_.odds-btn]:h-8 [&_.odds-btn]:w-10 [&_.odds-btn]:flex-none [&_.odds-btn]:text-xs">
+        {rows.map((r, i) =>
+          r.o ? (
+            <OddsButton
+              key={i}
+              outcomeId={r.o.id}
+              gameId={game.id}
+              sport={game.sport.name}
+              competition={view.leagueName}
+              home={view.homeTeam}
+              away={view.awayTeam}
+              startAt={game.startAt.toISOString()}
+              market={main.name}
+              marketKey={main.key}
+              outcome={r.o.name}
+              label={r.label}
+              odds={Number(r.o.odds)}
+              gameStatus={game.status}
+              live={view.isLive}
+            />
+          ) : (
+            <span key={i} className="flex h-8 w-10 items-center justify-center rounded-lg bg-card2 text-xs font-bold text-ink3">
+              -
+            </span>
+          ),
+        )}
+      </div>
+    </div>
+  );
+}
+
 /**
  * Match feed — pre-match only, chronological (soonest first), 30/page.
  *
@@ -240,11 +314,23 @@ export default function MatchFeed({
   const [league, setLeague] = useState<string>(() =>
     typeof window === "undefined" ? "" : (new URLSearchParams(window.location.search).get("league") ?? ""),
   );
-  const [sortMode, setSortMode] = useState<SortMode>("soonest");
+  const [sortMode, setSortMode] = useState<SortMode>("top");
   const [marketFilter, setMarketFilter] = useState<MarketFilter>("1x2");
   const [page, setPage] = useState(1);
   const listRef = useRef<HTMLDivElement>(null);
   const activeDate = dateOptions.find((o) => o.value === dateValue) ?? dateOptions[0];
+
+  // View mode follows the header sub-nav pills (?view=highlights|upcoming|
+  // countries|zoom). "Highlights" sorts top leagues first, "Upcoming" soonest.
+  const searchParams = useSearchParams();
+  const view: FeedView = isFeedView(searchParams?.get("view")) ? (searchParams.get("view") as FeedView) : "highlights";
+  // Sync sort mode with the view when it changes (adjust-during-render — the
+  // React-recommended replacement for setState-in-effect).
+  const [prevView, setPrevView] = useState<FeedView>(view);
+  if (prevView !== view) {
+    setPrevView(view);
+    setSortMode(view === "upcoming" ? "soonest" : "top");
+  }
 
   // Keep the URL in sync with the active filters (replaceState → no reload,
   // no history spam; links stay shareable).
@@ -320,6 +406,16 @@ export default function MatchFeed({
   const currentPage = Math.min(page, totalPages);
   const pageItems = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
+  /** Countries view — group the current page by the competition's country. */
+  const countryGroups = useMemo(() => {
+    const map = new Map<string, FeedGame[]>();
+    for (const g of pageItems) {
+      const key = countryForLeague(g.competitionName) || "Other";
+      map.set(key, [...(map.get(key) ?? []), g]);
+    }
+    return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
+  }, [pageItems]);
+
   const marketKeys = [...(MARKET_FILTERS.find((m) => m.id === marketFilter)!.keys)];
 
   /** Filter change resets pagination; page change scrolls back to the list. */
@@ -373,16 +469,10 @@ export default function MatchFeed({
         </div>
       )}
 
-      {/* Filter bar (Screenshot 2 style): Date | Leagues | sort + count */}
+      {/* Secondary control bar (Screenshot 1): Filters | Today | Highlights | 1x2 */}
       <div className="no-scrollbar -mx-4 flex items-center gap-1 overflow-x-auto px-4 sm:mx-0 sm:px-0">
         <Dropdown
-          label={activeDate.label}
-          activeValue={dateValue}
-          options={dateOptions.map((o) => ({ value: o.value, label: o.label, sublabel: o.dateLabel }))}
-          onSelect={selectDate}
-        />
-        <Dropdown
-          label={league ? `${flagForLeague(league)} ${league}` : "🏳️ Leagues"}
+          label={league ? `${flagForLeague(league)} ${league}` : "Filters"}
           activeValue={league}
           options={[
             { value: "", label: "All Leagues" },
@@ -390,69 +480,48 @@ export default function MatchFeed({
           ]}
           onSelect={selectLeague}
         />
+        <Dropdown
+          label={activeDate.label}
+          activeValue={dateValue}
+          options={dateOptions.map((o) => ({ value: o.value, label: o.label, sublabel: o.dateLabel }))}
+          onSelect={selectDate}
+        />
+        <Dropdown
+          label={sortMode === "top" ? "Highlights" : "Upcoming"}
+          activeValue={sortMode}
+          options={[
+            { value: "top", label: "Highlights — Top Leagues" },
+            { value: "soonest", label: "Upcoming — Soonest First" },
+          ]}
+          onSelect={(v) => selectSort(v as SortMode)}
+        />
+        <Dropdown
+          label={MARKET_FILTERS.find((m) => m.id === marketFilter)?.label ?? "1x2"}
+          activeValue={marketFilter}
+          options={MARKET_FILTERS.map((m) => ({ value: m.id, label: m.label }))}
+          onSelect={(v) => {
+            setMarketFilter(v as MarketFilter);
+            setPage(1);
+          }}
+        />
+        <span className="ml-auto shrink-0 pl-2 text-[11px] font-semibold text-ink3">{filtered.length} matches</span>
+      </div>
 
-        <span className="ml-auto flex shrink-0 items-center gap-1">
-          <span className="hidden rounded-full bg-card p-0.5 sm:flex">
-            <button
-              onClick={() => selectSort("soonest")}
-              className={`rounded-full px-2.5 py-1 text-[11px] font-bold transition-colors ${
-                sortMode === "soonest" ? PILL_ACTIVE : "text-ink3 hover:text-ink"
-              }`}
-            >
-              Soonest
-            </button>
-            <button
-              onClick={() => selectSort("top")}
-              className={`rounded-full px-2.5 py-1 text-[11px] font-bold transition-colors ${
-                sortMode === "top" ? PILL_ACTIVE : "text-ink3 hover:text-ink"
-              }`}
-            >
-              Top Leagues
-            </button>
+      {/* Column header strip: Teams left · 1 / X / 2 headers right (1x2 view) */}
+      {marketFilter === "1x2" && view !== "zoom" && pageItems.length > 0 && (
+        <div className="mt-3 flex items-center justify-between gap-3 border-b border-line pb-1.5 pl-3 pr-3 text-[10px] font-bold uppercase tracking-wider text-ink3 sm:pl-4 sm:pr-4">
+          <span>Teams</span>
+          <span className="flex shrink-0 items-center gap-1">
+            <span className="w-11 text-center">1</span>
+            <span className="w-11 text-center">X</span>
+            <span className="w-11 text-center">2</span>
           </span>
-          <span className="hidden text-[11px] font-semibold text-ink3 md:block">{filtered.length} matches</span>
-        </span>
-      </div>
+        </div>
+      )}
 
-      {/* Market filter tabs — directly underneath the filter bar */}
-      <div className="no-scrollbar -mx-4 mt-2 flex items-center gap-1 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-        {MARKET_FILTERS.map((m) => (
-          <button
-            key={m.id}
-            onClick={() => {
-              setMarketFilter(m.id);
-              setPage(1);
-            }}
-            className={`rounded-lg px-3 py-1.5 text-[11px] font-bold transition-colors ${
-              marketFilter === m.id ? PILL_ACTIVE : PILL
-            }`}
-          >
-            {m.label}
-          </button>
-        ))}
-        {/* Mobile sort toggle */}
-        <span className="ml-auto flex rounded-full bg-card p-0.5 sm:hidden">
-          <button
-            onClick={() => selectSort("soonest")}
-            className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
-              sortMode === "soonest" ? PILL_ACTIVE : "text-ink3"
-            }`}
-          >
-            Soonest
-          </button>
-          <button
-            onClick={() => selectSort("top")}
-            className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
-              sortMode === "top" ? PILL_ACTIVE : "text-ink3"
-            }`}
-          >
-            Top Leagues
-          </button>
-        </span>
-      </div>
-
-      {/* Match list (paginated) */}
-      <div ref={listRef} className="mt-3 scroll-mt-24 space-y-3">
+      {/* Match list (paginated) — view modes: highlights/upcoming = cards,
+          countries = grouped by country, zoom = compact rows */}
+      <div ref={listRef} className="mt-3 scroll-mt-24">
         {feedError ? (
           <div className="card p-10 text-center text-sm text-ink3">
             Live feed unavailable — {feedError}. Check the API key in Admin → API Settings.
@@ -462,8 +531,27 @@ export default function MatchFeed({
             No matches on {activeDate.label} {activeDate.dateLabel}
             {league ? ` in ${league}` : ""} — try another date or league.
           </div>
+        ) : view === "zoom" ? (
+          <div className="space-y-2">
+            {pageItems.map((g) => <ZoomRow key={g.id} game={g} preferMarkets={marketKeys} />)}
+          </div>
+        ) : view === "countries" ? (
+          <div className="space-y-5">
+            {countryGroups.map(([country, games]) => (
+              <div key={country}>
+                <h3 className="mb-2 flex items-center gap-2 text-xs font-bold text-ink3">
+                  <span className="h-1 w-1 rounded-full bg-brand" /> {country}
+                </h3>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {games.map((g) => <MatchCard key={g.id} game={g} preferMarkets={marketKeys} />)}
+                </div>
+              </div>
+            ))}
+          </div>
         ) : (
-          pageItems.map((g) => <MatchCard key={g.id} game={g} preferMarkets={marketKeys} />)
+          <div className="space-y-3">
+            {pageItems.map((g) => <MatchCard key={g.id} game={g} preferMarkets={marketKeys} />)}
+          </div>
         )}
       </div>
 
