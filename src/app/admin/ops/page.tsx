@@ -6,6 +6,7 @@ import {
   IconPlug,
   IconGear,
   IconLightning,
+  IconCoins,
 } from "@/components/icons";
 
 export const dynamic = "force-dynamic";
@@ -14,76 +15,94 @@ type Op = {
   name: string;
   route: string;
   description: string;
-  type: "Monitor" | "Sync" | "API" | "Cron" | "Admin";
-  external?: boolean;
+  type: "Monitor" | "Sync" | "Cron" | "API" | "Admin";
 };
 
-/** Daily operations — the pages and endpoints an operator touches regularly. */
+/** Daily operations — the pages and endpoints an operator touches regularly.
+ *  Descriptions kept brief on purpose. */
 const OPS: Op[] = [
   {
     name: "Live Monitor",
     route: "/live",
-    description:
-      "In-play matches with real-time scores and ticking timers. Auto-refreshes every live.refreshSeconds and pulls fresh scores from BetsAPI inplay on each poll (throttled to 1 request per window).",
+    description: "In-play matches, scores + ticking clocks. Auto-refreshes and pulls BetsAPI inplay (throttled).",
+    type: "Monitor",
+  },
+  {
+    name: "Today's Pre-match",
+    route: "/",
+    description: "Today's fixtures + odds on the homepage — DB-first feed (The Odds API → API-Football → DB).",
     type: "Monitor",
   },
   {
     name: "Match Results",
     route: "/results",
-    description: "Finished matches with final scores — spot-check before settlement kicks in.",
+    description: "Finished matches with final scores — spot-check before settlement.",
     type: "Monitor",
   },
   {
-    name: "Sync API",
+    name: "Manual Sync",
     route: "/admin/games",
-    description:
-      "Pull upcoming fixtures + prematch odds from the primary provider (⟳ Sync API button on the Games page). Cost: 1 upcoming list + N prematch requests per run.",
+    description: "⟳ Sync API button — pull fixtures + odds now. Costs ~10 requests; use sparingly.",
     type: "Sync",
+  },
+  {
+    name: "Auto-Sync Cron",
+    route: "/api/cron/sync",
+    description: "Scheduled pre-match sync + live refresh. Call every ~6h with ?secret= (free-tier budget).",
+    type: "Cron",
+  },
+  {
+    name: "Settlement Cron",
+    route: "/api/cron/settle",
+    description: "Auto-settles finished games (WON/LOST/VOID). Call every ~10–15 min with ?secret=.",
+    type: "Cron",
   },
   {
     name: "API Settings & Test",
     route: "/admin/api-settings",
-    description:
-      "BetsAPI credentials (RapidAPI key / host / base), primary-provider toggle, and the 2-step Test Primary Connection (upcoming list + prematch market chips). Saving clears the feed cache.",
+    description: "BetsAPI live-engine credentials (RapidAPI key/host/base) + connection test. Not pre-match.",
     type: "Admin",
   },
   {
-    name: "Feed Proxy (homepage)",
-    route: "/api/betsapi/matches",
-    description:
-      "Transformed upcoming feed behind the homepage — BetsAPI first, The Odds API free fallback when quota-blocked, stale snapshot while everything is down. TTL-cached.",
+    name: "Feed Proxy",
+    route: "/api/feed/matches",
+    description: "Homepage pre-match feed route (The Odds API → API-Football → DB). TTL-cached 6h.",
     type: "API",
   },
   {
     name: "Health Check",
     route: "/api/test/all",
-    description:
-      "Full BetsAPI health array — 7 endpoints checked sequentially (inplay, event, upcoming, league, prematch, result). Burns several rate-limited requests per run.",
+    description: "Full BetsAPI diagnostics (7 endpoints). Burns rate-limited requests — run only when needed.",
     type: "API",
   },
   {
-    name: "Settlement Cron",
-    route: "/api/cron/settle",
-    description:
-      "Settles finished games into WON/LOST after settlement.delayMinutes (10 min default). Call every ~10 min from any scheduler with the cron secret.",
-    type: "Cron",
-  },
-  {
-    name: "Announce",
-    route: "/admin/notifications",
-    description: "Post a site-wide announcement banner — shows on every page until dismissed (client polls every 60s).",
+    name: "Default Currency",
+    route: "/admin/settings/currency",
+    description: "Platform-wide display currency (KES/TZS/UGX/USD/EUR/GHS) — betslip + balances re-label instantly.",
     type: "Admin",
   },
   {
     name: "Currencies",
     route: "/admin/currencies",
-    description: "Deposit/payout currencies and rates — edits apply immediately (cache invalidated on save).",
+    description: "Currency table + rates. Edits apply immediately (cache invalidated on save).",
+    type: "Admin",
+  },
+  {
+    name: "Announce",
+    route: "/admin/notifications",
+    description: "Site-wide announcement banner — shows until dismissed (client polls every 60s).",
     type: "Admin",
   },
   {
     name: "Audit Logs",
     route: "/admin/audit",
-    description: "Trail of admin actions (CREATE / UPDATE / DELETE) across games, users, payments and config.",
+    description: "Admin action trail (CREATE/UPDATE/DELETE) across games, users, payments, config.",
+    type: "Admin",
+  },
+  {
+    name: "Website Settings",
+    route: "/admin/settings",
+    description: "Branding, limits, odds provider (the-odds-api/api-football), support, payments, cron secret.",
     type: "Admin",
   },
 ];
@@ -91,16 +110,16 @@ const OPS: Op[] = [
 const TYPE_STYLE: Record<Op["type"], string> = {
   Monitor: "bg-sky-500/15 text-sky-400",
   Sync: "bg-brand/15 text-brand",
-  API: "bg-purple-500/15 text-purple-400",
   Cron: "bg-amber-500/15 text-amber-400",
-  Admin: "bg-white/10 text-ink2",
+  API: "bg-purple-500/15 text-purple-400",
+  Admin: "bg-hover-tint text-ink2",
 };
 
 const TYPE_ICON: Record<Op["type"], React.ReactNode> = {
   Monitor: <IconTv className="h-3.5 w-3.5" />,
   Sync: <IconGear className="h-3.5 w-3.5" />,
-  API: <IconPlug className="h-3.5 w-3.5" />,
   Cron: <IconCalendar className="h-3.5 w-3.5" />,
+  API: <IconPlug className="h-3.5 w-3.5" />,
   Admin: <IconLightning className="h-3.5 w-3.5" />,
 };
 
@@ -121,7 +140,7 @@ export default async function OpsPage() {
           <IconCalendar className="h-3.5 w-3.5" /> {upcomingCount} upcoming
         </span>
         <span className="flex items-center gap-2 rounded-lg bg-hover-tint px-3 py-1.5 text-xs font-bold text-ink2">
-          <IconLightning className="h-3.5 w-3.5" /> Ops reference — links + costs
+          <IconCoins className="h-3.5 w-3.5" /> Ops reference — links + request costs
         </span>
       </div>
 
@@ -138,7 +157,7 @@ export default async function OpsPage() {
           </thead>
           <tbody>
             {OPS.map((op) => (
-              <tr key={op.name} className="border-b border-line/60 transition-colors last:border-0 hover:bg-white/[0.03]">
+              <tr key={op.name} className="border-b border-line/60 transition-colors last:border-0 hover:bg-hover-tint">
                 <td className="px-4 py-3">
                   <Link href={op.route} className="font-bold text-ink hover:text-brand">
                     {op.name}
@@ -161,8 +180,8 @@ export default async function OpsPage() {
       </div>
 
       <p className="mt-3 text-xs text-ink3">
-        Tip: watch request budgets — each Sync, Test Connection, Health Check and feed refresh counts against the
-        RapidAPI hourly quota.
+        Budget watch: The Odds API free tier = 500 req/month (~40/mo at 6h cron). BetsAPI = RapidAPI quota
+        (live polling 1 req/60s + manual tests).
       </p>
     </div>
   );
