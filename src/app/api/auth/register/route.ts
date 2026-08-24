@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { handle, ok, ApiError } from "@/lib/api";
 import { hashPassword, createSession } from "@/lib/auth";
+import { generateReferralCode } from "@/lib/referral";
 import { prisma } from "@/lib/prisma";
 import { rateLimit } from "@/lib/rate-limit";
 
@@ -86,10 +87,3 @@ export const POST = handle(async (req: NextRequest) => {
   return ok({ user: { id: user.id, username: user.username, email: user.email } });
 });
 
-/** Fresh unique share code like VOLT-K7X2QP (retries on the 1-in-a-billion collision). */
-function generateReferralCode(): string {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I
-  const part = () =>
-    Array.from({ length: 6 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join("");
-  return `VOLT-${part()}`;
-}

@@ -16,6 +16,12 @@ export default function AdminUsers() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
   const [selected, setSelected] = useState<UserRow | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState({
+    fullName: "", username: "", email: "", phone: "", password: "",
+    role: "CUSTOMER", status: "ACTIVE", currencyCode: "KES", initialBalance: "0",
+  });
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams();
@@ -32,11 +38,36 @@ export default function AdminUsers() {
     if (r.ok) setUsers(r.data.users);
   }
 
+  async function createUser(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    const res = await apiFetch<{ user: { username: string } }>("/api/admin/users", {
+      method: "POST",
+      body: {
+        ...form,
+        initialBalance: Number(form.initialBalance),
+      },
+    });
+    setSaving(false);
+    if (!res.ok) {
+      setSaving(false);
+      return push("error", res.error.message);
+    }
+    push("success", `User @${res.data.user.username} created — verified & active.`);
+    setCreating(false);
+    setForm({ fullName: "", username: "", email: "", phone: "", password: "", role: "CUSTOMER", status: "ACTIVE", currencyCode: "KES", initialBalance: "0" });
+    const r = await apiFetch<{ users: UserRow[] }>(`/api/admin/users`);
+    if (r.ok) setUsers(r.data.users);
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-bold">Users ({users.length})</h2>
         <div className="flex gap-3">
+          <button className="btn btn-primary btn-sm" onClick={() => setCreating(true)}>
+            + Add User
+          </button>
           <input className="input w-52" placeholder="Search username / email / name" value={q} onChange={(e) => setQ(e.target.value)} />
           <select className="input w-44" value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="">All statuses</option>
@@ -67,6 +98,80 @@ export default function AdminUsers() {
           </button>
         ))}
       </div>
+
+      {/* Add User modal — create a real (non-demo) account */}
+      {creating && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
+          <div className="fade-in absolute inset-0 bg-black/70" onClick={() => setCreating(false)} />
+          <form onSubmit={createUser} className="fade-in card max-h-[90vh] w-full max-w-lg overflow-y-auto p-6">
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="text-lg font-bold">Add User</h3>
+                <p className="text-xs text-ink3">Creates a real account — verified &amp; active immediately (no demo/seed).</p>
+              </div>
+              <button type="button" className="text-ink3 hover:text-ink" onClick={() => setCreating(false)}>✕</button>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <label className="label">Full name</label>
+                <input className="input" required minLength={2} value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} placeholder="Jane Muthoni" />
+              </div>
+              <div>
+                <label className="label">Username</label>
+                <input className="input" required minLength={3} pattern="[a-zA-Z0-9_]+" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} placeholder="jane_m" />
+              </div>
+              <div>
+                <label className="label">Phone</label>
+                <input className="input" required pattern="\+?[0-9]{9,15}" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+2547…" />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="label">Email</label>
+                <input className="input" type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="jane@example.com" />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="label">Password (min 8, letters + numbers)</label>
+                <input className="input" type="password" required minLength={8} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="••••••••" />
+              </div>
+              <div>
+                <label className="label">Role</label>
+                <select className="input" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
+                  <option value="CUSTOMER">Customer</option>
+                  <option value="SPORTS_MANAGER">Sports Manager</option>
+                  <option value="FINANCE_MANAGER">Finance Manager</option>
+                  <option value="SUPPORT_MANAGER">Support Manager</option>
+                  <option value="CONTENT_MANAGER">Content Manager</option>
+                </select>
+              </div>
+              <div>
+                <label className="label">Status</label>
+                <select className="input" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+                  <option value="ACTIVE">Active</option>
+                  <option value="PENDING_VERIFICATION">Pending Verification</option>
+                  <option value="SUSPENDED">Suspended</option>
+                </select>
+              </div>
+              <div>
+                <label className="label">Currency</label>
+                <select className="input" value={form.currencyCode} onChange={(e) => setForm({ ...form, currencyCode: e.target.value })}>
+                  {["KES", "USD", "EUR", "UGX", "TZS", "GHS"].map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="label">Initial balance</label>
+                <input className="input" type="number" min="0" step="any" value={form.initialBalance} onChange={(e) => setForm({ ...form, initialBalance: e.target.value })} />
+              </div>
+            </div>
+
+            <div className="mt-5 flex gap-3">
+              <button type="button" className="btn btn-ghost flex-1" onClick={() => setCreating(false)}>Cancel</button>
+              <button type="submit" className="btn btn-primary flex-1" disabled={saving}>
+                {saving ? "Creating…" : "Create User"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* User detail modal */}
       {selected && (

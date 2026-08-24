@@ -7,6 +7,15 @@ import { getSettings } from "./settings";
  * in Admin → Website Settings → Referrals.
  */
 
+/** Fresh unique share code like VOLT-K7X2QP (retries on the 1-in-a-billion
+ *  collision). Shared by self-registration and admin-created users. */
+export function generateReferralCode(): string {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I
+  const part = () =>
+    Array.from({ length: 6 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join("");
+  return `VOLT-${part()}`;
+}
+
 type Tx = Prisma.TransactionClient;
 type DepositWithUser = Deposit & { user: { id: string; referredByCode: string | null } };
 
