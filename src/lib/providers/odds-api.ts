@@ -84,11 +84,17 @@ export class TheOddsApi implements OddsProvider {
       }[];
       for (const ev of data) {
         const markets: ApiGame["markets"] = [];
-        const bookmaker = ev.bookmakers[0];
-        for (const m of bookmaker?.markets ?? []) {
+        // Aggregate across bookmakers: for each requested market take the FIRST
+        // book that offers it. bookmakers[0] alone silently drops markets —
+        // e.g. FanDuel lists h2h only while totals sits at other books
+        // (verified live 2026-08-25: Valencia v Real Betis, 8 books).
+        for (const key of ["h2h", "totals"] as const) {
+          const book = ev.bookmakers.find((b) => b.markets.some((m) => m.key === key));
+          const m = book?.markets.find((m) => m.key === key);
+          if (!m?.outcomes?.length) continue;
           markets.push({
-            key: m.key === "h2h" ? "MATCH_RESULT" : m.key === "totals" ? "OVER_UNDER" : m.key,
-            name: m.key === "h2h" ? "Match Result" : m.key === "totals" ? "Over/Under" : m.key,
+            key: key === "h2h" ? "MATCH_RESULT" : key === "totals" ? "OVER_UNDER" : key,
+            name: key === "h2h" ? "Match Result" : key === "totals" ? "Over/Under" : key,
             outcomes: applyMarginGrid(
               m.outcomes.map((o) => ({ name: o.name, odds: o.price })),
               (await getSettings()).oddsMarginPercent,
@@ -112,14 +118,18 @@ export class TheOddsApi implements OddsProvider {
     const scores: ApiScore[] = [];
     for (const sportKey of sportKeys) {
       const data = (await this.get(`/sports/${encodeURIComponent(sportKey)}/scores?daysFrom=1`)) as {
-        id: string; completed: boolean; scores?: { name: string; score: string }[];
+        id: string; completed: boolean; home_team: string; away_team: string;
+        scores?: { name: string; score: string }[] | null;
       }[];
       for (const ev of data) {
-        const hs = ev.scores?.find((s) => s.name === "home")?.score;
-        const as = ev.scores?.find((s) => s.name === "away")?.score;
+        // /scores reports scores by TEAM NAME (not "home"/"away") — match them
+        // to the fixture's participants. Upcoming (not started) games have
+        // scores:null and must NOT be marked live.
+        const hs = ev.scores?.find((s) => s.name === ev.home_team)?.score;
+        const as = ev.scores?.find((s) => s.name === ev.away_team)?.score;
         scores.push({
           externalId: ev.id,
-          status: ev.completed ? "finished" : "live",
+          status: ev.completed ? "finished" : ev.scores ? "live" : "scheduled",
           homeScore: hs !== undefined ? Number(hs) : undefined,
           awayScore: as !== undefined ? Number(as) : undefined,
         });
