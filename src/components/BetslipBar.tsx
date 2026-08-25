@@ -35,15 +35,9 @@ export default function BetslipBar() {
           </span>
         </span>
 
-        {/* Center — circular selection count badge */}
-        <span
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-black/80 bg-[#FFD700] text-sm font-black tabular-nums shadow-[0_2px_8px_rgba(0,0,0,0.35)]"
-          aria-hidden
-        >
-          {count}
-        </span>
-
         {/* Right — potential return */}
+        {/* Note: no center count badge here — the bottom-nav FAB is the sole
+            bet-count indicator (BetslipBar is just odds + payout). */}
         <span className="flex min-w-0 flex-col items-end">
           <span className="text-[10px] font-bold uppercase tracking-wider text-black/60">Payout</span>
           <span className="truncate text-base font-black leading-tight tabular-nums">
