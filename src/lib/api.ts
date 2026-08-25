@@ -89,7 +89,7 @@ export async function requireUser(): Promise<User> {
 const RESOURCES = [
   "dashboard", "sports", "games", "markets", "odds", "results", "live",
   "settlements", "bets", "deposits", "withdrawals", "transactions", "crypto",
-  "currencies", "languages", "promotions", "testimonials", "banners",
+  "currencies", "languages", "promotions", "banners",
   "users", "notifications", "support", "settings", "statuses", "audit",
 ] as const;
 export type Resource = (typeof RESOURCES)[number];
@@ -99,7 +99,7 @@ const ROLE_RESOURCES: Record<string, Resource[]> = {
   SPORTS_MANAGER: ["dashboard", "sports", "games", "markets", "odds", "results", "live", "settlements", "bets"],
   FINANCE_MANAGER: ["dashboard", "deposits", "withdrawals", "transactions", "crypto", "currencies", "users", "bets"],
   SUPPORT_MANAGER: ["dashboard", "users", "notifications", "support"],
-  CONTENT_MANAGER: ["dashboard", "promotions", "testimonials", "banners", "languages"],
+  CONTENT_MANAGER: ["dashboard", "promotions", "banners", "languages"],
 };
 
 export function can(role: string, resource: Resource) {

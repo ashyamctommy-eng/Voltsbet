@@ -24,7 +24,7 @@ function hasFreshApiGames(games: { source: string; updatedAt: Date }[]): boolean
 
 export default async function HomePage() {
   const s = await getSettings();
-  const [banners, dbGames, popularSports, promotions, testimonials] = await Promise.all([
+  const [banners, dbGames, popularSports, promotions] = await Promise.all([
     prisma.banner.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
     // Synced DB games (cron sync keeps them fresh). Rendered first when recent
     // — this is the free-tier-friendly path: 0 API requests per page load.
@@ -51,7 +51,6 @@ export default async function HomePage() {
       orderBy: { sortOrder: "asc" },
       take: 3,
     }),
-    prisma.testimonial.findMany({ where: { status: "APPROVED" }, orderBy: { sortOrder: "asc" }, take: 4 }),
   ]);
 
   const dbFresh = hasFreshApiGames(dbGames);
@@ -134,27 +133,6 @@ export default async function HomePage() {
                 <h3 className="mt-3 font-bold">{p.title}</h3>
                 <p className="mt-1 text-sm text-ink2 line-clamp-2">{p.description}</p>
               </Link>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Testimonials */}
-      {testimonials.length > 0 && (
-        <section className="mt-10">
-          <h2 className="mb-4 text-lg font-bold">What Players Say</h2>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {testimonials.map((t) => (
-              <div key={t.id} className="card p-5">
-                <div className="text-sm text-amber-400">{"★".repeat(t.rating)}</div>
-                <p className="mt-2 text-sm text-ink2">“{t.text}”</p>
-                <div className="mt-4 flex items-center gap-2">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent/20 text-xs font-bold text-accent">
-                    {t.name.slice(0, 1)}
-                  </span>
-                  <span className="text-sm font-semibold">{t.name}</span>
-                </div>
-              </div>
             ))}
           </div>
         </section>
