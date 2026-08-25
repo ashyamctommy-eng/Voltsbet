@@ -52,6 +52,15 @@ export interface OddsProvider {
 import { applyMarginGrid } from "../margin";
 import { getSettings } from "../settings";
 
+/**
+ * In-memory response cache for pre-match odds — responses are effectively
+ * immutable within a 30–60 min window, so repeated syncs, admin syncs and
+ * cold-bootstraps share ONE API request per league instead of burning quota.
+ * TTL configurable via ODDS_API_CACHE_TTL_SECONDS (default 1800 = 30 min).
+ */
+const oddsCache = new Map<string, { at: number; data: unknown }>();
+const ODDS_CACHE_TTL_MS = (Number(process.env.ODDS_API_CACHE_TTL_SECONDS) || 30 * 60) * 1000;
+
 export class TheOddsApi implements OddsProvider {
   id = "the-odds-api";
   private base = "https://api.the-odds-api.com/v4";
@@ -76,13 +85,25 @@ export class TheOddsApi implements OddsProvider {
     const regions = process.env.ODDS_API_REGIONS ?? "us";
     for (const sportKey of sportKeys) {
       // h2h = moneyline; totals = over/under. One request per sport per market.
-      const data = (await this.get(
-        `/sports/${encodeURIComponent(sportKey)}/odds?regions=${regions}&markets=h2h,totals&oddsFormat=decimal`
-      )) as {
+      const cacheKey = `${sportKey}:${regions}`;
+      const hit = oddsCache.get(cacheKey);
+      let data: {
         id: string; commence_time: string; home_team: string; away_team: string;
         bookmakers: { markets: { key: string; outcomes: { name: string; price: number }[] }[] }[];
       }[];
+      if (hit && Date.now() - hit.at < ODDS_CACHE_TTL_MS) {
+        data = hit.data as typeof data; // served from cache — 0 API cost
+      } else {
+        data = (await this.get(
+          `/sports/${encodeURIComponent(sportKey)}/odds?regions=${regions}&markets=h2h,totals&oddsFormat=decimal`
+        )) as typeof data;
+        oddsCache.set(cacheKey, { at: Date.now(), data });
+      }
+      // Unpriced-league filter: leagues with NO active US-book prices (Saudi
+      // Pro League, African leagues on the free tier) return 0 bookmakers —
+      // skip them entirely so no empty cards / suspended overlays ever render.
       for (const ev of data) {
+        if (!ev.bookmakers?.length) continue;
         const markets: ApiGame["markets"] = [];
         // Aggregate across bookmakers: for each requested market take the FIRST
         // book that offers it. bookmakers[0] alone silently drops markets —
@@ -101,6 +122,7 @@ export class TheOddsApi implements OddsProvider {
             ),
           });
         }
+        if (!markets.length) continue; // books exist but no h2h/totals prices → skip
         games.push({
           externalId: ev.id,
           sportKey,

@@ -62,7 +62,11 @@ export default async function HomePage() {
     apiFeed?.matches.length
       ? apiFeed.matches.map(apiMatchToFeedGame)
       : (dbGames as MatchFeedGame[])
-  ).filter((g) => !isLiveStatus(g.status, g.live));
+  )
+    // Unpriced fixtures (no active bookmaker markets) are never displayed —
+    // no empty cards, no suspended overlays.
+    .filter((g) => !Array.isArray((g as { markets?: unknown[] }).markets) || (g as { markets: unknown[] }).markets.length > 0)
+    .filter((g) => !isLiveStatus(g.status, g.live));
 
   return (
     <div className="mx-auto max-w-[1600px] px-4">

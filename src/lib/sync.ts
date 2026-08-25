@@ -49,6 +49,17 @@ const SPORT_KEY_MAP: Record<string, string> = {
   // Rest of the big five
   soccer_epl: "football", soccer_italy_serie_a: "football",
   soccer_germany_bundesliga: "football", soccer_france_ligue_one: "football",
+  // Verified priced additions — live US free-tier probe 2026-08-25 (6-8 books)
+  soccer_italy_serie_b: "football",
+  soccer_germany_bundesliga2: "football",
+  soccer_france_ligue_two: "football",
+  soccer_spain_segunda_division: "football",
+  soccer_netherlands_eredivisie: "football",
+  soccer_portugal_primeira_liga: "football",
+  soccer_spl: "football",
+  soccer_brazil_campeonato: "football",
+  soccer_usa_mls: "football",
+  soccer_turkey_super_league: "football",
   football: "football", // api-football (API-Football) sport key
   basketball_nba: "basketball",
   baseball_mlb: "baseball", icehockey_nhl: "ice-hockey",
@@ -103,6 +114,9 @@ export async function syncGames(providerId?: string) {
 
   let created = 0, updated = 0;
   for (const game of games) {
+    // Unpriced-league filter: fixtures with no active market prices are never
+    // synced, so empty cards never reach the homepage.
+    if (!game.markets?.length) continue;
     const sportSlug = SPORT_KEY_MAP[game.sportKey];
     const sport = await prisma.sport.findUnique({ where: { slug: sportSlug } });
     if (!sport) continue;

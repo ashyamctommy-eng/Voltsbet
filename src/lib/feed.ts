@@ -52,6 +52,17 @@ const FEED_LEAGUES = [
   "soccer_italy_serie_a",
   "soccer_germany_bundesliga",
   "soccer_france_ligue_one",
+  // Verified priced additions — live US free-tier probe 2026-08-25
+  "soccer_italy_serie_b",
+  "soccer_germany_bundesliga2",
+  "soccer_france_ligue_two",
+  "soccer_spain_segunda_division",
+  "soccer_netherlands_eredivisie",
+  "soccer_portugal_primeira_liga",
+  "soccer_spl",
+  "soccer_brazil_campeonato",
+  "soccer_usa_mls",
+  "soccer_turkey_super_league",
 ];
 
 export type FeedSource = "the-odds-api" | "api-football";
@@ -75,9 +86,16 @@ export const LEAGUE_TITLES: Record<string, string> = {
   soccer_uefa_champs_league_qualification: "Europe - UEFA Champions League Qualifiers",
   soccer_uefa_europa_league: "Europe - UEFA Europa League",
   soccer_uefa_nations_league: "Europe - UEFA Nations League",
+  soccer_italy_serie_b: "Italy - Serie B",
+  soccer_germany_bundesliga2: "Germany - Bundesliga 2",
+  soccer_france_ligue_two: "France - Ligue 2",
+  soccer_spain_segunda_division: "Spain - Segunda Division",
   soccer_netherlands_eredivisie: "Netherlands - Eredivisie",
   soccer_portugal_primeira_liga: "Portugal - Primeira Liga",
+  soccer_spl: "Scotland - Premiership",
   soccer_brazil_campeonato: "Brazil - Serie A",
+  soccer_usa_mls: "USA - MLS",
+  soccer_turkey_super_league: "Turkey - Super Lig",
 };
 
 /**
@@ -109,6 +127,7 @@ export async function getPrematchFeed(
         const games = await provider.fetchUpcomingGames(keys);
         const matches = games
           .filter((g) => g.startAt.getTime() > Date.now() - 30 * 60_000) // keep ~now + upcoming
+          .filter((g) => g.markets?.length > 0) // unpriced fixtures never display
           .sort((a, b) => a.startAt.getTime() - b.startAt.getTime())
           .slice(0, limit)
           .map(apiGameToMatchView);
