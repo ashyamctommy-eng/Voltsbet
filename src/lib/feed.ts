@@ -36,29 +36,45 @@ const FEED_EVENTS = Number(process.env.FEED_EVENTS ?? process.env.BETSAPI_FEED_E
 const FEED_TTL_SECONDS = Number(process.env.FEED_TTL_SECONDS ?? 6 * 60 * 60) || 21600;
 
 /** Preferred soccer leagues for the feed; override via ODDS_API_FALLBACK_LEAGUES
- *  (1 credit each against The Odds API). */
+ *  (1 credit each against The Odds API). Priority: UEFA → EFL → La Liga →
+ *  rest of the big five (product decision 2026-08-25). */
 const FEED_LEAGUES = [
-  "soccer_epl",
-  "soccer_spain_la_liga",
-  "soccer_germany_bundesliga",
-  "soccer_italy_serie_a",
-  "soccer_france_ligue_one",
   "soccer_uefa_champs_league",
+  "soccer_uefa_champs_league_qualification",
+  "soccer_uefa_europa_league",
+  "soccer_uefa_nations_league",
+  "soccer_efl_champ",
+  "soccer_england_league1",
+  "soccer_england_league2",
+  "soccer_england_efl_cup",
+  "soccer_spain_la_liga",
+  "soccer_epl",
+  "soccer_italy_serie_a",
+  "soccer_germany_bundesliga",
+  "soccer_france_ligue_one",
 ];
 
 export type FeedSource = "the-odds-api" | "api-football";
 
 let cache: { at: number; matches: BetsApiMatchView[]; source: FeedSource } | null = null;
 
-/** The Odds API sport key → display league name ("soccer_epl" → "England - Premier League"). */
-const LEAGUE_TITLES: Record<string, string> = {
+/** The Odds API sport key → display league name ("soccer_epl" → "England - Premier League").
+ *  Also used by the sync to stamp a league name on games (the Odds API odds
+ *  payload has no per-game league name, only the sport key). */
+export const LEAGUE_TITLES: Record<string, string> = {
   soccer_epl: "England - Premier League",
+  soccer_efl_champ: "England - Championship",
+  soccer_england_league1: "England - League One",
+  soccer_england_league2: "England - League Two",
+  soccer_england_efl_cup: "England - EFL Cup",
   soccer_spain_la_liga: "Spain - La Liga",
   soccer_germany_bundesliga: "Germany - Bundesliga",
   soccer_italy_serie_a: "Italy - Serie A",
   soccer_france_ligue_one: "France - Ligue 1",
   soccer_uefa_champs_league: "Europe - UEFA Champions League",
+  soccer_uefa_champs_league_qualification: "Europe - UEFA Champions League Qualifiers",
   soccer_uefa_europa_league: "Europe - UEFA Europa League",
+  soccer_uefa_nations_league: "Europe - UEFA Nations League",
   soccer_netherlands_eredivisie: "Netherlands - Eredivisie",
   soccer_portugal_primeira_liga: "Portugal - Primeira Liga",
   soccer_brazil_campeonato: "Brazil - Serie A",

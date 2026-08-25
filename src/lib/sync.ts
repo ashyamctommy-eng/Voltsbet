@@ -14,6 +14,7 @@ import { teamLogo } from "@/lib/team-logos";
 import { getSettings, setSetting } from "@/lib/settings";
 import { deriveDoubleChance, deriveDrawNoBet } from "@/lib/derived-markets";
 import { ApiFootballProvider } from "@/lib/providers/api-football";
+import { LEAGUE_TITLES } from "@/lib/feed";
 
 export const PROVIDERS: Record<string, () => OddsProvider> = {
   "the-odds-api": () => new TheOddsApi(), // primary — free 500 req/month, clean h2h/totals
@@ -33,8 +34,21 @@ export const PROVIDER_KEY_ENV: Record<string, string> = {
 // tournament-specific (tennis_atp_cincinnati_open, …) and cricket_ipl only
 // exists during its season — add them back when in season, as needed.
 const SPORT_KEY_MAP: Record<string, string> = {
-  soccer_epl: "football", soccer_spain_la_liga: "football",
-  soccer_italy_serie_a: "football", soccer_germany_bundesliga: "football",
+  // UEFA — priority 1 (club comps + nations league; qualification runs early season)
+  soccer_uefa_champs_league: "football",
+  soccer_uefa_champs_league_qualification: "football",
+  soccer_uefa_europa_league: "football",
+  soccer_uefa_nations_league: "football",
+  // EFL — priority 2 (English Football League tiers + cup)
+  soccer_efl_champ: "football",
+  soccer_england_league1: "football",
+  soccer_england_league2: "football",
+  soccer_england_efl_cup: "football",
+  // La Liga — priority 3
+  soccer_spain_la_liga: "football",
+  // Rest of the big five
+  soccer_epl: "football", soccer_italy_serie_a: "football",
+  soccer_germany_bundesliga: "football", soccer_france_ligue_one: "football",
   football: "football", // api-football (API-Football) sport key
   basketball_nba: "basketball",
   baseball_mlb: "baseball", icehockey_nhl: "ice-hockey",
@@ -192,7 +206,9 @@ async function buildPayload(
   return {
     game: {
       sportId,
-      competitionName: game.competitionName ?? null,
+      // The Odds API odds payload has no per-game league name — stamp it from
+      // the sport-key map so the homepage can rank by competition.
+      competitionName: game.competitionName ?? LEAGUE_TITLES[game.sportKey] ?? null,
       homeName: game.homeName,
       awayName: game.awayName,
       // Logo from the curated dictionary when known; otherwise keep whatever

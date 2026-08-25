@@ -2,21 +2,28 @@
  * Competition ranking — used by the hero slideshow and the matches feed to
  * lift recognizable competitions above the long tail.
  *
+ * Priority order (product decision 2026-08-25): UEFA club/international →
+ * EFL (English Football League) → La Liga → rest of the big five → others.
+ *
  * Odds-API.io league names include the country prefix ("England - Premier
  * League", "International Clubs - UEFA Champions League"), so substring match
  * against the lowercased competition name works for every provider.
  */
 
 export const TOP_LEAGUES = [
-  "champions league", "europa league", "conference league", "world cup",
-  "afcon", "african nations", "copa america", "copa libertadores",
-  "premier league", "la liga", "serie a", "bundesliga", "ligue 1",
-  "eredivisie", "primeira liga", "championship", "fa cup",
-  "scottish premiership", "super lig",
-  // African competitions/leagues get boosted ahead of the long tail
-  "south africa", "egypt", "nigeria", "ghana", "kenya", "tanzania", "uganda",
-  "zimbabwe", "morocco", "tunisia", "algeria", "angola", "mozambique",
-  "zambia", "malawi", "ethiopia", "senegal", "caf",
+  // ── UEFA (club + international) ──────────────────────────────────────
+  "champions league", "europa league", "conference league",
+  "uefa nations league", "uefa super cup", "uefa euro",
+  // ── EFL (English Football League) ────────────────────────────────────
+  "championship", "league one", "league two", "efl cup", "efl trophy",
+  // ── Spain ────────────────────────────────────────────────────────────
+  "la liga",
+  // ── Rest of the big five ─────────────────────────────────────────────
+  "premier league", "serie a", "bundesliga", "ligue 1",
+  // ── Other European ───────────────────────────────────────────────────
+  "eredivisie", "primeira liga", "fa cup", "scottish premiership", "super lig",
+  // ── International / global ───────────────────────────────────────────
+  "world cup", "copa america", "copa libertadores",
 ];
 
 /** Lower rank = higher priority. Unknown leagues rank last (TOP_LEAGUES.length). */
