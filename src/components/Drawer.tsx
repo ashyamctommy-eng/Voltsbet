@@ -23,6 +23,7 @@ import {
   IconCoins,
   IconGear,
   IconPlug,
+  IconController,
 } from "@/components/icons";
 
 export type SupportLinks = {
@@ -52,6 +53,7 @@ const STAFF_ITEMS: MenuItem[] = [
   { href: "/admin/settings#payments", label: "Payments", Icon: IconCoins, color: "text-purple-400" },
   { href: "/admin/api-settings", label: "API Settings — Bet365 (via RapidAPI / BetsAPI)", Icon: IconPlug, color: "text-green-400" },
   { href: "/admin/settings", label: "Website Settings", Icon: IconGear, color: "text-ink2" },
+  { href: "/admin/ops", label: "Daily Ops", Icon: IconController, color: "text-cyan-300" },
 ];
 
 const TOP_LEAGUES = [
