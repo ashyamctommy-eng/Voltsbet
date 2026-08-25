@@ -13,7 +13,7 @@ export const GET = handle(async () => {
   const defaultCode = settings.currencyDefault;
   const def = currencies.find((c) => c.code === defaultCode);
   return ok({
-    currencies: currencies.map((c) => ({ code: c.code, name: c.name, symbol: c.symbol, decimals: c.decimals })),
+    currencies: currencies.map((c) => ({ code: c.code, name: c.name, symbol: c.symbol, decimals: c.decimals, rate: Number(c.rate) })),
     languages: languages.map((l) => ({ code: l.code, name: l.name })),
     defaultCode: def ? def.code : (currencies[0]?.code ?? "KES"),
   });

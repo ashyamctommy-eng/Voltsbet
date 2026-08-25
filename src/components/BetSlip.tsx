@@ -17,7 +17,7 @@ type PlaceResponse = {
 };
 
 type SlipAccount = {
-  wallet: { balance: number; balanceLabel: string; currencyCode: string } | null;
+  wallet: { balance: number; balanceLabel: string; currencyCode: string; displayCurrencyCode?: string | null } | null;
   limits: { minStake: number; maxStake: number; maxPayout: number };
 };
 
@@ -161,7 +161,14 @@ function SlipBody(props: {
   desktop?: boolean;
 }) {
   const { items, mode, setMode, stake, setStake, totalOdds, potentialWin, remove, clear, place, placing, stakeNum, balance, minStake, account, onClose } = props;
-  const { fmt } = useCurrency();
+  const { fmtCurrency, defaultCode, currencies } = useCurrency();
+  // The betslip shows EVERY figure in one currency: the user's display
+  // currency (wallet.displayCurrencyCode), falling back to the platform
+  // default. Balance converts from the wallet's holding currency; stake /
+  // potential win are entered/computed in the platform default currency.
+  const walletCur = account?.wallet?.currencyCode ?? defaultCode;
+  const activeCur = account?.wallet?.displayCurrencyCode ?? defaultCode;
+  const activeSymbol = currencies[activeCur]?.symbol ?? activeCur;
   const multiple = items.length > 1;
   const shown = mode === "SINGLE" ? items.slice(0, 1) : items;
 
@@ -169,7 +176,7 @@ function SlipBody(props: {
   const reason = stakeNum <= 0
     ? "Enter your stake"
     : stakeNum < minStake
-      ? `Minimum stake is ${fmt(minStake)}`
+      ? `Minimum stake is ${fmtCurrency(minStake, defaultCode, activeCur)}`
       : stakeNum > balance
         ? "Insufficient balance"
         : "";
@@ -183,7 +190,7 @@ function SlipBody(props: {
   return (
     <div className="flex max-h-[85vh] flex-col xl:h-full xl:max-h-none">
       {/* ── Header: Betslip · Clear All · ✕ ── */}
-      <div className="sticky top-0 z-10 border-b border-line bg-panel-bg px-4 py-3">
+      <div className="sticky top-0 z-10 border-b border-line bg-panel-bg px-3 py-2">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-extrabold">Betslip</h2>
           <div className="flex items-center gap-3">
@@ -202,7 +209,7 @@ function SlipBody(props: {
           </div>
         </div>
         {multiple && (
-          <div className="mt-2 flex overflow-hidden rounded-lg border border-line2 text-xs font-semibold">
+          <div className="mt-1.5 flex overflow-hidden rounded-lg border border-line2 text-xs font-semibold">
             <button
               className={`px-3 py-1.5 ${mode === "SINGLE" ? "bg-brand text-[#052e16]" : "text-ink2 hover:text-ink"}`}
               onClick={() => setMode("SINGLE")}
@@ -220,7 +227,7 @@ function SlipBody(props: {
       </div>
 
       {/* ── Body: selection cards ── */}
-      <div className="flex-1 overflow-y-auto px-4 py-3">
+      <div className="flex-1 overflow-y-auto px-3 py-2">
         {items.length === 0 ? (
           <div className="mt-8 text-center">
             <div className="text-3xl">🎯</div>
@@ -231,9 +238,9 @@ function SlipBody(props: {
             </Link>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             {shown.map((item) => (
-              <div key={item.outcomeId} className="card p-3">
+              <div key={item.outcomeId} className="card px-2.5 py-2">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="text-[11px] font-medium uppercase tracking-wide text-ink3">{item.competition}</div>
@@ -252,7 +259,7 @@ function SlipBody(props: {
                     <IconTrash className="h-4 w-4" />
                   </button>
                 </div>
-                <div className="mt-2 flex items-center justify-between border-t border-line pt-2">
+                <div className="mt-1.5 flex items-center justify-between border-t border-line pt-1.5">
                   <span className="text-xs text-ink3">{item.label ? `${item.label} · ` : ""}Odds</span>
                   <span className="font-bold text-green-400">{fmtOdds(item.odds)}</span>
                 </div>
@@ -264,31 +271,36 @@ function SlipBody(props: {
 
       {/* ── Footer: stake controls + green CTA ── */}
       {items.length > 0 && (
-        <div className="sticky bottom-0 border-t border-line bg-panel-bg p-4 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+        <div className="sticky bottom-0 border-t border-line bg-panel-bg px-3 py-3 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
           <div className="flex items-center justify-between text-sm">
             <span className="text-ink2">Total Odds</span>
             <span className="text-base font-bold text-green-400">{totalOdds ? fmtOdds(totalOdds) : "—"}</span>
           </div>
 
-          <div className="mt-3">
+          <div className="mt-2">
             <div className="flex items-center justify-between">
               <label className="label mb-1" htmlFor="slip-stake">Stake</label>
               <span className="mb-1 text-[11px] text-ink3">
-                Balance: <b className="text-green-400">{account?.wallet?.balanceLabel ?? "—"}</b>
+                Balance: <b className="text-green-400">{account ? fmtCurrency(balance, walletCur, activeCur) : "—"}</b>
               </span>
             </div>
-            <input
-              id="slip-stake"
-              className="input"
-              type="number"
-              min="1"
-              step="any"
-              inputMode="decimal"
-              placeholder="Enter stake"
-              value={stake}
-              onChange={(e) => setStake(e.target.value)}
-            />
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <div className="relative">
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-ink3">
+                {activeSymbol}
+              </span>
+              <input
+                id="slip-stake"
+                className="input !pl-9"
+                type="number"
+                min="1"
+                step="any"
+                inputMode="decimal"
+                placeholder="Enter stake"
+                value={stake}
+                onChange={(e) => setStake(e.target.value)}
+              />
+            </div>
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
               {QUICK_STAKES.map((q) => (
                 <button
                   key={q}
@@ -309,16 +321,16 @@ function SlipBody(props: {
             </div>
           </div>
 
-          <div className="mt-3 flex items-center justify-between text-sm">
+          <div className="mt-2 flex items-center justify-between text-sm">
             <span className="text-ink2">Potential Win</span>
             <span className="text-base font-bold text-green-400">
-              {potentialWin > 0 ? fmt(Math.round(potentialWin * 100) / 100) : "—"}
+              {potentialWin > 0 ? fmtCurrency(potentialWin, defaultCode, activeCur) : "—"}
             </span>
           </div>
 
           {/* Full-width green Place Bet CTA */}
-          <button className="mt-4 w-full rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 py-3.5 text-base font-black text-[#052e16] shadow-[0_6px_20px_rgba(0,230,118,0.35)] transition-transform active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none" disabled={!canPlace} onClick={place}>
-            {placing ? "Placing…" : `Place Bet${stakeNum > 0 ? ` · ${fmt(Math.round(potentialWin * 100) / 100)}` : ""}`}
+          <button className="mt-2.5 w-full rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 py-3 text-base font-black text-[#052e16] shadow-[0_6px_20px_rgba(0,230,118,0.35)] transition-transform active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none" disabled={!canPlace} onClick={place}>
+            {placing ? "Placing…" : `Place Bet${stakeNum > 0 ? ` · ${fmtCurrency(potentialWin, defaultCode, activeCur)}` : ""}`}
           </button>
           {reason ? (
             <p className="mt-2 text-center text-[11px] font-medium text-amber-400">{reason}</p>
