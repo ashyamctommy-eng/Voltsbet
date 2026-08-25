@@ -149,7 +149,7 @@ export default function Header({
               </button>
 
               {/* Profile → account menu */}
-              <div className="relative" ref={menuRef}>
+              <div className="relative overflow-visible" ref={menuRef}>
                 <button
                   onClick={() => setMenuOpen((v) => !v)}
                   aria-label="Account menu"
@@ -164,7 +164,7 @@ export default function Header({
                 </button>
 
                 {menuOpen && (
-                  <div className="fade-in absolute right-0 top-full mt-2 w-60 overflow-hidden rounded-xl border border-line bg-card shadow-2xl">
+                  <div className="fade-in absolute right-0 top-full z-50 mt-2 w-60 overflow-hidden rounded-xl border border-line bg-[var(--panel-bg,#121824)] shadow-2xl">
                     <div className="border-b border-line px-4 py-3">
                       <div className="text-xs text-ink3">Balance</div>
                       <div className="text-lg font-extrabold text-green-400">{user.balanceLabel}</div>
@@ -332,7 +332,7 @@ function SearchBox() {
   }, []);
 
   return (
-    <div className="relative" ref={boxRef}>
+    <div className="relative z-10" ref={boxRef}>
       <input
         className="input w-40 py-2 transition-all focus:w-56 lg:w-52"
         placeholder="Search teams, leagues..."
