@@ -38,6 +38,16 @@ export default function BetSlip() {
   const stakeNum = parseFloat(stake) || 0;
   const balance = account?.wallet?.balance ?? 0;
 
+  // Lock background scrolling while the mobile betslip drawer is open.
+  useEffect(() => {
+    if (!(open && items.length > 0)) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open, items.length]);
+
   const slipBody = useMemo(
     () => ({
       items, mode, setMode, stake, setStake, totalOdds, potentialWin,
@@ -95,7 +105,7 @@ export default function BetSlip() {
       {open && items.length > 0 && (
         <div className="fixed inset-0 z-50 xl:hidden">
           <div className="fade-in absolute inset-0 bg-black/60" onClick={() => setOpen(false)} />
-          <div className="sheet-up absolute inset-x-0 bottom-0 rounded-t-2xl border-t border-line bg-panel-bg">
+          <div className="sheet-up absolute inset-x-0 bottom-0 flex max-h-[88vh] flex-col overflow-hidden rounded-t-2xl border-t border-line bg-panel-bg">
             <div className="mx-auto mt-2.5 mb-1 h-1 w-10 shrink-0 rounded-full bg-line2" />
             <SlipBody {...slipBody} onClose={() => setOpen(false)} />
           </div>
@@ -188,7 +198,7 @@ function SlipBody(props: {
   };
 
   return (
-    <div className="flex max-h-[85vh] flex-col xl:h-full xl:max-h-none">
+    <div className="flex min-h-0 max-h-[85vh] flex-col xl:h-full xl:max-h-none">
       {/* ── Header: Betslip · Clear All · ✕ ── */}
       <div className="sticky top-0 z-10 border-b border-line bg-panel-bg px-3 py-2">
         <div className="flex items-center justify-between">
@@ -227,7 +237,7 @@ function SlipBody(props: {
       </div>
 
       {/* ── Body: selection cards ── */}
-      <div className="flex-1 overflow-y-auto px-3 py-2">
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
         {items.length === 0 ? (
           <div className="mt-8 text-center">
             <div className="text-3xl">🎯</div>
