@@ -49,6 +49,7 @@ const GROUPS: { title: string; anchor: string; icon: React.ReactNode; fields: Fi
       { key: "odds.liveProvider", label: "Live provider (role)", type: "select", options: ["", "the-odds-api", "api-football"], emptyLabel: "— Primary (default) —", hint: "ROLE: source for in-play scores/timers during sync. Empty = follow the primary. (The /live page itself always uses BetsAPI.)" },
       { key: "odds.marginPercent", label: "Odds margin %", type: "number", hint: "Overround added to feed odds — this is your edge. 0 = pass through, 6 = 6% book" },
       { key: "games.hideSeeded", label: "Disable seeded / virtual matches", type: "toggle", hint: "Show only live API-feed matches (source=API). Turns on automatically after the first successful sync that adds games. Env override: SHOW_SEEDED_GAMES=false" },
+      { key: "currency.forceDefault", label: "Force default currency (ignore IP auto-detect)", type: "toggle", hint: "ON = every visitor sees the platform default currency regardless of location or profile. OFF = per-user display preference wins, then IP auto-detection (ipapi.co → currency, fallback USD)." },
       { key: "betting.maxLiabilityPerMarket", label: "Max liability per market", type: "number", hint: "Reject bets that push exposure past this cap" },
     ],
   },

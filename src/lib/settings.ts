@@ -9,6 +9,9 @@ export type SiteSettings = {
   // Platform-wide default operating currency (ISO code, e.g. KES) — the
   // frontend formats all display money through this (Admin → Default Currency)
   currencyDefault: string;
+  /** When true, EVERY visitor sees the platform default currency — IP
+   *  auto-detect and per-user display preferences are ignored. */
+  forceDefaultCurrency: boolean;
   minStake: number;
   maxStake: number;
   maxPayout: number;
@@ -74,6 +77,7 @@ const DEFAULTS: SiteSettings = {
   secondaryColor: "#0b1220",
   accentColor: "#7c3aed",
   currencyDefault: "KES",
+  forceDefaultCurrency: false,
   minStake: 50,
   maxStake: 100000,
   maxPayout: 2000000,
@@ -147,6 +151,7 @@ export async function getSettings(): Promise<SiteSettings> {
   s.siteName = raw["site.name"] ?? s.siteName;
   s.tagline = raw["site.tagline"] ?? s.tagline;
   s.currencyDefault = raw["currency.default"] ?? s.currencyDefault;
+  s.forceDefaultCurrency = raw["currency.forceDefault"] === "true";
   s.primaryColor = raw["branding.primaryColor"] ?? s.primaryColor;
   s.secondaryColor = raw["branding.secondaryColor"] ?? s.secondaryColor;
   s.accentColor = raw["branding.accentColor"] ?? s.accentColor;

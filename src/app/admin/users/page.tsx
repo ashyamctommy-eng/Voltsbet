@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/client";
 import { useToast } from "@/components/BetSlipContext";
+import { useCurrency } from "@/components/CurrencyProvider";
 
 type UserRow = {
   id: string; fullName: string; username: string; email: string; phone: string;
@@ -12,6 +13,7 @@ type UserRow = {
 
 export default function AdminUsers() {
   const { push } = useToast();
+  const { code: activeCur, formatCurrency, convertAmount } = useCurrency();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
@@ -94,7 +96,7 @@ export default function AdminUsers() {
               {u.verified ? "VERIFIED" : "UNVERIFIED"}
             </span>
             <span className="rounded-full bg-card2 px-2.5 py-1 text-[10px] font-bold uppercase text-ink2">{u.status.replace("_", " ")}</span>
-            <span className="w-24 text-right text-sm font-bold text-green-400">{Number(u.balance).toLocaleString()} {u.currencyCode}</span>
+            <span className="w-28 text-right text-sm font-bold text-green-400">{formatCurrency(convertAmount(u.balance, u.currencyCode, activeCur), activeCur)}</span>
           </button>
         ))}
       </div>

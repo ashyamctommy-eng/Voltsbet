@@ -171,14 +171,12 @@ function SlipBody(props: {
   desktop?: boolean;
 }) {
   const { items, mode, setMode, stake, setStake, totalOdds, potentialWin, remove, clear, place, placing, stakeNum, balance, minStake, account, onClose } = props;
-  const { fmtCurrency, defaultCode, currencies } = useCurrency();
-  // The betslip shows EVERY figure in one currency: the user's display
-  // currency (wallet.displayCurrencyCode), falling back to the platform
-  // default. Balance converts from the wallet's holding currency; stake /
-  // potential win are entered/computed in the platform default currency.
+  const { code: activeCur, formatCurrency, convertAmount, defaultCode } = useCurrency();
+  // The betslip shows EVERY figure in the global active currency (resolved
+  // as: admin force-default → user preference → IP auto-detect → USD).
+  // Balance converts from the wallet's holding currency; stake / potential
+  // win are entered/computed in the platform default currency.
   const walletCur = account?.wallet?.currencyCode ?? defaultCode;
-  const activeCur = account?.wallet?.displayCurrencyCode ?? defaultCode;
-  const activeSymbol = currencies[activeCur]?.symbol ?? activeCur;
   const multiple = items.length > 1;
   const shown = mode === "SINGLE" ? items.slice(0, 1) : items;
 
@@ -186,7 +184,7 @@ function SlipBody(props: {
   const reason = stakeNum <= 0
     ? "Enter your stake"
     : stakeNum < minStake
-      ? `Minimum stake is ${fmtCurrency(minStake, defaultCode, activeCur)}`
+      ? `Minimum stake is ${formatCurrency(convertAmount(minStake, defaultCode, activeCur), activeCur)}`
       : stakeNum > balance
         ? "Insufficient balance"
         : "";
@@ -291,12 +289,12 @@ function SlipBody(props: {
             <div className="flex items-center justify-between">
               <label className="label mb-1" htmlFor="slip-stake">Stake</label>
               <span className="mb-1 text-[11px] text-ink3">
-                Balance: <b className="text-green-400">{account ? fmtCurrency(balance, walletCur, activeCur) : "—"}</b>
+                Balance: <b className="text-green-400">{account ? formatCurrency(convertAmount(balance, walletCur, activeCur), activeCur) : "—"}</b>
               </span>
             </div>
             <div className="relative">
               <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-ink3">
-                {activeSymbol}
+                {activeCur}
               </span>
               <input
                 id="slip-stake"
@@ -334,13 +332,13 @@ function SlipBody(props: {
           <div className="mt-2 flex items-center justify-between text-sm">
             <span className="text-ink2">Potential Win</span>
             <span className="text-base font-bold text-green-400">
-              {potentialWin > 0 ? fmtCurrency(potentialWin, defaultCode, activeCur) : "—"}
+              {potentialWin > 0 ? formatCurrency(convertAmount(potentialWin, defaultCode, activeCur), activeCur) : "—"}
             </span>
           </div>
 
           {/* Full-width green Place Bet CTA */}
           <button className="mt-2.5 w-full rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 py-3 text-base font-black text-[#052e16] shadow-[0_6px_20px_rgba(0,230,118,0.35)] transition-transform active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none" disabled={!canPlace} onClick={place}>
-            {placing ? "Placing…" : `Place Bet${stakeNum > 0 ? ` · ${fmtCurrency(potentialWin, defaultCode, activeCur)}` : ""}`}
+            {placing ? "Placing…" : `Place Bet${stakeNum > 0 ? ` · ${formatCurrency(convertAmount(potentialWin, defaultCode, activeCur), activeCur)}` : ""}`}
           </button>
           {reason ? (
             <p className="mt-2 text-center text-[11px] font-medium text-amber-400">{reason}</p>
