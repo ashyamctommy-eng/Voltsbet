@@ -10,22 +10,21 @@ import { leagueRank } from "@/lib/league-rank";
 import { buildDateOptions, dayWindow, dateParamToValue, valueToDateParam } from "@/lib/feed-dates";
 import { flagForLeague, countryForLeague } from "@/lib/league-flags";
 import { isLiveStatus } from "@/lib/game-status";
-import { apiMatchToFeedGame, toMatchView, type ApiFeedGame, type BetsApiMatchView } from "@/lib/providers/betsapi-transformer";
+import { apiMatchToFeedGame, type ApiFeedGame, type BetsApiMatchView } from "@/lib/providers/betsapi-transformer";
 
 type FeedGame = ApiFeedGame;
 
 export type { FeedGame };
 
 /** Sub-navigation view modes (header pills → ?view=). */
-export type FeedView = "highlights" | "upcoming" | "countries" | "zoom";
+export type FeedView = "highlights" | "upcoming" | "countries";
 export const FEED_VIEWS: { id: FeedView; label: string }[] = [
   { id: "highlights", label: "Highlights" },
   { id: "upcoming", label: "Upcoming" },
   { id: "countries", label: "Countries" },
-  { id: "zoom", label: "Zoom Soccer" },
 ];
 const isFeedView = (v: string | null): v is FeedView =>
-  v === "highlights" || v === "upcoming" || v === "countries" || v === "zoom";
+  v === "highlights" || v === "upcoming" || v === "countries";
 
 /** Module-level client cache: date/league switches never refetch once loaded. */
 const feedCache = new Map<string, ApiFeedGame[]>();
@@ -174,67 +173,6 @@ const bookable = (g: FeedGame) =>
   g.status !== "CANCELLED" &&
   g.markets.some((m) => m.outcomes.some((o) => Number(o.odds) > 1));
 
-/** Zoom Soccer — compact dense row: kickoff | stacked teams | 1/X/2 odds. */
-function ZoomRow({ game, preferMarkets }: { game: FeedGame; preferMarkets?: string[] }) {
-  const candidates = game.markets.filter((m) => m.status === "OPEN" && m.outcomes.some((o) => o.status === "ACTIVE"));
-  const main =
-    (preferMarkets ? candidates.find((m) => preferMarkets.includes(m.key)) : undefined) ??
-    candidates.find((m) => m.key === "h2h" || m.key === "MATCH_RESULT") ??
-    candidates[0];
-  const odds = main?.outcomes.filter((o) => o.status === "ACTIVE").slice(0, 3) ?? [];
-  const view = toMatchView(game);
-  const isOneXTwo = main?.key === "MATCH_RESULT" || main?.key === "h2h";
-  const rows = isOneXTwo
-    ? [
-        { label: "1", name: view.homeTeam, o: odds.find((x) => x.label === "1" || x.name === view.homeTeam) },
-        { label: "X", name: "Draw", o: odds.find((x) => (x.label ?? "").toLowerCase() === "x" || x.name.toLowerCase() === "draw") },
-        { label: "2", name: view.awayTeam, o: odds.find((x) => x.label === "2" || x.name === view.awayTeam) },
-      ]
-    : odds.map((o) => ({ label: o.label, name: o.name, o }));
-  return (
-    <div className="card card-hover flex items-center gap-3 px-3 py-2">
-      <span className="w-[4.5rem] shrink-0 text-[11px] font-medium tabular-nums text-ink3">
-        {view.kickoffTimeFormatted}
-      </span>
-      <div className="min-w-0 flex-1 space-y-0.5">
-        {rows.map((r, i) => (
-          <div key={i} className="flex items-center gap-1.5 text-sm font-semibold">
-            <span className="w-2 shrink-0 text-[10px] font-bold text-ink3">{r.label}</span>
-            <span className={i === 1 ? "truncate font-medium text-ink2" : "truncate"}>{r.name}</span>
-          </div>
-        ))}
-      </div>
-      <div className="flex shrink-0 items-center gap-1 [&_.odds-btn]:h-8 [&_.odds-btn]:w-10 [&_.odds-btn]:flex-none [&_.odds-btn]:text-xs">
-        {rows.map((r, i) =>
-          r.o ? (
-            <OddsButton
-              key={i}
-              outcomeId={r.o.id}
-              gameId={game.id}
-              sport={game.sport.name}
-              competition={view.leagueName}
-              home={view.homeTeam}
-              away={view.awayTeam}
-              startAt={game.startAt.toISOString()}
-              market={main.name}
-              marketKey={main.key}
-              outcome={r.o.name}
-              label={r.label}
-              odds={Number(r.o.odds)}
-              gameStatus={game.status}
-              live={view.isLive}
-            />
-          ) : (
-            <span key={i} className="flex h-8 w-10 items-center justify-center rounded-lg bg-card2 text-xs font-bold text-ink3">
-              -
-            </span>
-          ),
-        )}
-      </div>
-    </div>
-  );
-}
-
 /**
  * Match feed — pre-match only, chronological (soonest first), 30/page.
  *
@@ -321,7 +259,7 @@ export default function MatchFeed({
   const activeDate = dateOptions.find((o) => o.value === dateValue) ?? dateOptions[0];
 
   // View mode follows the header sub-nav pills (?view=highlights|upcoming|
-  // countries|zoom). "Highlights" sorts top leagues first, "Upcoming" soonest.
+  // countries). "Highlights" sorts top leagues first, "Upcoming" soonest.
   const searchParams = useSearchParams();
   const view: FeedView = isFeedView(searchParams?.get("view")) ? (searchParams.get("view") as FeedView) : "highlights";
   // Sync sort mode with the view when it changes (adjust-during-render — the
@@ -508,7 +446,7 @@ export default function MatchFeed({
       </div>
 
       {/* Column header strip: Teams left · 1 / X / 2 headers right (1x2 view) */}
-      {marketFilter === "1x2" && view !== "zoom" && pageItems.length > 0 && (
+      {marketFilter === "1x2" && pageItems.length > 0 && (
         <div className="mt-3 flex items-center justify-between gap-3 border-b border-line pb-1.5 pl-3 pr-3 text-[10px] font-bold uppercase tracking-wider text-ink3 sm:pl-4 sm:pr-4">
           <span>Teams</span>
           <span className="flex shrink-0 items-center gap-1">
@@ -520,7 +458,7 @@ export default function MatchFeed({
       )}
 
       {/* Match list (paginated) — view modes: highlights/upcoming = cards,
-          countries = grouped by country, zoom = compact rows */}
+          countries = grouped by country */}
       <div ref={listRef} className="mt-3 scroll-mt-24">
         {feedError ? (
           <div className="card p-10 text-center text-sm text-ink3">
@@ -530,10 +468,6 @@ export default function MatchFeed({
           <div className="card p-10 text-center text-sm text-ink3">
             No matches on {activeDate.label} {activeDate.dateLabel}
             {league ? ` in ${league}` : ""} — try another date or league.
-          </div>
-        ) : view === "zoom" ? (
-          <div className="space-y-2">
-            {pageItems.map((g) => <ZoomRow key={g.id} game={g} preferMarkets={marketKeys} />)}
           </div>
         ) : view === "countries" ? (
           <div className="space-y-5">

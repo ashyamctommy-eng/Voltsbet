@@ -63,8 +63,8 @@ export default function Header({
     { labelKey: "nav.live", label: "Live", href: "/live" },
   ];
 
-  // Sub-navigation pills (Highlights/Upcoming/Countries/Zoom Soccer) — the
-  // landing feed view. Active pill follows ?view= (default: Highlights).
+  // Sub-navigation pills (Highlights/Upcoming/Countries) — the landing
+  // feed view. Active pill follows ?view= (default: Highlights).
   const activeView: FeedView =
     (searchParams?.get("view") as FeedView) ?? "highlights";
 
@@ -234,7 +234,7 @@ export default function Header({
         </div>
       </div>
 
-      {/* ── Sub-navigation pills: Highlights | Upcoming | Countries | Zoom Soccer ── */}
+      {/* ── Sub-navigation pills: Highlights | Upcoming | Countries ── */}
       <div className="border-t border-line/70 bg-panel-bg/40">
         <div className="no-scrollbar mx-auto flex max-w-[1600px] items-center gap-1 overflow-x-auto px-2 py-1.5 sm:px-4">
           {FEED_VIEWS.map((v) => {
