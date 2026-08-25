@@ -50,3 +50,34 @@ Both in Admin → Website Settings → **Odds & Risk**.
   Authentication** (Google Authenticator / Authy). Enforced at login for all
   non-customer roles. Secrets are stored per-user; disabling requires the
   current session.
+
+## 3. Ready-made GitHub Actions schedule
+
+Free, real cron syntax, runs on GitHub's infra. Add `.github/workflows/cron.yml`
+with your app URL + `CRON_SECRET` as repo secrets (`VOLTBET_APP_URL`,
+`VOLTBET_CRON_SECRET`):
+
+```yaml
+name: voltsbet-cron
+on:
+  schedule:
+    - cron: "*/12 * * * *"   # settle — every 12 min
+    - cron: "0 3 * * *"      # odds sync — once daily (free tier: every 2 days)
+    - cron: "0 4 * * *"      # 7-day calendar refresh (0 quota)
+    - cron: "0 0 * * *"      # purge expired calendar rows
+  workflow_dispatch: {}
+
+jobs:
+  cron:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        job: [settle, sync, schedule, purge]
+    steps:
+      - run: |
+          curl -fsS -m 120 \
+            "https://${{ secrets.VOLTBET_APP_URL }}/api/cron/${{ matrix.job }}?secret=${{ secrets.VOLTBET_CRON_SECRET }}"
+```
+
+Note: GitHub Actions schedules can lag up to ~15 min on busy free tier — fine for
+settle/sync; the odds-sync route self-throttles anyway (`SYNC_THROTTLE_MINUTES`).
