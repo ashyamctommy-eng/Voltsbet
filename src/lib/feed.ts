@@ -38,7 +38,7 @@ const FEED_TTL_SECONDS = Number(process.env.FEED_TTL_SECONDS ?? 6 * 60 * 60) || 
 /** Preferred soccer leagues for the feed; override via ODDS_API_FALLBACK_LEAGUES
  *  (1 credit each against The Odds API). Priority: UEFA → EFL → La Liga →
  *  rest of the big five (product decision 2026-08-25). */
-const FEED_LEAGUES = [
+export const FEED_LEAGUES = [
   "soccer_uefa_champs_league",
   "soccer_uefa_champs_league_qualification",
   "soccer_uefa_europa_league",

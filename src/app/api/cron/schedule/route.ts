@@ -1,11 +1,11 @@
 /**
- * Cron endpoint — rolling 7-day fixture schedule sync (Sportmonks).
+ * Cron endpoint — rolling 7-day fixture schedule sync (The Odds API /events,
+ * 0 quota cost).
  *
  * Refreshes the local `Game` calendar for [today, today+7] so date-filtered
  * views (/api/matches) are served from the DB. Run daily (e.g. Railway cron
- * `0 3 * * *`). Sportmonks fixtures are free on the trial plan; the `odds`
- * include is 403-gated and intentionally not consumed here — prices come
- * from the Odds API sync (/api/cron/sync).
+ * `0 3 * * *`). Prices come from the Odds API odds sync (/api/cron/sync);
+ * this endpoint fills the calendar only, including games not yet priced.
  *
  *   GET https://your-app/api/cron/schedule?secret=<cron.secret>
  */
