@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/client";
 import { useToast } from "@/components/BetSlipContext";
+import { useCurrency } from "@/components/CurrencyProvider";
 import { IconCoins, IconCheck } from "@/components/icons";
 
 type AdminCurrency = {
@@ -28,6 +29,7 @@ const QUICK_PICKS = ["KES", "TZS", "UGX", "USD", "EUR", "GHS"];
  */
 export default function AdminDefaultCurrency() {
   const { push } = useToast();
+  const { setDefaultCurrency } = useCurrency();
   const [currencies, setCurrencies] = useState<AdminCurrency[]>([]);
   const [current, setCurrent] = useState<string>("KES");
   const [pick, setPick] = useState<string>("");
@@ -66,6 +68,9 @@ export default function AdminDefaultCurrency() {
     setSaving(false);
     if (s.ok && c.ok) {
       setCurrent(pick);
+      // Apply app-wide instantly (CurrencyProvider re-symbols every surface)
+      // and persist to localStorage so it survives page refreshes.
+      setDefaultCurrency(pick);
       push("success", `Default currency set to ${pick} — the whole site now displays ${pick}.`);
     } else {
       push("error", sErr || cErr || "Failed to save.");
