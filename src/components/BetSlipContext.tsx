@@ -45,6 +45,7 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
   const [stake, setStake] = useState("");
   const [hasOddsChange, setHasOddsChange] = useState(false);
   const loaded = useRef(false);
+  const prevCountRef = useRef(0);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -74,6 +75,20 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
     const t = setTimeout(() => setOpen(true), 0);
     return () => clearTimeout(t);
   }, [items.length, open]);
+
+  // Default the betslip to Accumulator when a 2nd leg is added (one-way: a
+  // manual "Singles" tap afterwards is respected; empty slip resets to
+  // Singles). This is what makes multi-pick slips show ALL legs on mobile
+  // instead of the first pick only.
+  useEffect(() => {
+    if (items.length === 0) {
+      setMode("SINGLE");
+      prevCountRef.current = 0;
+      return;
+    }
+    if (items.length >= 2 && prevCountRef.current < 2) setMode("MULTIPLE");
+    prevCountRef.current = items.length;
+  }, [items.length]);
 
   const add = useCallback((item: SlipItem) => {
     setItems((prev) => {
