@@ -278,4 +278,8 @@ echo "   2. Admin → Website Settings: payments (NOWPayments / M-Pesa)."
 echo "   3. Run sync once:  curl -s \"http://127.0.0.1:$APP_PORT/api/cron/sync?secret=$CRON_SECRET\""
 echo "   4. Set DNS: point $DOMAIN → this server's IP (done? SSL is live)."
 echo "   5. Backups: run deploy/backup.sh daily (cron) or add your own pg_dump."
+echo
+echo "  ── Developer contact (installation support) ──"
+echo "    ✈️  Telegram:  https://t.me/Poriot_ke"
+echo "    💬  WhatsApp:  https://wa.me/254717702563"
 echo "══════════════════════════════════════════════════════════════"
