@@ -18,6 +18,7 @@ import {
   IconScroll,
   IconPlug,
   IconController,
+  IconClock,
 } from "@/components/icons";
 import AdminBroadcastButton from "@/components/admin/BroadcastDrawer";
 
@@ -39,6 +40,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     { resource: "notifications", href: "/admin/notifications", label: "Announcements", Icon: IconBell },
     { resource: "crypto", href: "/admin/settings#payments", label: "Payments", Icon: IconCoins },
     { resource: "settings", href: "/admin/api-settings", label: "API Settings", Icon: IconPlug },
+    { resource: "settings", href: "/admin/cronjobs", label: "Cronjobs", Icon: IconClock },
     { resource: "settings", href: "/admin/settings", label: "Website Settings", Icon: IconGear },
     { resource: "settings", href: "/admin/settings/currency", label: "Default Currency", Icon: IconCoins },
     { resource: "dashboard", href: "/admin/ops", label: "Daily OPS", Icon: IconController },
