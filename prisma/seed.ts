@@ -77,6 +77,10 @@ async function main() {
     { code: "it", name: "Italiano" },
     { code: "ro", name: "Română" },
     { code: "mt", name: "Malti" },
+    { code: "pl", name: "Polski" },
+    { code: "tr", name: "Türkçe" },
+    { code: "el", name: "Ελληνικά" },
+    { code: "ar", name: "العربية" },
   ];
   for (const [i, l] of langs.entries()) {
     await prisma.language.upsert({

@@ -13,7 +13,7 @@
 
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
-import { LANG_KEY, LEGACY_LANG_KEY, resources, countryToLang } from "./i18n-resources";
+import { LANG_KEY, LEGACY_LANG_KEY, resources, countryToLang, RTL_LANGS } from "./i18n-resources";
 
 export { LANG_KEY, LANGUAGES } from "./i18n-resources";
 export type { LangCode } from "./i18n-resources";
@@ -72,11 +72,13 @@ export async function changeLanguage(lang: string): Promise<void> {
 }
 
 /** Keep the document's ISO language attributes in sync with the active
- *  language: `<html lang="…" xml:lang="…">` (root index.html). */
+ *  language: `<html lang="…" xml:lang="…">` + text direction (RTL for
+ *  Arabic). */
 export function syncHtmlLang(lang: string): void {
   if (typeof document === "undefined") return;
   document.documentElement.lang = lang;
   document.documentElement.setAttribute("xml:lang", lang);
+  document.documentElement.dir = RTL_LANGS.has(lang) ? "rtl" : "ltr";
 }
 
 const GEO_URL = "https://ipapi.co/json/";
