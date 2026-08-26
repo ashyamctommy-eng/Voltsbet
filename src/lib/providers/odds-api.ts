@@ -50,6 +50,7 @@ export interface OddsProvider {
 // ─────────────────────────────────────────────────────────────────────────
 
 import { applyMarginGrid } from "../margin";
+import { fetchOddsRetry } from "@/lib/odds-throttle";
 import { getSettings } from "../settings";
 
 /**
@@ -68,7 +69,10 @@ export class TheOddsApi implements OddsProvider {
   private async get(path: string) {
     const key = process.env.ODDS_API_KEY;
     if (!key) throw new Error("ODDS_API_KEY is not set");
-    const res = await fetch(`${this.base}${path}${path.includes("?") ? "&" : "?"}apiKey=${key}`);
+    const url = `${this.base}${path}${path.includes("?") ? "&" : "?"}apiKey=${key}`;
+    // Throttled + 429-retry: the free tier allows 1 request/second and the
+    // sync fires 44 requests back-to-back (22 leagues × h2h,totals).
+    const res = await fetchOddsRetry(url);
     if (!res.ok) throw new Error(`The Odds API ${res.status}: ${await res.text().catch(() => "")}`);
     return res.json();
   }

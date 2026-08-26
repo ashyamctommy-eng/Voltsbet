@@ -20,6 +20,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import { FEED_LEAGUES, LEAGUE_TITLES } from "@/lib/feed";
+import { fetchOddsRetry } from "@/lib/odds-throttle";
 
 const API_KEY = process.env.ODDS_API_KEY ?? "";
 const BASE = "https://api.the-odds-api.com/v4";
@@ -94,7 +95,9 @@ export async function syncWeeklyFixtures(): Promise<ScheduleSyncResult> {
     const url = `${BASE}/sports/${leagueKey}/events?apiKey=${encodeURIComponent(API_KEY)}`;
     let res: Response;
     try {
-      res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+      // Throttled + 429-retry (the /events endpoint shares the same
+      // 1 request/second free-tier limit as /odds).
+      res = await fetchOddsRetry(url, { signal: AbortSignal.timeout(15000) });
     } catch {
       errors.push(`${leagueKey}: fetch failed`);
       continue;

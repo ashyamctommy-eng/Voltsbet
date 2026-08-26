@@ -133,6 +133,7 @@ preference → IP detection (ipapi.co → ipinfo.io fallback, ~160-country map) 
 | `CRON_SECRET` | ✅ | — | Guards every `/api/cron/*` endpoint (`?secret=` or `x-cron-secret` header) |
 | `SYNC_THROTTLE_MINUTES` | — | `60` | Min minutes between odds-sync runs (route self-throttles) |
 | `ODDS_API_CACHE_TTL_SECONDS` | — | `300` | Provider response cache TTL |
+| `ODDS_API_RATE_LIMIT_MS` | — | `1100` | Min spacing between Odds API calls (free tier = 1 req/sec; paid: ~250) — auto-retries 429s |
 | `PURGE_MAX_AGE_HOURS` | — | `2` | Calendar purge deletes games kicked off this long ago (non-in-play) |
 | `ODDS_API_FALLBACK_LEAGUES` | — | all | Comma-separated sport keys to sync |
 | `SHOW_SEEDED_GAMES` | — | **unset** | **Leave UNSET in production** — setting it to `true` reveals demo games |
@@ -167,6 +168,13 @@ fields — with copy buttons, editable schedules (persisted to the DB), and a
 Free-tier quota math: 500 credits/mo ÷ ~44 per sync ≈ **11 runs/mo** → every 3
 days. The homepage is DB-first (0 API requests per visit) and the calendar +
 settle + purge cost nothing.
+
+**Rate limit (why syncs 429'd):** the free tier allows **1 request/second** —
+the sync fires 44 back-to-back requests, which trips `429 EXCEEDED_FREQ_LIMIT`
+on fast networks (Railway). The sync is throttled internally
+(`ODDS_API_RATE_LIMIT_MS`, default 1100) and retries 429s with backoff. A full
+sync now takes **~50s** — schedulers need a ≥60s request timeout (Railway cron
+`wget -m 300`, VPS crontab: fine).
 
 ---
 
