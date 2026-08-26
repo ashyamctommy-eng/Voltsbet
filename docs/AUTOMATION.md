@@ -53,31 +53,27 @@ Both in Admin → Website Settings → **Odds & Risk**.
 
 ## 3. Ready-made GitHub Actions schedule
 
-Free, real cron syntax, runs on GitHub's infra. Add `.github/workflows/cron.yml`
-with your app URL + `CRON_SECRET` as repo secrets (`VOLTBET_APP_URL`,
-`VOLTBET_CRON_SECRET`):
+Free, real cron syntax, no request timeouts, runs on GitHub's infra. Four
+workflow files ship in the repo (GitHub allows ONE cron per `schedule`, so
+there's one file per job):
 
-```yaml
-name: voltsbet-cron
-on:
-  schedule:
-    - cron: "*/12 * * * *"   # settle — every 12 min
-    - cron: "0 3 * * *"      # odds sync — once daily (free tier: every 2 days)
-    - cron: "0 4 * * *"      # 7-day calendar refresh (0 quota)
-    - cron: "0 0 * * *"      # purge expired calendar rows
-  workflow_dispatch: {}
+| Workflow file | Endpoint | Cron (UTC) |
+|---|---|---|
+| `.github/workflows/cron-settle.yml` | `/api/cron/settle` | `*/12 * * * *` |
+| `.github/workflows/cron-sync.yml` | `/api/cron/sync` | `0 6 */3 * *` |
+| `.github/workflows/cron-schedule.yml` | `/api/cron/schedule` | `0 5 * * *` |
+| `.github/workflows/cron-purge.yml` | `/api/cron/purge` | `0 0 * * *` |
 
-jobs:
-  cron:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        job: [settle, sync, schedule, purge]
-    steps:
-      - run: |
-          curl -fsS -m 120 \
-            "https://${{ secrets.VOLTBET_APP_URL }}/api/cron/${{ matrix.job }}?secret=${{ secrets.VOLTBET_CRON_SECRET }}"
-```
+**Setup (2 minutes):** add two repository secrets —
+Settings → Secrets and variables → Actions → New repository secret:
 
-Note: GitHub Actions schedules can lag up to ~15 min on busy free tier — fine for
-settle/sync; the odds-sync route self-throttles anyway (`SYNC_THROTTLE_MINUTES`).
+- `VOLTBET_APP_URL` — e.g. `voltsbet-production.up.railway.app` (no https://)
+- `VOLTBET_CRON_SECRET` — your cron secret
+
+That's it. Test immediately via the **Actions** tab → any workflow →
+**Run workflow** (manual trigger) and check the run log for the JSON response.
+
+> Caveat: GitHub Actions free tier can delay scheduled runs by up to ~15 min
+> on busy periods — fine for our cadence; the odds-sync route self-throttles
+> anyway. Do NOT put multiple crons in one workflow's `schedule` — every cron
+> would trigger ALL jobs (the sync would burn quota 4×/day).
