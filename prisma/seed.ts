@@ -81,6 +81,7 @@ async function main() {
     { code: "tr", name: "Türkçe" },
     { code: "el", name: "Ελληνικά" },
     { code: "ar", name: "العربية" },
+    { code: "id", name: "Indonesia" },
   ];
   for (const [i, l] of langs.entries()) {
     await prisma.language.upsert({
