@@ -89,7 +89,7 @@ export default function Header({
   async function logout() {
     const res = await apiFetch("/api/auth/logout", { method: "POST", body: {} });
     if (res.ok) {
-      push("success", "Logged out. See you soon!");
+      push("success", t("common.loggedOut"));
       router.push("/");
       router.refresh();
     }
@@ -102,7 +102,7 @@ export default function Header({
         <button
           onClick={openDrawer}
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-ink transition-colors hover:bg-hover-tint hover:text-ink1"
-          aria-label="Open menu"
+          aria-label={t("common.openMenu")}
         >
           <IconMenu className="h-6 w-6" />
         </button>
@@ -142,7 +142,7 @@ export default function Header({
               {/* Wallet button → deposit modal */}
               <button
                 onClick={() => setWalletOpen(true)}
-                aria-label="Deposit"
+                aria-label={t("nav.deposit")}
                 className="flex h-9 w-9 items-center justify-center rounded-full bg-brand text-[#052e16] shadow-[0_4px_14px_rgba(0,230,118,0.35)] transition-transform hover:scale-105"
               >
                 <IconWallet className="h-5 w-5" />
@@ -152,7 +152,7 @@ export default function Header({
               <div className="relative overflow-visible" ref={menuRef}>
                 <button
                   onClick={() => setMenuOpen((v) => !v)}
-                  aria-label="Account menu"
+                  aria-label={t("common.accountMenu")}
                   className="relative flex h-9 w-9 items-center justify-center rounded-full border border-line bg-card text-ink transition-colors hover:border-line2"
                 >
                   <IconUser className="h-5 w-5" />
@@ -166,7 +166,7 @@ export default function Header({
                 {menuOpen && (
                   <div className="fade-in absolute right-0 top-full z-50 mt-2 w-60 overflow-hidden rounded-xl border border-line bg-[var(--panel-bg,#121824)] shadow-2xl">
                     <div className="border-b border-line px-4 py-3">
-                      <div className="text-xs text-ink3">Balance</div>
+                      <div className="text-xs text-ink3">{t("common.balance")}</div>
                       <div className="text-lg font-extrabold text-green-400">{user.balanceLabel}</div>
                     </div>
                     <div className="py-1">
@@ -188,7 +188,7 @@ export default function Header({
                       ))}
                       {user.role !== "CUSTOMER" && (
                         <Link href="/admin" className="block px-4 py-2 text-sm font-semibold text-accent hover:bg-hover-tint">
-                          Admin Panel
+                          {t("nav.adminPanel")}
                         </Link>
                       )}
                       <button className="block w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-hover-tint" onClick={logout}>
@@ -248,12 +248,12 @@ export default function Header({
                 }`}
                 aria-current={active ? "page" : undefined}
               >
-                {v.label}
+                {t(v.labelKey)}
               </Link>
             );
           })}
           <span className="ml-auto hidden shrink-0 text-[11px] font-semibold text-ink3 md:block">
-            {sports?.find((s) => s.slug === "football")?.name ?? "Football"} pre-match odds
+            {t("common.preMatchOdds", { sport: sports?.find((s) => s.slug === "football")?.name ?? "Football" })}
           </span>
         </div>
       </div>
@@ -272,6 +272,7 @@ export default function Header({
 // ── Mobile search (navigates to /search on submit) ───────────
 function MobileSearch() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [q, setQ] = useState("");
   return (
     <form
@@ -284,10 +285,10 @@ function MobileSearch() {
       <IconSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink3" />
       <input
         className="input !rounded-full !py-2.5 !pl-9 text-sm"
-        placeholder="Search teams, leagues..."
+        placeholder={t("common.search_placeholder")}
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        aria-label="Search"
+        aria-label={t("nav.search")}
       />
     </form>
   );
@@ -306,6 +307,7 @@ type SearchHit = {
 
 function SearchBox() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [q, setQ] = useState("");
   const [results, setResults] = useState<{ games: SearchHit[]; sports: SearchHit[] } | null>(null);
   const [focused, setFocused] = useState(false);
@@ -335,7 +337,7 @@ function SearchBox() {
     <div className="relative z-10" ref={boxRef}>
       <input
         className="input w-40 py-2 transition-all focus:w-56 lg:w-52"
-        placeholder="Search teams, leagues..."
+        placeholder={t("common.search_placeholder")}
         value={q}
         onChange={(e) => setQ(e.target.value)}
         onFocus={() => setFocused(true)}
@@ -346,11 +348,11 @@ function SearchBox() {
       {focused && q.trim().length >= 2 && results && (
         <div className="fade-in absolute right-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-xl border border-line bg-card shadow-2xl">
           {results.games.length === 0 && results.sports.length === 0 && (
-            <div className="px-4 py-3 text-sm text-ink3">No results for “{q}”</div>
+            <div className="px-4 py-3 text-sm text-ink3">{t("common.noResults", { q })}</div>
           )}
           {results.sports.length > 0 && (
             <div className="border-b border-line px-4 py-2">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-ink3">Sports</div>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-ink3">{t("nav.sports")}</div>
               {results.sports.map((s: SearchHit) => (
                 <Link key={s.id} href={`/sports/${s.slug}`} className="block py-1.5 text-sm text-ink2 hover:text-ink">
                   {s.icon} {s.name}
@@ -360,14 +362,14 @@ function SearchBox() {
           )}
           {results.games.length > 0 && (
             <div className="px-4 py-2">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-ink3">Matches</div>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-ink3">{t("common.matches")}</div>
               {results.games.map((g: SearchHit) => (
                 <Link key={g.id} href={`/match/${g.id}`} className="block py-1.5 text-sm text-ink2 hover:text-ink">
                   {g.sport?.icon ?? ""} {g.homeName} vs {g.awayName}
                 </Link>
               ))}
               <Link href={`/search?q=${encodeURIComponent(q)}`} className="block py-1.5 text-xs font-semibold text-brand">
-                View all results →
+                {t("common.viewAll")} →
               </Link>
             </div>
           )}

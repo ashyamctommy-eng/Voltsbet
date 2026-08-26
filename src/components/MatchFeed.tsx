@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
+import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
 import MatchCard from "@/components/MatchCard";
 import OddsButton from "@/components/OddsButton";
@@ -18,10 +19,10 @@ export type { FeedGame };
 
 /** Sub-navigation view modes (header pills → ?view=). */
 export type FeedView = "highlights" | "upcoming" | "countries";
-export const FEED_VIEWS: { id: FeedView; label: string }[] = [
-  { id: "highlights", label: "Highlights" },
-  { id: "upcoming", label: "Upcoming" },
-  { id: "countries", label: "Countries" },
+export const FEED_VIEWS: { id: FeedView; label: string; labelKey: string }[] = [
+  { id: "highlights", label: "Highlights", labelKey: "common.highlights" },
+  { id: "upcoming", label: "Upcoming", labelKey: "common.upcoming" },
+  { id: "countries", label: "Countries", labelKey: "common.countries" },
 ];
 const isFeedView = (v: string | null): v is FeedView =>
   v === "highlights" || v === "upcoming" || v === "countries";
@@ -41,11 +42,11 @@ const PILL_ACTIVE = "bg-brand text-[#052e16]";
 type SortMode = "soonest" | "top";
 
 const MARKET_FILTERS = [
-  { id: "1x2", label: "1x2 / Winner", keys: ["h2h", "MATCH_RESULT", "DRAW_NO_BET"] },
-  { id: "double_chance", label: "Double Chance", keys: ["DOUBLE_CHANCE"] },
-  { id: "btts", label: "Both Teams", keys: ["BTTS"] },
-  { id: "half_time", label: "Half-time Result", keys: ["HT_RESULT"] },
-  { id: "draw_no_bet", label: "Draw No Bet", keys: ["DRAW_NO_BET"] },
+  { id: "1x2", label: "1x2 / Winner", labelKey: "common.market_1x2", keys: ["h2h", "MATCH_RESULT", "DRAW_NO_BET"] },
+  { id: "double_chance", label: "Double Chance", labelKey: "common.market_doubleChance", keys: ["DOUBLE_CHANCE"] },
+  { id: "btts", label: "Both Teams", labelKey: "common.market_btts", keys: ["BTTS"] },
+  { id: "half_time", label: "Half-time Result", labelKey: "common.market_htResult", keys: ["HT_RESULT"] },
+  { id: "draw_no_bet", label: "Draw No Bet", labelKey: "market.drawNoBet", keys: ["DRAW_NO_BET"] },
 ] as const;
 type MarketFilter = (typeof MARKET_FILTERS)[number]["id"];
 
@@ -236,10 +237,17 @@ export default function MatchFeed({
   }, [games, sportKey, autoFetch]);
   const feed = clientGames ?? games;
 
-  // Sport scope — landing page defaults to FOOTBALL (no click needed).
-  const [sport, setSport] = useState<string>(() =>
-    sports?.some((s) => s.slug === "football") ? "football" : "all",
-  );
+  const { t } = useTranslation();
+  // Unified sports navigation lives in the HEADER (category scrollbar).
+  // The feed derives its sport scope from the route: "/sports/{slug}" on
+  // those pages, otherwise the landing default (FOOTBALL). No in-feed
+  // pills — no duplicated sports bar.
+  const pathname = usePathname();
+  const sport = useMemo(() => {
+    const m = /^\/sports\/([^/]+)/.exec(pathname ?? "");
+    if (m) return m[1];
+    return sports?.some((s) => s.slug === "football") ? "football" : "all";
+  }, [pathname, sports]);
 
   // Rolling 7-day date selector — default lands on "Today".
   const dateOptions = useMemo(() => buildDateOptions(), []);
@@ -257,6 +265,10 @@ export default function MatchFeed({
   const [page, setPage] = useState(1);
   const listRef = useRef<HTMLDivElement>(null);
   const activeDate = dateOptions.find((o) => o.value === dateValue) ?? dateOptions[0];
+  /** Day labels come from buildDateOptions() as hardcoded "Today"/"Tomorrow"
+   *  (Intl can't do relative labels) — translate them here. */
+  const dayLabel = (o: { label: string; dateLabel: string }) =>
+    o.label === "Today" ? t("common.today") : o.label === "Tomorrow" ? t("common.tomorrow") : o.label;
 
   // View mode follows the header sub-nav pills (?view=highlights|upcoming|
   // countries). "Highlights" sorts top leagues first, "Upcoming" soonest.
@@ -348,7 +360,7 @@ export default function MatchFeed({
   const countryGroups = useMemo(() => {
     const map = new Map<string, FeedGame[]>();
     for (const g of pageItems) {
-      const key = countryForLeague(g.competitionName) || "Other";
+      const key = countryForLeague(g.competitionName) || "__other__";
       map.set(key, [...(map.get(key) ?? []), g]);
     }
     return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
@@ -365,12 +377,6 @@ export default function MatchFeed({
     setLeague(v);
     setPage(1);
   };
-  /** Sport switch resets league (options are sport-scoped) + pagination. */
-  const selectSport = (slug: string) => {
-    setSport(slug);
-    setLeague("");
-    setPage(1);
-  };
   const selectSort = (m: SortMode) => {
     setSortMode(m);
     setPage(1);
@@ -382,73 +388,52 @@ export default function MatchFeed({
 
   return (
     <section className="mt-4">
-      {/* Sport scope pills — landing page defaults to Football. */}
-      {sports && sports.length > 0 && (
-        <div className="no-scrollbar -mx-4 mb-2 flex items-center gap-1 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-          <button
-            onClick={() => selectSport("all")}
-            className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-bold transition-colors ${
-              sport === "all" ? PILL_ACTIVE : PILL
-            }`}
-          >
-            All Sports
-          </button>
-          {sports.map((sp) => (
-            <button
-              key={sp.slug}
-              onClick={() => selectSport(sp.slug)}
-              className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-bold transition-colors ${
-                sport === sp.slug ? PILL_ACTIVE : PILL
-              }`}
-            >
-              {sp.icon} {sp.name}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Secondary control bar (Screenshot 1): Filters | Today | Highlights | 1x2 */}
+      {/* Control bar: Filters | Today | Highlights | 1x2 (sport scope comes
+          from the header category strip — no duplicate pills here). */}
       <div className="no-scrollbar -mx-4 flex items-center gap-1 overflow-x-auto px-4 sm:mx-0 sm:px-0">
         <Dropdown
-          label={league ? `${flagForLeague(league)} ${league}` : "Filters"}
+          label={league ? `${flagForLeague(league)} ${league}` : t("common.filters")}
           activeValue={league}
           options={[
-            { value: "", label: "All Leagues" },
+            { value: "", label: t("common.allLeagues") },
             ...leagueOptions.map((l) => ({ value: l, label: `${flagForLeague(l)} ${l}` })),
           ]}
           onSelect={selectLeague}
         />
         <Dropdown
-          label={activeDate.label}
+          label={dayLabel(activeDate)}
           activeValue={dateValue}
-          options={dateOptions.map((o) => ({ value: o.value, label: o.label, sublabel: o.dateLabel }))}
+          options={dateOptions.map((o) => ({ value: o.value, label: dayLabel(o), sublabel: o.dateLabel }))}
           onSelect={selectDate}
         />
         <Dropdown
-          label={sortMode === "top" ? "Highlights" : "Upcoming"}
+          label={sortMode === "top" ? t("common.highlights") : t("common.upcoming")}
           activeValue={sortMode}
           options={[
-            { value: "top", label: "Highlights — Top Leagues" },
-            { value: "soonest", label: "Upcoming — Soonest First" },
+            { value: "top", label: t("common.sortHighlights") },
+            { value: "soonest", label: t("common.sortUpcoming") },
           ]}
           onSelect={(v) => selectSort(v as SortMode)}
         />
         <Dropdown
-          label={MARKET_FILTERS.find((m) => m.id === marketFilter)?.label ?? "1x2"}
+          label={t(MARKET_FILTERS.find((m) => m.id === marketFilter)?.labelKey ?? "common.market_1x2")}
           activeValue={marketFilter}
-          options={MARKET_FILTERS.map((m) => ({ value: m.id, label: m.label }))}
+          options={MARKET_FILTERS.map((m) => ({ value: m.id, label: t(m.labelKey) }))}
           onSelect={(v) => {
             setMarketFilter(v as MarketFilter);
             setPage(1);
           }}
         />
-        <span className="ml-auto shrink-0 pl-2 text-[11px] font-semibold text-ink3">{filtered.length} matches</span>
+        <span className="ml-auto shrink-0 pl-2 text-[11px] font-semibold text-ink3">
+          {t("common.matchesCount", { count: filtered.length })}
+        </span>
       </div>
 
-      {/* Column header strip: Teams left · 1 / X / 2 headers right (1x2 view) */}
+      {/* Column header strip: Teams left · 1 / X / 2 headers right (1x2 view).
+          Single-column only — hidden on desktop where cards sit in a 2-col grid. */}
       {marketFilter === "1x2" && pageItems.length > 0 && (
-        <div className="mt-3 flex items-center justify-between gap-3 border-b border-line pb-1.5 pl-3 pr-3 text-[10px] font-bold uppercase tracking-wider text-ink3 sm:pl-4 sm:pr-4">
-          <span>Teams</span>
+        <div className="mt-3 flex items-center justify-between gap-3 border-b border-line pb-1.5 pl-3 pr-3 text-[10px] font-bold uppercase tracking-wider text-ink3 sm:pl-4 sm:pr-4 lg:hidden">
+          <span>{t("match.teams")}</span>
           <span className="flex shrink-0 items-center gap-1">
             <span className="w-11 text-center">1</span>
             <span className="w-11 text-center">X</span>
@@ -462,28 +447,29 @@ export default function MatchFeed({
       <div ref={listRef} className="mt-3 scroll-mt-24">
         {feedError ? (
           <div className="card p-10 text-center text-sm text-ink3">
-            Live feed unavailable — {feedError}. Check the API key in Admin → API Settings.
+            {t("common.liveFeedUnavailable", { error: feedError })}
           </div>
         ) : pageItems.length === 0 ? (
           <div className="card p-10 text-center text-sm text-ink3">
-            No matches on {activeDate.label} {activeDate.dateLabel}
-            {league ? ` in ${league}` : ""} — try another date or league.
+            {t("common.noMatches", { dateLabel: `${dayLabel(activeDate)} ${activeDate.dateLabel}` })}
+            {league ? ` ${t("common.inLeague", { league })}` : ""}
           </div>
         ) : view === "countries" ? (
           <div className="space-y-5">
             {countryGroups.map(([country, games]) => (
               <div key={country}>
                 <h3 className="mb-2 flex items-center gap-2 text-xs font-bold text-ink3">
-                  <span className="h-1 w-1 rounded-full bg-brand" /> {country}
+                  <span className="h-1 w-1 rounded-full bg-brand" />{" "}
+                  {country === "__other__" ? t("common.other") : country}
                 </h3>
-                <div className="grid gap-3 md:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                   {games.map((g) => <MatchCard key={g.id} game={g} preferMarkets={marketKeys} />)}
                 </div>
               </div>
             ))}
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             {pageItems.map((g) => <MatchCard key={g.id} game={g} preferMarkets={marketKeys} />)}
           </div>
         )}
@@ -497,7 +483,7 @@ export default function MatchFeed({
             disabled={currentPage <= 1}
             className="h-8 rounded-lg bg-card px-3 text-xs font-bold text-ink2 transition-colors hover:text-ink disabled:opacity-40"
           >
-            Prev
+            {t("common.prev")}
           </button>
           {pageWindow(currentPage, totalPages).map((p, i) =>
             p === "…" ? (
@@ -520,7 +506,7 @@ export default function MatchFeed({
             disabled={currentPage >= totalPages}
             className="h-8 rounded-lg bg-card px-3 text-xs font-bold text-ink2 transition-colors hover:text-ink disabled:opacity-40"
           >
-            Next
+            {t("common.next")}
           </button>
         </nav>
       )}

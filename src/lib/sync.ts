@@ -231,6 +231,11 @@ async function buildPayload(
       awayLogo: teamLogo(game.awayName) ?? existing?.awayLogo ?? null,
       startAt: game.startAt,
       status: "SCHEDULED",
+      // Pre-match sync rows are never live — explicitly reset the flag so
+      // stale live:true from older syncs can't hide SCHEDULED games from
+      // isLiveStatus() surfaces (home feed, slideshow). The live-score
+      // sweep re-marks genuinely in-play games right after this loop.
+      live: false,
       source: "API",
     },
   };

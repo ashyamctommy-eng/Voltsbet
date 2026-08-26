@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useTranslation } from "react-i18next";
 import OddsButton from "@/components/OddsButton";
 import TeamLogo from "@/components/TeamLogo";
 import { liveContext } from "@/lib/kickoff";
@@ -85,6 +86,7 @@ export default function MatchCard({
   preferMarkets?: string[];
 }) {
   void showCompetition; // reserved — league line always renders from the view
+  const { t } = useTranslation();
   const view = toMatchView(game);
   const isLive = view.isLive;
   const isFinished = game.status === "FINISHED";
@@ -124,9 +126,12 @@ export default function MatchCard({
         { leg: view.awayTeam, label: "2", outcome: odds.find((o) => o.label === "2" || o.name === view.awayTeam) },
       ]
     : odds.map((o) => ({ leg: o.name, label: o.label, outcome: o }));
+  // Fix: the first-view team column shows ONLY the team names (home/away) —
+  // the "1", "2" and "Draw" labels live exclusively on the odds buttons.
+  const teamRows = isOneXTwo ? [outcomeRows[0], outcomeRows[2]] : outcomeRows;
 
   return (
-    <div className="card card-hover p-3 sm:p-4">
+    <div className="card card-hover p-2.5 sm:p-3">
       {/* Header: country • league left · kickoff time right */}
       <div className="flex items-center justify-between gap-2 text-xs">
         <span className="truncate font-semibold text-ink2">
@@ -139,7 +144,7 @@ export default function MatchCard({
           {isLive ? (
             <span className="flex items-center gap-1.5 font-bold text-red-400">
               <span className="live-dot" />
-              {view.elapsedMinute ? <LiveElapsed clock={view.elapsedMinute} /> : (ctx ?? "In play")}
+              {view.elapsedMinute ? <LiveElapsed clock={view.elapsedMinute} /> : (ctx ?? t("match.inPlay"))}
             </span>
           ) : (
             view.kickoffLabel
@@ -166,25 +171,14 @@ export default function MatchCard({
 
       {/* Pre-match body: teams stacked left · 1/X/2 outcome boxes right */}
       {!isFinished && odds.length > 0 && mainMarket ? (
-        <div className="mt-3 flex items-center justify-between gap-3">
-          <div className="min-w-0 flex-1 space-y-1.5">
-            {outcomeRows.map((row, i) => (
+        <div className="mt-2 flex items-center justify-between gap-3">
+          <div className="min-w-0 flex-1 space-y-1">
+            {teamRows.map((row, i) => (
               <div key={i} className="flex min-w-0 items-center gap-2">
                 {row.label !== "X" && (
                   <TeamLogo name={row.leg} src={logoFor(row.leg)} className="h-4 w-4 shrink-0" />
                 )}
-                <span
-                  className={`truncate text-sm ${
-                    row.label === "X" ? "font-semibold text-ink2" : "font-semibold"
-                  }`}
-                >
-                  {row.leg}
-                </span>
-                {row.label && row.label !== "X" && (
-                  <span className="shrink-0 rounded bg-hover-tint px-1.5 py-0.5 text-[10px] font-bold text-ink3">
-                    {row.label}
-                  </span>
-                )}
+                <span className="truncate text-sm font-semibold">{row.leg}</span>
               </div>
             ))}
           </div>
@@ -214,7 +208,7 @@ export default function MatchCard({
                 <span
                   key={i}
                   className="flex h-9 w-11 items-center justify-center rounded-lg bg-card2 text-xs font-bold text-ink3"
-                  title="Price unavailable"
+                  title={t("match.priceUnavailable")}
                 >
                   -
                 </span>
@@ -223,23 +217,23 @@ export default function MatchCard({
           </div>
         </div>
       ) : !isFinished ? (
-        <div className="mt-3 rounded-lg bg-card2 px-3 py-2 text-center text-xs font-semibold text-amber-400">
-          Market Suspended
+        <div className="mt-2 rounded-lg bg-card2 px-3 py-2 text-center text-xs font-semibold text-amber-400">
+          {t("match.marketSuspended")}
         </div>
       ) : null}
 
       {/* Footer: +X Markets green callout badge, bottom right */}
-      <div className="mt-2.5 flex items-center justify-end">
+      <div className="mt-2 flex items-center justify-end">
         {game.isApiMatch ? (
           <span className="shrink-0 rounded-full bg-brand/10 px-2.5 py-1 text-[11px] font-black text-brand">
-            +{openMarketCount} Markets
+            {t("common.marketsCount", { count: openMarketCount })}
           </span>
         ) : (
           <Link
             href={`/fixture/${game.id}`}
             className="shrink-0 rounded-full bg-brand/10 px-2.5 py-1 text-[11px] font-black text-brand transition-colors hover:bg-brand/20"
           >
-            +{openMarketCount} Markets
+            {t("common.marketsCount", { count: openMarketCount })}
           </Link>
         )}
       </div>

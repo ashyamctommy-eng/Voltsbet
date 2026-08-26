@@ -9,19 +9,12 @@ import MatchFeed, { type FeedGame as MatchFeedGame } from "@/components/MatchFee
 
 export const dynamic = "force-dynamic";
 
-/** DB games are considered "fresh" for display within this window after the
- *  last sync — the homepage then renders from the DB (0 API requests) and the
- *  free-tier quota stays intact. Only a cold/empty DB triggers a live API
- *  bootstrap. */
-const DB_FRESH_MS = 8 * 60 * 60 * 1000;
-
-/** True when the DB holds API-synced games updated within the freshness
- *  window (module-level so the component body stays pure). */
-function hasFreshApiGames(games: { source: string; updatedAt: Date }[]): boolean {
-  const now = Date.now();
-  return games.some((g) => g.source === "API" && now - g.updatedAt.getTime() < DB_FRESH_MS);
-}
-
+/** The homepage renders from the DB whenever the DB holds any near-term
+ *  games (0 API requests — quota stays intact). A live API bootstrap only
+ *  happens on a truly cold/empty DB (fresh deploy / pre-first-cron).
+ *  NOTE: an age-based "freshness" gate was removed — with the free-tier
+ *  sync cadence (every 2 days) DB games are routinely >8h old, and the
+ *  gate caused a quota-starved partial API feed to MASK good DB games. */
 export default async function HomePage() {
   const s = await getSettings();
   const [banners, dbGames, popularSports, promotions] = await Promise.all([
@@ -53,11 +46,10 @@ export default async function HomePage() {
     }),
   ]);
 
-  const dbFresh = hasFreshApiGames(dbGames);
-  // API bootstrap ONLY when the DB has no recent synced games (fresh deploy /
-  // pre-first-cron). TTL-cached server-side (6h), so it runs at most a few
-  // times a day even then. Live matches are filtered OUT of home — /live.
-  const apiFeed = dbFresh ? null : await getPrematchFeed().catch(() => null);
+  // API bootstrap ONLY when the DB is empty (fresh deploy / pre-first-cron).
+  // TTL-cached server-side (6h), so it runs at most a few times a day even
+  // then. Live matches are filtered OUT of home — /live.
+  const apiFeed = dbGames.length > 0 ? null : await getPrematchFeed().catch(() => null);
   const games: MatchFeedGame[] = (
     apiFeed?.matches.length
       ? apiFeed.matches.map(apiMatchToFeedGame)
