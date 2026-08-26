@@ -24,6 +24,12 @@ export default async function HomePage() {
     prisma.game.findMany({
       where: {
         status: { notIn: ["FINISHED", "CANCELLED"] },
+        // Near-term fixtures ONLY — stale past games from older syncs (e.g.
+        // "Armenia - First League" from 2026-08-18, still SCHEDULED) used to
+        // flood the take-200 window (ordered by kickoff ASC) and push today's
+        // games out, leaving the home feed at "0 matches". 2h grace keeps
+        // games that just kicked off (pre-live) visible.
+        startAt: { gte: new Date(Date.now() - 2 * 3600_000) },
         ...(s.hideSeededGames ? { source: "API" } : {}),
       },
       include: {

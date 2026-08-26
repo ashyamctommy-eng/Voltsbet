@@ -17,6 +17,9 @@ export default async function SportPage({ params }: { params: Promise<{ slug: st
     prisma.game.findMany({
       where: {
         sportId: sport.id,
+        // Near-term only — stale SCHEDULED games from older syncs must not
+        // surface in Today/Upcoming/Other buckets.
+        startAt: { gte: new Date(Date.now() - 2 * 3600_000) },
         ...(s.hideSeededGames ? { source: "API" } : {}),
       },
       include: { sport: true, markets: { include: { outcomes: true }, orderBy: { sortOrder: "asc" } } },
