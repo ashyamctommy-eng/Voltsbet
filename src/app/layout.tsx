@@ -93,6 +93,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   <Footer />
                   <MobileNav loggedIn={!!user} liveCount={liveGames} />
                   <SupportWidget
+                    isStaff={!!user && user.role !== "CUSTOMER"}
                     support={{
                       phone: s.supportPhone,
                       whatsappEnabled: s.whatsappEnabled,

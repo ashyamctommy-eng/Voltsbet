@@ -3,6 +3,11 @@
 import { useState } from "react";
 import { IconChat, IconPhone, IconSend, IconWhatsApp, IconTelegram } from "@/components/icons";
 
+/** Developer contact — shown ONLY to staff/admin in the support widget
+ *  (never to customers). Replace/remove for pure white-label deployments. */
+const DEV_TELEGRAM = "https://t.me/Poriot_ke";
+const DEV_WHATSAPP = "https://wa.me/254717702563";
+
 type SupportConfig = {
   phone: string;
   whatsappEnabled: boolean;
@@ -20,8 +25,9 @@ const FAQ: { q: string; a: string }[] = [
 
 type Msg = { from: "bot" | "user"; text: string };
 
-/** Floating support bubble + bottom-sheet modal (Live Chat / Call Us). */
-export default function SupportWidget({ support }: { support: SupportConfig }) {
+/** Floating support bubble + bottom-sheet modal (Live Chat / Call Us).
+ *  `isStaff` gates the admin-only developer-contact section. */
+export default function SupportWidget({ support, isStaff = false }: { support: SupportConfig; isStaff?: boolean }) {
   const [open, setOpen] = useState(false);
   const [chat, setChat] = useState(false);
   const [msgs, setMsgs] = useState<Msg[]>([{ from: "bot", text: "Hi! 👋 I'm VoltBot. Ask me about deposits, withdrawals, bets or bonuses." }]);
@@ -102,6 +108,32 @@ export default function SupportWidget({ support }: { support: SupportConfig }) {
                     <span className="block text-xs text-ink3">Speak to an agent: {support.phone}</span>
                   </span>
                 </a>
+
+                {isStaff && (
+                  <div className="rounded-2xl border border-line/70 bg-hover-tint p-4">
+                    <div className="text-[10px] font-black uppercase tracking-wider text-ink3">
+                      Developer support (admin only)
+                    </div>
+                    <div className="mt-2 flex gap-2">
+                      <a
+                        href={DEV_TELEGRAM}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#229ED9] px-3 py-2.5 text-xs font-bold text-white transition-transform hover:scale-[1.03]"
+                      >
+                        <IconTelegram className="h-4 w-4" /> Telegram
+                      </a>
+                      <a
+                        href={DEV_WHATSAPP}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#25D366] px-3 py-2.5 text-xs font-bold text-white transition-transform hover:scale-[1.03]"
+                      >
+                        <IconWhatsApp className="h-4 w-4" /> WhatsApp
+                      </a>
+                    </div>
+                  </div>
+                )}
 
                 <p className="pt-1 text-center text-[11px] text-ink3">Available Monday - Sunday, 24 hours</p>
               </div>
