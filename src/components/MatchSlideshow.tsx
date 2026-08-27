@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import TeamLogo from "@/components/TeamLogo";
 import { IconGift, IconClock } from "@/components/icons";
 import { formatKickoff, liveContext } from "@/lib/kickoff";
@@ -89,6 +90,7 @@ export default function MatchSlideshow({ games }: { games: SlideGame[] }) {
 
 /* ── Slide 1: 20% cashback promo ────────────────────────────── */
 function PromoSlide() {
+  const { t } = useTranslation();
   return (
     <Link
       href="/account/deposit"
@@ -104,15 +106,15 @@ function PromoSlide() {
 
       <div className="relative">
         <span className="inline-block rounded-full bg-white/20 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-white">
-          Cashback
+          {t("promo.cashback")}
         </span>
         <h2 className="mt-2 max-w-[85%] text-xl font-black leading-tight text-white">
-          20% Cashback — Get 20% back when your sports bet loses!
+          {t("promo.cashback_title")}
         </h2>
         <p className="mt-1 text-xs font-semibold text-emerald-50/90">
-          Auto-credited on settled losing bets. Terms apply.
+          {t("promo.cashback_sub")}
         </p>
-        <span className="btn mt-4 inline-flex !border-0 !bg-white !text-green-700 shadow-md">Deposit</span>
+        <span className="btn mt-4 inline-flex !border-0 !bg-white !text-green-700 shadow-md">{t("common.deposit")}</span>
       </div>
     </Link>
   );

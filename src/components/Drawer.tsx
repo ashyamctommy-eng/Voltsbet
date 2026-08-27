@@ -35,25 +35,28 @@ export type SupportLinks = {
 
 type MenuItem = { href: string; label: string; Icon: (p: { className?: string }) => React.ReactNode; color: string; badge?: string };
 
-/* Color-coded menu items (matches the SafiBets drawer hierarchy) */
+/* Color-coded menu items (matches the SafiBets drawer hierarchy).
+ * Colors use `dark:` pairs so the pale icon tints (sky-100/300, amber-300…)
+ * only apply in dark mode — in light mode they flip to 600-level shades that
+ * hold contrast on white (#f4f6f8). */
 const CUSTOMER_ITEMS: MenuItem[] = [
-  { href: "/live", label: "Live Games", Icon: IconLive, color: "text-red-400", badge: "LIVE" },
-  { href: "/account/deposit", label: "Deposit", Icon: IconArrowDown, color: "text-green-400" },
-  { href: "/account/withdraw", label: "Withdraw", Icon: IconArrowUp, color: "text-sky-300" },
-  { href: "/account/bets", label: "My Bets", Icon: IconTicket, color: "text-sky-100" },
-  { href: "/account", label: "Refer & Earn", Icon: IconGift, color: "text-purple-400" },
+  { href: "/live", label: "Live Games", Icon: IconLive, color: "dark:text-red-400 text-red-600", badge: "LIVE" },
+  { href: "/account/deposit", label: "Deposit", Icon: IconArrowDown, color: "dark:text-green-400 text-green-600" },
+  { href: "/account/withdraw", label: "Withdraw", Icon: IconArrowUp, color: "dark:text-sky-300 text-sky-600" },
+  { href: "/account/bets", label: "My Bets", Icon: IconTicket, color: "dark:text-sky-100 text-sky-600" },
+  { href: "/account", label: "Refer & Earn", Icon: IconGift, color: "dark:text-purple-400 text-purple-600" },
 ];
 
 /* Staff drawer — admin features, not customer features */
 const STAFF_ITEMS: MenuItem[] = [
-  { href: "/admin/games", label: "Manage Games", Icon: IconCalendar, color: "text-green-400" },
-  { href: "/admin/users", label: "Users Management", Icon: IconUsers, color: "text-sky-300" },
-  { href: "/admin/deposits", label: "Crypto Transactions", Icon: IconDownload, color: "text-amber-300" },
-  { href: "/admin/withdrawals", label: "Withdrawals", Icon: IconUpload, color: "text-sky-100" },
-  { href: "/admin/settings#payments", label: "Payments", Icon: IconCoins, color: "text-purple-400" },
-  { href: "/admin/api-settings", label: "API Settings — Bet365 (via RapidAPI / BetsAPI)", Icon: IconPlug, color: "text-green-400" },
+  { href: "/admin/games", label: "Manage Games", Icon: IconCalendar, color: "dark:text-green-400 text-green-600" },
+  { href: "/admin/users", label: "Users Management", Icon: IconUsers, color: "dark:text-sky-300 text-sky-600" },
+  { href: "/admin/deposits", label: "Crypto Transactions", Icon: IconDownload, color: "dark:text-amber-300 text-amber-600" },
+  { href: "/admin/withdrawals", label: "Withdrawals", Icon: IconUpload, color: "dark:text-sky-100 text-sky-600" },
+  { href: "/admin/settings#payments", label: "Payments", Icon: IconCoins, color: "dark:text-purple-400 text-purple-600" },
+  { href: "/admin/api-settings", label: "API Settings — Bet365 (via RapidAPI / BetsAPI)", Icon: IconPlug, color: "dark:text-green-400 text-green-600" },
   { href: "/admin/settings", label: "Website Settings", Icon: IconGear, color: "text-ink2" },
-  { href: "/admin/ops", label: "Daily Ops", Icon: IconController, color: "text-cyan-300" },
+  { href: "/admin/ops", label: "Daily Ops", Icon: IconController, color: "dark:text-cyan-300 text-cyan-600" },
 ];
 
 const TOP_LEAGUES = [
@@ -118,7 +121,7 @@ export default function Drawer({
         <div className="flex-1 overflow-y-auto pb-6">
           {/* Sports section */}
           <nav className="px-3 pt-4">
-            <h3 className="px-2 pb-2 text-sm font-black text-white">{isStaff ? "Admin" : "Sports"}</h3>
+            <h3 className="px-2 pb-2 text-sm font-black text-ink">{isStaff ? "Admin" : "Sports"}</h3>
             <div className="space-y-1.5">
               {items.map(({ href, label, Icon, color, badge }) => {
                 const active = pathname === href || pathname.startsWith(href + "/");
@@ -146,7 +149,7 @@ export default function Drawer({
           {/* Top leagues (customer drawer only) */}
           {!isStaff && (
           <div className="mt-6 px-3">
-            <h3 className="flex items-center gap-2 px-2 pb-2 text-sm font-black text-white">
+            <h3 className="flex items-center gap-2 px-2 pb-2 text-sm font-black text-ink">
               <IconCrown className="h-4 w-4 text-warn" /> Top Leagues
             </h3>
             <div className="space-y-1.5">
@@ -170,7 +173,7 @@ export default function Drawer({
 
           {/* Community & support */}
           <div className="mt-6 px-3">
-            <h3 className="px-2 pb-2 text-sm font-black text-white">Community &amp; Support</h3>
+            <h3 className="px-2 pb-2 text-sm font-black text-ink">Community &amp; Support</h3>
             <div className="space-y-1.5">
               {showWhatsApp && (
                 <a
@@ -178,7 +181,7 @@ export default function Drawer({
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={onClose}
-                  className="flex items-center gap-3 rounded-xl bg-card px-3.5 py-3 text-sm font-bold text-green-400"
+                  className="flex items-center gap-3 rounded-xl bg-card px-3.5 py-3 text-sm font-bold dark:text-green-400 text-green-600"
                 >
                   <IconWhatsApp className="h-5 w-5" /> WhatsApp
                   <IconChevronRight className="ml-auto h-4 w-4 opacity-40" />
@@ -190,7 +193,7 @@ export default function Drawer({
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={onClose}
-                  className="flex items-center gap-3 rounded-xl bg-card px-3.5 py-3 text-sm font-bold text-sky-400"
+                  className="flex items-center gap-3 rounded-xl bg-card px-3.5 py-3 text-sm font-bold dark:text-sky-400 text-sky-600"
                 >
                   <IconTelegram className="h-5 w-5" /> Telegram
                   <IconChevronRight className="ml-auto h-4 w-4 opacity-40" />

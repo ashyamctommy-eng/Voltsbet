@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* The app themes via html[data-theme] (see ThemeProvider), NOT the OS
+ * prefers-color-scheme — wire Tailwind's `dark:` variant to the same
+ * attribute so `dark:text-* text-*` pairs adapt to the in-app toggle. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 @theme inline {
   --color-brand: var(--vb-primary, #00e676);
   --color-brand-dark: color-mix(in srgb, var(--vb-primary, #00e676) 80%, black);
