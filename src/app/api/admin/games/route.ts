@@ -7,8 +7,19 @@ export const GET = handle(async (req: NextRequest) => {
   await requireAdmin("games");
   const sportId = req.nextUrl.searchParams.get("sportId") ?? undefined;
   const status = req.nextUrl.searchParams.get("status") ?? undefined;
+  // Stale-fixture guard: upcoming-only statuses (and the "All statuses"
+  // default view) never list fixtures whose kickoff is already in the past —
+  // older syncs leave SCHEDULED rows with historical dates ("19 Aug") that
+  // cluttered the management list. LIVE / HALF_TIME / FINISHED legitimately
+  // started in the past and stay visible.
+  const EXCLUDE_PAST_STATUSES = new Set(["SCHEDULED", "POSTPONED"]);
+  const excludePast = !status || EXCLUDE_PAST_STATUSES.has(status);
   const games = await prisma.game.findMany({
-    where: { ...(sportId ? { sportId } : {}), ...(status ? { status } : {}) },
+    where: {
+      ...(sportId ? { sportId } : {}),
+      ...(status ? { status } : {}),
+      ...(excludePast ? { startAt: { gte: new Date() } } : {}),
+    },
     include: {
       sport: true,
       _count: { select: { markets: true } },

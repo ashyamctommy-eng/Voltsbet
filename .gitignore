@@ -45,3 +45,6 @@ next-env.d.ts
 # local sqlite db (migrations are committed, data is not)
 /prisma/dev.db
 /prisma/dev.db-journal
+
+# agent planning scratch (not part of the app)
+/.claude/

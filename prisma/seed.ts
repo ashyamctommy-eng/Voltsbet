@@ -15,6 +15,11 @@ const D = (n: number) => new Date(Date.now() + n * 86400_000);
 const H = (n: number) => new Date(Date.now() + n * 3600_000);
 const dec = (n: string | number) => n.toString();
 
+// NOTE: every seeded match date is projected RELATIVE to the current time
+// (D = days, H = hours ahead) — never hardcoded — so a reseed always yields
+// fresh upcoming fixtures instead of stale historical kickoffs in the admin
+// list and feeds.
+
 async function main() {
   console.log("Seeding VoltBet...");
 

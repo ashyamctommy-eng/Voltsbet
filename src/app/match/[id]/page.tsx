@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { formatDateTime, fmtOdds } from "@/lib/odds";
+import BackButton from "@/components/BackButton";
 import TeamLogo from "@/components/TeamLogo";
 import FixtureMarkets from "@/components/FixtureMarkets";
 
@@ -28,11 +29,14 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
       {/* Header */}
       <div className="card mt-6 overflow-hidden">
         <div className="border-b border-line bg-gradient-to-r from-[#10182c] to-[#1a1050] px-6 py-5">
-          <div className="flex flex-wrap items-center gap-2 text-xs text-ink3">
-            <Link href="/sports" className="hover:text-ink">{game.sport.icon} {game.sport.name}</Link>
-            <span>›</span>
-            <span>{game.competitionName ?? game.competition?.name ?? "—"}</span>
-            {!live && <span>› {formatDateTime(game.startAt)}</span>}
+          <div className="flex items-center gap-2">
+            <BackButton className="h-7 w-7 bg-white/5 hover:bg-white/10" />
+            <div className="flex flex-wrap items-center gap-2 text-xs text-ink3">
+              <Link href="/sports" className="hover:text-ink">{game.sport.icon} {game.sport.name}</Link>
+              <span>›</span>
+              <span>{game.competitionName ?? game.competition?.name ?? "—"}</span>
+              {!live && <span>› {formatDateTime(game.startAt)}</span>}
+            </div>
           </div>
 
           <div className="mt-4 flex flex-col items-center justify-center gap-4 sm:flex-row sm:gap-10">

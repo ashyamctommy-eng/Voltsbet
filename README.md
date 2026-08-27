@@ -135,7 +135,8 @@ preference → IP detection (ipapi.co → ipinfo.io fallback, ~160-country map) 
 | `ODDS_API_CACHE_TTL_SECONDS` | — | `300` | Provider response cache TTL |
 | `ODDS_API_RATE_LIMIT_MS` | — | `1100` | Min spacing between Odds API calls (free tier = 1 req/sec; paid: ~250) — auto-retries 429s |
 | `PURGE_MAX_AGE_HOURS` | — | `2` | Calendar purge deletes games kicked off this long ago (non-in-play) |
-| `ODDS_API_FALLBACK_LEAGUES` | — | all | Comma-separated sport keys to sync |
+| `ODDS_API_FALLBACK_LEAGUES` | — | all | Comma-separated sport keys to sync. **Unset = every active soccer league is queried** for the landing feed (priority-ordered, see `ODDS_API_FEED_MAX_LEAGUES`) — the feed is never hardcoded to EFL/LaLiga only |
+| `ODDS_API_FEED_MAX_LEAGUES` | — | `60` | Max leagues queried per feed refresh when no `ODDS_API_FALLBACK_LEAGUES` override (1 request each; feed is TTL-cached, cold-DB bootstrap only — free tier safe) |
 | `SHOW_SEEDED_GAMES` | — | **unset** | **Leave UNSET in production** — setting it to `true` reveals demo games |
 | `SPORTMONKS_API_TOKEN` | — | — | **No longer needed** (calendar moved to The Odds API `/events`) |
 

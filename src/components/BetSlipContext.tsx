@@ -46,6 +46,10 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
   const [hasOddsChange, setHasOddsChange] = useState(false);
   const loaded = useRef(false);
   const prevCountRef = useRef(0);
+  /** Committed slip mirror for event handlers — add() reads it to decide
+   *  replace-vs-append without stale closures. */
+  const itemsRef = useRef<SlipItem[]>([]);
+  const { push } = useToast();
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -65,6 +69,10 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
     if (loaded.current) {
       try { localStorage.setItem(LS_KEY, JSON.stringify(items)); } catch {}
     }
+  }, [items]);
+
+  useEffect(() => {
+    itemsRef.current = items;
   }, [items]);
 
   // Auto-open the desktop rail when the first selection lands; on mobile the
@@ -91,25 +99,30 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
   }, [items.length]);
 
   const add = useCallback((item: SlipItem) => {
-    setItems((prev) => {
-      const exists = prev.find((p) => p.outcomeId === item.outcomeId);
-      if (exists) {
-        return prev.map((p) => (p.outcomeId === item.outcomeId ? { ...p, odds: item.odds } : p));
-      }
-      // One selection per market: outcomes of the same game + market are
-      // mutually exclusive (1/X/2, Over/Under, BTTS Yes/No…), so picking a
-      // new leg REPLACES the previous pick from that market instead of
-      // stacking nonsensical combos (e.g. betting 1 AND X AND 2).
-      const sameMarket = prev.some(
-        (p) => p.gameId === item.gameId && p.marketKey === item.marketKey,
-      );
-      if (sameMarket) {
-        return [...prev.filter((p) => !(p.gameId === item.gameId && p.marketKey === item.marketKey)), item];
-      }
-      return [...prev, item];
-    });
+    const prev = itemsRef.current;
+    const exists = prev.find((p) => p.outcomeId === item.outcomeId);
+    if (exists) {
+      // Same outcome tapped again (e.g. after an odds refresh) → refresh its
+      // price in place, never duplicate.
+      setItems((cur) => cur.map((p) => (p.outcomeId === item.outcomeId ? { ...p, odds: item.odds } : p)));
+      setHasOddsChange(false);
+      return;
+    }
+    // Same-match rule (no Bet Builder support): a slip can hold at most ONE
+    // leg per match. Markets of one game are mutually exclusive (1X2,
+    // Over/Under, BTTS, HT result…), so picking any other market/outcome
+    // from a game that already has a selection REPLACES the existing leg —
+    // never stacks an impossible accumulator (the server would reject it).
+    const previous = prev.find((p) => p.gameId === item.gameId);
+    setItems((cur) => [...cur.filter((p) => p.gameId !== item.gameId), item]);
     setHasOddsChange(false);
-  }, []);
+    if (previous) {
+      push(
+        "info",
+        `One selection per match — “${previous.outcome}” (${previous.market}) replaced with “${item.outcome}” (${item.market}).`,
+      );
+    }
+  }, [push]);
 
   const remove = useCallback((outcomeId: string) => {
     setItems((prev) => prev.filter((p) => p.outcomeId !== outcomeId));

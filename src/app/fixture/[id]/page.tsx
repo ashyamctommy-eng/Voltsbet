@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { IconClock } from "@/components/icons";
+import BackButton from "@/components/BackButton";
 import TeamLogo from "@/components/TeamLogo";
 import FixtureMarkets from "@/components/FixtureMarkets";
 import KickoffFull from "@/components/KickoffFull";
@@ -27,12 +28,15 @@ export default async function FixturePage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="mx-auto max-w-[1200px] px-4 pb-8">
-      {/* Header: league left · markets pill right */}
+      {/* Header: back arrow + league left · markets pill right */}
       <div className="card mt-6 overflow-hidden">
         <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
-          <span className="truncate text-sm font-bold text-ink2">
-            {game.competitionName ?? game.competition?.name ?? game.sport.name}
-          </span>
+          <div className="flex min-w-0 items-center gap-2">
+            <BackButton />
+            <span className="truncate text-sm font-bold text-ink2">
+              {game.competitionName ?? game.competition?.name ?? game.sport.name}
+            </span>
+          </div>
           <span className="shrink-0 rounded-full bg-brand/15 px-3 py-1 text-xs font-black text-brand">
             {openMarkets.length} Markets
           </span>

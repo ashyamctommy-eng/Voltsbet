@@ -67,6 +67,10 @@ export default function Header({
   // feed view. Active pill follows ?view= (default: Highlights).
   const activeView: FeedView =
     (searchParams?.get("view") as FeedView) ?? "highlights";
+  // Pills switch the feed view IN PLACE: on a sport tab they keep the sport
+  // route (e.g. /sports/football?view=upcoming) instead of jumping home —
+  // the filter bar stays visible and active on every feed surface.
+  const feedPath = pathname.startsWith("/sports/") ? pathname : "/";
 
   // Close overlays on route change
   useEffect(() => {
@@ -242,7 +246,7 @@ export default function Header({
             return (
               <Link
                 key={v.id}
-                href={`/?view=${v.id}`}
+                href={`${feedPath}?view=${v.id}`}
                 className={`shrink-0 rounded-full px-3.5 py-1.5 text-[11px] font-bold transition-colors sm:text-xs ${
                   active ? "bg-brand text-[#052e16]" : "bg-card text-ink2 hover:text-ink"
                 }`}
