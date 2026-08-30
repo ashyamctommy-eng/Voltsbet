@@ -82,7 +82,9 @@ export default async function BetDetailPage({ params }: { params: Promise<{ id: 
                   ? "bg-green-500/15 text-green-400"
                   : bet.status === "LOST"
                     ? "bg-red-500/15 text-red-400"
-                    : "bg-hover-tint text-ink3"
+                    : bet.status === "CASHED_OUT"
+                      ? "bg-amber-500/15 text-amber-400"
+                      : "bg-hover-tint text-ink3"
             }`}
           >
             {bet.status} ({settledCount}/{total})

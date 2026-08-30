@@ -89,11 +89,15 @@ notifications · status_types · settings · audit_logs
 
 ## Known MVP simplifications (documented)
 
-- Multiples: any void leg voids the whole accumulator (refund) — industry standard
-  is "reduce to remaining legs"; easy to upgrade in `settle.ts`.
+- Multiples support parlay reduction: a VOID leg is removed and the acca
+  continues at reduced odds (totalOdds ÷ void leg odds, same stake); a LOST
+  leg kills the acca immediately. Full-stake refund only when every leg voids.
+- Cash-out: full cash-out on OPEN bets at a live quote (stake × original ÷
+  current total odds, minus the configurable cash-out margin). No partial
+  cash-out or cash-out-after-live-settlement yet.
 - Wallet currency = user's registration currency; display currency converts on the
   fly without touching wallet value (spec §23 honored).
-- No cash-out / live cash-out, no parlay boost engine (promotions exist but are
-  informational).
-- Correct Score markets are manual/admin-managed.
+- No parlay boost engine (promotions exist but are informational).
+- Correct Score + half-time markets are manual/admin-managed (no HT scores in
+  the data feed).
 - In-memory rate limiter and settings cache are per-process (fine single-instance).

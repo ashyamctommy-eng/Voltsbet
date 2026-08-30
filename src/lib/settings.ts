@@ -50,6 +50,9 @@ export type SiteSettings = {
   // Odds & risk
   oddsMarginPercent: number; // overround added on top of feed odds (e.g. 6 = 6%)
   maxLiabilityPerMarket: number; // max exposure (potential payout) per market
+  // Cash-out
+  cashoutEnabled: boolean; // allow players to cash out open bets early
+  cashoutMarginPercent: number; // book margin applied to the cash-out quote (e.g. 5 = 5%)
   // Games display
   hideSeededGames: boolean; // show only synced (source=API) games in public lists; auto-on after first successful sync
   liveRefreshSeconds: number; // /live auto-refresh + live-score poll interval (1 Odds API scores request per window per active league)
@@ -108,6 +111,8 @@ const DEFAULTS: SiteSettings = {
   heroSubtitle: "Fast odds, instant crypto deposits, live betting.",
   oddsMarginPercent: 6,
   maxLiabilityPerMarket: 500000,
+  cashoutEnabled: true,
+  cashoutMarginPercent: 5,
   hideSeededGames: false,
   liveRefreshSeconds: 60,
   referralEnabled: true,
@@ -175,6 +180,8 @@ export async function getSettings(): Promise<SiteSettings> {
   s.heroSubtitle = raw["home.heroSubtitle"] ?? s.heroSubtitle;
   s.oddsMarginPercent = Number(raw["odds.marginPercent"] ?? s.oddsMarginPercent);
   s.maxLiabilityPerMarket = Number(raw["betting.maxLiabilityPerMarket"] ?? s.maxLiabilityPerMarket);
+  s.cashoutEnabled = (raw["betting.cashoutEnabled"] ?? String(DEFAULTS.cashoutEnabled)) === "true";
+  s.cashoutMarginPercent = Number(raw["betting.cashoutMarginPercent"] ?? s.cashoutMarginPercent);
   s.hideSeededGames =
     process.env.SHOW_SEEDED_GAMES !== undefined
       ? process.env.SHOW_SEEDED_GAMES !== "true" // env wins: "false" = hide seeds

@@ -57,10 +57,6 @@ export async function settleOutcome(admin: SettleActor, outcomeId: string, resul
       // Fresh view: this selection now has `result`; the others keep their state
       const selResults = bet.selections.map((s) => (s.id === sel.id ? result : s.result));
       const selSettled = bet.selections.map((s) => (s.id === sel.id ? true : s.settled));
-      const anyUnsettled = selSettled.some((v) => !v);
-      const anyLost = selResults.some((r) => r === "LOST");
-      const anyVoid = selResults.some((r) => r === "VOID");
-      const allWon = selSettled.every(Boolean) && selResults.every((r) => r === "WON");
 
       let newStatus = bet.status;
       let payout = 0;
@@ -70,43 +66,85 @@ export async function settleOutcome(admin: SettleActor, outcomeId: string, resul
         newStatus = result;
         if (result === "WON") { payout = Number(bet.potentialWin); payoutType = "BET_WIN"; }
         if (result === "VOID") { payout = Number(bet.stake); payoutType = "BET_REFUND"; }
-      } else if (!anyUnsettled) {
-        // MULTIPLE fully settled now
-        if (anyLost) { newStatus = "LOST"; }
-        else if (anyVoid) { newStatus = "VOID"; payout = Number(bet.stake); payoutType = "BET_REFUND"; }
-        else if (allWon) { newStatus = "WON"; payout = Number(bet.potentialWin); payoutType = "BET_WIN"; }
-        else { newStatus = "LOST"; } // fallback: not all won
+      } else {
+        // MULTIPLE — parlay reduction (industry standard):
+        //   - a LOST leg kills the acca immediately, even while other legs
+        //     are still unsettled (a dead acca doesn't wait);
+        //   - a VOID leg with unsettled legs remaining REMOVES the leg and
+        //     continues at reduced odds (totalOdds ÷ void leg odds, same
+        //     stake) instead of refunding the whole acca;
+        //   - when fully settled with no losses: all-void → refund, any
+        //     non-void win (incl. void-reduced) → payout at (reduced) odds.
+        const anyLost = selResults.some((r) => r === "LOST");
+        const allSettled = selSettled.every(Boolean);
+
+        if (anyLost) {
+          newStatus = "LOST";
+        } else if (!allSettled) {
+          if (result === "VOID") {
+            // Reduce to remaining legs: void odds → 1.0, stake unchanged.
+            const voidOdds = Math.max(1.01, Number(sel.oddsAtPlacement));
+            const reducedTotal = Math.round((Number(bet.totalOdds) / voidOdds) * 100) / 100;
+            const reducedWin = Math.round(Number(bet.stake) * reducedTotal * 100) / 100;
+            await tx.bet.update({
+              where: { id: bet.id },
+              data: { totalOdds: reducedTotal.toFixed(2), potentialWin: reducedWin.toFixed(2) },
+            });
+            await tx.notification.create({
+              data: {
+                userId: bet.userId,
+                type: "BET_RESULT",
+                title: "Acca Reduced 📉",
+                message: `One leg of ${bet.code} was voided — your accumulator continues at reduced odds (${reducedTotal.toFixed(2)}).`,
+              },
+            });
+          }
+          // A WON leg while others are unsettled → nothing to do yet.
+        } else {
+          // Fully settled, no lost legs.
+          if (selResults.every((r) => r === "VOID")) {
+            newStatus = "VOID"; payout = Number(bet.stake); payoutType = "BET_REFUND";
+          } else {
+            newStatus = "WON"; payout = Number(bet.potentialWin); payoutType = "BET_WIN";
+          }
+        }
       }
 
       if (newStatus !== bet.status) {
-        await tx.bet.update({
-          where: { id: bet.id },
+        // Atomic claim: exactly one actor (settle / cancel / cash-out) may
+        // move this bet out of OPEN. If another actor won the race (e.g. the
+        // player cashed out a moment ago), skip the payout entirely — no
+        // double credit.
+        const claimed = await tx.bet.updateMany({
+          where: { id: bet.id, status: "OPEN" },
           data: { status: newStatus, settledAt: new Date() },
         });
 
-        if (payout > 0 && payoutType) {
-          await creditWallet(tx, bet.userId, payout, {
-            type: payoutType,
-            reason: `${payoutType === "BET_WIN" ? "Bet won" : "Bet voided"} ${bet.code}`,
-            reference: bet.code,
+        if (claimed.count > 0) {
+          if (payout > 0 && payoutType) {
+            await creditWallet(tx, bet.userId, payout, {
+              type: payoutType,
+              reason: `${payoutType === "BET_WIN" ? "Bet won" : "Bet voided"} ${bet.code}`,
+              reference: bet.code,
+            });
+          }
+          affected.push(bet.code);
+
+          // Notify the user
+          await tx.notification.create({
+            data: {
+              userId: bet.userId,
+              type: "BET_RESULT",
+              title: newStatus === "WON" ? "Bet Won 🏆" : newStatus === "VOID" ? "Bet Voided" : "Bet Lost",
+              message:
+                newStatus === "WON"
+                  ? `Your bet ${bet.code} won. ${payout.toFixed(2)} was credited to your balance.`
+                  : newStatus === "VOID"
+                    ? `Your bet ${bet.code} was voided and your stake refunded.`
+                    : `Your bet ${bet.code} was settled as lost.`,
+            },
           });
         }
-        affected.push(bet.code);
-
-        // Notify the user
-        await tx.notification.create({
-          data: {
-            userId: bet.userId,
-            type: "BET_RESULT",
-            title: newStatus === "WON" ? "Bet Won 🏆" : newStatus === "VOID" ? "Bet Voided" : "Bet Lost",
-            message:
-              newStatus === "WON"
-                ? `Your bet ${bet.code} won. ${payout.toFixed(2)} was credited to your balance.`
-                : newStatus === "VOID"
-                  ? `Your bet ${bet.code} was voided and your stake refunded.`
-                  : `Your bet ${bet.code} was settled as lost.`,
-          },
-        });
       }
     }
 

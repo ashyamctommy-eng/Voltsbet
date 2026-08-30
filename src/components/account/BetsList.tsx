@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { formatDateTime } from "@/lib/odds";
+import CashOutButton from "@/components/account/CashOutButton";
 
 /** Acca bonus tiers (mirrors the betslip). */
 const BONUS_TIERS: Record<number, number> = { 2: 4, 3: 5, 4: 6, 5: 7, 6: 8, 7: 10 };
@@ -36,6 +37,7 @@ const STATUS_COLOR: Record<string, string> = {
   WON: "bg-green-500/15 text-green-400",
   LOST: "bg-red-500/15 text-red-400",
   VOID: "bg-hover-tint text-ink3",
+  CASHED_OUT: "bg-amber-500/15 text-amber-400",
 };
 
 /** My Bets — status-filter dropdown + Betika-style ticket cards. */
@@ -153,10 +155,13 @@ export default function BetsList({ bets }: { bets: BetsListItem[] }) {
                       {Number(bet.stake).toLocaleString()}
                     </div>
                   </div>
-                  <div className="text-right text-xs text-ink2">
-                    {bet.status === "WON" ? "Return" : bet.status === "VOID" ? "Refunded" : "Potential Payout"}
-                    <div className={`text-sm font-extrabold tabular-nums ${bet.status === "WON" ? "text-green-400" : "text-green-400"}`}>
-                      {Number(bet.potentialWin).toLocaleString()}
+                  <div className="flex items-center gap-2">
+                    <CashOutButton betId={bet.id} code={bet.code} status={bet.status} />
+                    <div className="text-right text-xs text-ink2">
+                      {bet.status === "WON" ? "Return" : bet.status === "VOID" ? "Refunded" : bet.status === "CASHED_OUT" ? "Cashed out" : "Potential Payout"}
+                      <div className={`text-sm font-extrabold tabular-nums ${bet.status === "WON" ? "text-green-400" : "text-green-400"}`}>
+                        {Number(bet.potentialWin).toLocaleString()}
+                      </div>
                     </div>
                   </div>
                 </div>

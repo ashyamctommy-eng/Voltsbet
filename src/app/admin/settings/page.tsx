@@ -37,6 +37,8 @@ const GROUPS: { title: string; anchor: string; icon: React.ReactNode; fields: Fi
       { key: "betting.minStake", label: "Minimum stake", type: "number" },
       { key: "betting.maxStake", label: "Maximum stake", type: "number" },
       { key: "betting.maxPayout", label: "Maximum payout", type: "number" },
+      { key: "betting.cashoutEnabled", label: "Cash-out enabled", type: "toggle", hint: "Let players cash out open bets early at a live quote" },
+      { key: "betting.cashoutMarginPercent", label: "Cash-out margin %", type: "number", hint: "Book margin taken off the fair-value quote (e.g. 5 = player gets 95% of fair value)" },
     ],
   },
   {

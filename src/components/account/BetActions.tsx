@@ -6,6 +6,7 @@ import { apiFetch } from "@/lib/client";
 import { useBetSlip } from "@/components/BetSlipContext";
 import { useToast } from "@/components/BetSlipContext";
 import { BET_CANCEL_WINDOW_MS } from "@/lib/bet-cancel";
+import CashOutButton from "@/components/account/CashOutButton";
 
 export type DetailSelection = {
   id: string;
@@ -128,6 +129,7 @@ export default function BetActions({
 
   return (
     <div className="flex flex-wrap items-center gap-2.5">
+      {bet.status === "OPEN" && <CashOutButton betId={bet.id} code={bet.code} status={bet.status} />}
       {bet.status === "OPEN" && (
         <button
           onClick={cancel}
