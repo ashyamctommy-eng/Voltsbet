@@ -3,10 +3,36 @@ import { handle, ok, requireAdmin, verifyCsrf, auditLog, ApiError } from "@/lib/
 import { prisma } from "@/lib/prisma";
 import { setSetting, invalidateSettingsCache } from "@/lib/settings";
 
+/**
+ * Secret settings are masked on read: the raw value never leaves the server
+ * for GET (an admin panel leak or shoulder-surf can't expose provider keys).
+ * When a masked value comes back on PUT it is ignored, so saving the form
+ * preserves the stored secret. Typing a new value replaces it.
+ */
+const SECRET_SETTINGS = new Set([
+  "api.rapidKey",
+  "crypto.apiKey",
+  "crypto.ipnSecret",
+  "crypto.payoutApiKey",
+  "mpesa.consumerSecret",
+  "mpesa.passkey",
+  "mpesa.securityCredential",
+  "mpesa.callbackSecret",
+]);
+const MASK = "__MASKED__";
+
+function isSecret(key: string) {
+  return SECRET_SETTINGS.has(key);
+}
+
 export const GET = handle(async () => {
   await requireAdmin("settings");
   const settings = await prisma.setting.findMany({ orderBy: { key: "asc" } });
-  return ok({ settings: Object.fromEntries(settings.map((s) => [s.key, s.value])) });
+  return ok({
+    settings: Object.fromEntries(
+      settings.map((s) => [s.key, s.value && isSecret(s.key) ? MASK : s.value])
+    ),
+  });
 });
 
 export const PUT = handle(async (req: NextRequest) => {
@@ -21,6 +47,8 @@ export const PUT = handle(async (req: NextRequest) => {
     if (typeof value !== "string") {
       throw new ApiError(400, `Setting ${key} must be a string value.`, "BAD_VALUE");
     }
+    // Masked sentinel = "unchanged" — keep whatever is stored.
+    if (isSecret(key) && value === MASK) continue;
     const old = await prisma.setting.findUnique({ where: { key } });
     prev[key] = old?.value ?? "";
     await setSetting(key, value);
