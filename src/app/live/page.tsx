@@ -7,8 +7,9 @@ export const dynamic = "force-dynamic";
 
 export default async function LivePage() {
   const s = await getSettings();
-  // Pull fresh scores/timers from BetsAPI (throttled: max 1 inplay request
-  // per live.refreshSeconds window) before reading the DB.
+  // Pull fresh scores/status from The Odds API /scores (throttled:
+  // at most one sweep per active league per LIVE_SCORES_THROTTLE_SECONDS
+  // window) before reading the DB.
   await refreshLiveScores();
   const liveGames = await prisma.game.findMany({
     where: {

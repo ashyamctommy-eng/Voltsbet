@@ -262,7 +262,12 @@ export default function MatchFeed({
   );
   const [sortMode, setSortMode] = useState<SortMode>("top");
   const [marketFilter, setMarketFilter] = useState<MarketFilter>("1x2");
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState<number>(() => {
+    const p = Number(
+      typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("page"),
+    );
+    return Number.isFinite(p) && p >= 1 ? Math.floor(p) : 1;
+  });
   const listRef = useRef<HTMLDivElement>(null);
   const activeDate = dateOptions.find((o) => o.value === dateValue) ?? dateOptions[0];
   /** Day labels come from buildDateOptions() as hardcoded "Today"/"Tomorrow"
@@ -282,8 +287,9 @@ export default function MatchFeed({
     setSortMode(view === "upcoming" ? "soonest" : "top");
   }
 
-  // Keep the URL in sync with the active filters (replaceState → no reload,
-  // no history spam; links stay shareable).
+  // Keep the URL in sync with the active filters + page (replaceState → no
+  // reload, no history spam; links stay shareable and page state survives
+  // reloads / back-forward).
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
     const iso = valueToDateParam(dateValue);
@@ -291,10 +297,12 @@ export default function MatchFeed({
     else p.delete("date");
     if (league) p.set("league", league);
     else p.delete("league");
+    if (page > 1) p.set("page", String(page));
+    else p.delete("page");
     const qs = p.toString();
     const url = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
     window.history.replaceState(null, "", url);
-  }, [dateValue, league]);
+  }, [dateValue, league, page]);
 
   // Honor back/forward navigation if the URL changes out from under us.
   useEffect(() => {
@@ -303,6 +311,8 @@ export default function MatchFeed({
       const v = dateParamToValue(p.get("date"));
       if (v && dateOptions.some((o) => o.value === v)) setDateValue(v);
       setLeague(p.get("league") ?? "");
+      const pg = Number(p.get("page"));
+      if (Number.isFinite(pg) && pg >= 1) setPage(Math.floor(pg));
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);

@@ -18,10 +18,11 @@ export default async function SportPage({ params }: { params: Promise<{ slug: st
       where: {
         sportId: sport.id,
         // Near-term, upcoming fixtures ONLY — finished/cancelled games live
-        // on /results, and stale SCHEDULED rows from older syncs must never
-        // surface in the sport feed (2h grace keeps just-kicked-off games).
-        status: { notIn: ["FINISHED", "CANCELLED"] },
-        startAt: { gte: new Date(Date.now() - 2 * 3600_000) },
+        // on /results, LIVE games on /live, and a fixture that already kicked
+        // off (startAt <= now) is no longer pre-match: the /scores pipeline
+        // owns it and the /live surface shows it.
+        status: { notIn: ["FINISHED", "CANCELLED", "LIVE", "HALF_TIME"] },
+        startAt: { gte: new Date() },
         ...(s.hideSeededGames ? { source: "API" } : {}),
       },
       include: { sport: true, markets: { include: { outcomes: true }, orderBy: { sortOrder: "asc" } } },

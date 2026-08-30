@@ -34,11 +34,14 @@ type FixtureCtx = {
   live: boolean;
 };
 
-/* Market category buckets (keys our providers/sync produce). */
-const MAIN_KEYS = ["MATCH_RESULT", "h2h", "DOUBLE_CHANCE", "BTTS", "OVER_UNDER", "totals", "DRAW_NO_BET"];
-const FIRST_HALF_KEYS = ["HT_RESULT", "HALF_TIME_RESULT", "HT_OVER_UNDER"];
+/* Market category buckets (keys our provider/sync produce). */
+const MAIN_KEYS = ["MATCH_RESULT", "h2h", "DOUBLE_CHANCE", "BTTS", "DRAW_NO_BET", "SPREAD"];
+const TOTALS_KEYS = ["OVER_UNDER", "totals"];
+const FIRST_HALF_KEYS = ["HT_RESULT", "HALF_TIME_RESULT", "HT_OVER_UNDER", "h2h_h1", "totals_h1", "OVER_UNDER_1H"];
+const SECOND_HALF_KEYS = ["2H_RESULT", "h2h_h2", "totals_h2", "OVER_UNDER_2H"];
+const CORRECT_SCORE_KEYS = ["CORRECT_SCORE", "correct_score"];
 
-type Category = "all" | "main" | "first_half";
+type Category = "all" | "main" | "totals" | "first_half" | "second_half" | "correct_score";
 
 const STAR_KEY = "vb_star_markets";
 /** Selected-cell highlight — glowing yellow #FFD700 (Betika style). */
@@ -84,13 +87,19 @@ export default function FixtureMarkets({ game, markets }: { game: FixtureCtx; ma
     return {
       all: markets.length,
       main: byKey(MAIN_KEYS),
+      totals: byKey(TOTALS_KEYS),
       first_half: byKey(FIRST_HALF_KEYS),
+      second_half: byKey(SECOND_HALF_KEYS),
+      correct_score: byKey(CORRECT_SCORE_KEYS),
     };
   }, [markets]);
 
   const visible = useMemo(() => {
     if (cat === "main") return markets.filter((m) => MAIN_KEYS.includes(m.key));
+    if (cat === "totals") return markets.filter((m) => TOTALS_KEYS.includes(m.key));
     if (cat === "first_half") return markets.filter((m) => FIRST_HALF_KEYS.includes(m.key));
+    if (cat === "second_half") return markets.filter((m) => SECOND_HALF_KEYS.includes(m.key));
+    if (cat === "correct_score") return markets.filter((m) => CORRECT_SCORE_KEYS.includes(m.key));
     return markets;
   }, [markets, cat]);
 
@@ -147,13 +156,16 @@ export default function FixtureMarkets({ game, markets }: { game: FixtureCtx; ma
 
   return (
     <div className="space-y-4">
-      {/* Category pills */}
+      {/* Category pills — rendered only when the category has markets */}
       {markets.length > 1 && (
         <div className="no-scrollbar -mx-4 flex items-center gap-1 overflow-x-auto px-4 sm:mx-0 sm:px-0">
           {[
             { id: "all" as const, label: t("common.allMarkets"), count: counts.all },
             { id: "main" as const, label: t("common.main"), count: counts.main },
+            { id: "totals" as const, label: t("common.totals"), count: counts.totals },
             { id: "first_half" as const, label: t("common.firstHalf"), count: counts.first_half },
+            { id: "second_half" as const, label: t("common.secondHalf"), count: counts.second_half },
+            { id: "correct_score" as const, label: t("common.correctScore"), count: counts.correct_score },
           ]
             .filter((c) => c.count > 0)
             .map((c) => (

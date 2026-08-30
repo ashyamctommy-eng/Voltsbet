@@ -1,13 +1,21 @@
 /**
  * Cache-first match schedule route.
  *
- *   GET /api/matches?date=YYYY-MM-DD&limit=100
+ *   GET /api/matches?date=YYYY-MM-DD&limit=30&page=2
  *
  * Serves the 7-day fixture calendar from the LOCAL database first (filtered
  * to the requested calendar day). Only when the DB has ZERO matches for that
- * timeframe does it hit an external API (the Odds API cold bootstrap) —
- * so repeated calendar views cost 0 external requests once the schedule
- * sync (/api/cron/schedule) has populated the week.
+ * timeframe does it hit an external API (the Odds API cold bootstrap) — so
+ * repeated calendar views cost 0 external requests once the schedule sync
+ * (/api/cron/schedule) has populated the week.
+ *
+ * Pagination: limit (default 30, max 500) + page (1-based) → the response
+ * carries total + totalPages for full Prev / 1 … N / Next controls.
+ *
+ * Past-match filter: fixtures that already kicked off (startAt <= now) are
+ * NOT pre-match — they belong on /live (LIVE/HALF_TIME rows) or the results
+ * archive (FINISHED). Pre-match listings therefore only show startAt > now,
+ * plus any row the live engine is actively tracking.
  */
 import { NextRequest } from "next/server";
 import { handle, ok } from "@/lib/api";
@@ -34,32 +42,49 @@ export const dynamic = "force-dynamic";
 
 export const GET = handle(async (req: NextRequest) => {
   const date = req.nextUrl.searchParams.get("date") ?? localDateString(0);
-  const limit = Math.min(Number(req.nextUrl.searchParams.get("limit")) || 100, 500);
+  const limit = Math.min(Math.max(Number(req.nextUrl.searchParams.get("limit")) || 30, 1), 500);
+  const page = Math.max(Number(req.nextUrl.searchParams.get("page")) || 1, 1);
 
   const win = localDayWindow(date);
   if (!win) {
-    return ok({ date, source: "db", count: 0, matches: [], error: "Invalid date — use YYYY-MM-DD" });
+    return ok({ date, source: "db", count: 0, total: 0, totalPages: 0, page, matches: [], error: "Invalid date — use YYYY-MM-DD" });
   }
 
-  let matches = await prisma.game.findMany({
-    where: {
-      startAt: { gte: win.from, lt: win.to },
-      status: { notIn: ["CANCELLED"] },
-    },
-    include: {
-      sport: true,
-      markets: { include: { outcomes: true }, orderBy: { sortOrder: "asc" } },
-    },
-    orderBy: [{ startAt: "asc" }],
-    take: limit,
-  });
+  const now = new Date();
+  const baseWhere = {
+    startAt: { gte: win.from, lt: win.to },
+    status: { notIn: ["CANCELLED"] },
+    // Pre-match view excludes fixtures that already kicked off (they belong
+    // on /live or the results archive) — except rows the live engine is
+    // actively tracking, which keep showing wherever they are served.
+    OR: [
+      { startAt: { gte: now } },
+      { status: { in: ["LIVE", "HALF_TIME", "FINISHED"] } },
+    ],
+  };
 
+  const [total, rows] = await Promise.all([
+    prisma.game.count({ where: baseWhere }),
+    prisma.game.findMany({
+      where: baseWhere,
+      include: {
+        sport: true,
+        markets: { include: { outcomes: true }, orderBy: { sortOrder: "asc" } },
+      },
+      orderBy: [{ startAt: "asc" }],
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+  ]);
+
+  let matches = rows;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
   let source: "db" | "api" = "db";
 
   // External fallback ONLY when the local calendar is empty for this day AND
   // the date is within the rolling 7-day schedule window (a far-future date
   // must not be answered with today's feed).
-  if (matches.length === 0 && date >= localDateString(0) && date <= localDateString(7)) {
+  if (total === 0 && date >= localDateString(0) && date <= localDateString(7)) {
     const feed = await getPrematchFeed(limit).catch(() => null);
     if (feed?.matches.length) {
       matches = feed.matches.map(apiMatchToFeedGame) as typeof matches;
@@ -67,5 +92,14 @@ export const GET = handle(async (req: NextRequest) => {
     }
   }
 
-  return ok({ date, source, count: matches.length, matches });
+  return ok({
+    date,
+    source,
+    page,
+    limit,
+    count: matches.length,
+    total,
+    totalPages: source === "api" ? 1 : totalPages,
+    matches,
+  });
 });
