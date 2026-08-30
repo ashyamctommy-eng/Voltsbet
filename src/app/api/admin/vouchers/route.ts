@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { handle, ok, requireAdmin } from "@/lib/api";
+import { handle, ok, sharedAdminGuard } from "@/lib/api";
 import { listVouchers } from "@/lib/vouchers";
 
 /**
@@ -9,7 +9,7 @@ import { listVouchers } from "@/lib/vouchers";
  * Codes are masked; full codes never leave the server here.
  */
 export const GET = handle(async (req: NextRequest) => {
-  await requireAdmin("vouchers");
+  await sharedAdminGuard(req, "vouchers");
   const sp = req.nextUrl.searchParams;
   const from = sp.get("from") ? new Date(sp.get("from")!) : undefined;
   const to = sp.get("to") ? new Date(sp.get("to")!) : undefined;

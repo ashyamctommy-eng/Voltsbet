@@ -46,10 +46,12 @@ Both in Admin → Website Settings → **Odds & Risk**.
 
 - **Login lockout:** 5 failed attempts → account locked 15 minutes (per-IP
   rate limit already exists on top).
-- **2FA (TOTP):** admin/staff can enable in **Account → Settings → Two-Factor
-  Authentication** (Google Authenticator / Authy). Enforced at login for all
-  non-customer roles. Secrets are stored per-user; disabling requires the
-  current session.
+- **Telegram OTP (replaces TOTP 2FA):** users link Telegram in **Account →
+  Settings → Telegram Verification** (single-use deep-link token, consumed by
+  the bot webhook at `/api/webhooks/telegram`). When `telegram.otpEnabled` is
+  on, linked accounts must enter a 6-digit code DMed by the bot at login.
+  Codes are sha256-hashed at rest, expire after 5 minutes, and brute force is
+  capped at 5 attempts per code + 3 codes per 10 minutes per user.
 
 ## 3. Ready-made GitHub Actions schedule
 

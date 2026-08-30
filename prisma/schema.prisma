@@ -32,14 +32,18 @@ model User {
   referredByCode String? // the code this user entered when signing up (who referred them)
   failedLogins Int       @default(0)
   lockedUntil  DateTime? // brute-force lockout expiry (login attempts)
-  totpSecret   String?   // TOTP secret (2FA, non-customer roles)
-  totpEnabled  Boolean   @default(false)
+  // Telegram account linking — used for OTP delivery (replaces TOTP 2FA)
+  telegramChatId   String?   @unique
+  telegramUsername String?
+  telegramLinkedAt DateTime?
   lastLoginAt  DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
   wallet       Wallet?
   sessions     Session[]
+  otpCodes     OtpCode[]
+  telegramLinkTokens TelegramLinkToken[]
   bets         Bet[]
   transactions Transaction[]
   deposits     Deposit[]
@@ -60,6 +64,39 @@ model Session {
   userAgent String?
   expiresAt DateTime
   createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+/// One-time passcodes delivered via Telegram DM (replaces TOTP 2FA).
+/// Codes are stored HASHED (sha256) — the plaintext only ever exists in the
+/// Telegram message. Consuming or superseding (a newer code for the same
+/// purpose) invalidates a code; brute force is capped by `attempts`.
+model OtpCode {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purpose    String    @default("LOGIN") // LOGIN | WITHDRAWAL | ...
+  channel    String    @default("TELEGRAM")
+  codeHash   String
+  attempts   Int       @default(0)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId, purpose])
+}
+
+/// Single-use deep-link token for `t.me/<bot>?start=<token>` account linking.
+/// The bot webhook consumes it and binds the Telegram chat to the user.
+model TelegramLinkToken {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
 
   @@index([userId])
 }
@@ -346,6 +383,7 @@ model Deposit {
 
 model Withdrawal {
   id          String   @id @default(cuid())
+  trackingId  String?  @unique // human-friendly reference: WD-2026-XXXX
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   amount      Decimal

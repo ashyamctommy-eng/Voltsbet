@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { handle, ok, requireAdmin, verifyCsrf, auditLog, ApiError } from "@/lib/api";
+import { handle, ok, auditLog, ApiError, sharedAdminGuard } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { invalidateCurrencyCache } from "@/lib/currency";
 import { z } from "zod";
@@ -13,15 +13,14 @@ const schema = z.object({
   active: z.boolean().optional().default(true),
 });
 
-export const GET = handle(async () => {
-  await requireAdmin("currencies");
+export const GET = handle(async (req: NextRequest) => {
+  await sharedAdminGuard(req, "currencies");
   const currencies = await prisma.currency.findMany({ orderBy: { sortOrder: "asc" } });
   return ok({ currencies });
 });
 
 export const POST = handle(async (req: NextRequest) => {
-  await verifyCsrf(req);
-  const admin = await requireAdmin("currencies");
+  const admin = await sharedAdminGuard(req, "currencies");
   const body = await req.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success) throw new ApiError(400, parsed.error.issues[0].message, "VALIDATION");

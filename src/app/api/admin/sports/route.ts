@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { handle, ok, requireAdmin, verifyCsrf, auditLog, ApiError } from "@/lib/api";
+import { handle, ok, auditLog, ApiError, sharedAdminGuard } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
@@ -12,8 +12,8 @@ const schema = z.object({
   isPopular: z.boolean().optional().default(false),
 });
 
-export const GET = handle(async () => {
-  await requireAdmin("sports");
+export const GET = handle(async (req: NextRequest) => {
+  await sharedAdminGuard(req, "sports");
   const sports = await prisma.sport.findMany({
     orderBy: { sortOrder: "asc" },
     include: { _count: { select: { games: true } } },
@@ -22,8 +22,7 @@ export const GET = handle(async () => {
 });
 
 export const POST = handle(async (req: NextRequest) => {
-  await verifyCsrf(req);
-  const admin = await requireAdmin("sports");
+  const admin = await sharedAdminGuard(req, "sports");
   const body = await req.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success) throw new ApiError(400, parsed.error.issues[0].message, "VALIDATION");

@@ -1,11 +1,10 @@
 import { NextRequest } from "next/server";
-import { handle, ok, requireAdmin, verifyCsrf, auditLog, ApiError } from "@/lib/api";
+import { handle, ok, auditLog, ApiError, sharedAdminGuard } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
 /** PATCH /api/admin/markets/[id] — rename, open/suspend/close/settle-status. */
 export const PATCH = handle(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
-  await verifyCsrf(req);
-  const admin = await requireAdmin("games");
+  const admin = await sharedAdminGuard(req, "games");
   const { id } = await ctx.params;
   const body = await req.json().catch(() => null);
   const { name, status } = body ?? {};
@@ -32,8 +31,7 @@ export const PATCH = handle(async (req: NextRequest, ctx: { params: Promise<{ id
 });
 
 export const DELETE = handle(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
-  await verifyCsrf(req);
-  const admin = await requireAdmin("games");
+  const admin = await sharedAdminGuard(req, "games");
   const { id } = await ctx.params;
   const betCount = await prisma.betSelection.count({ where: { marketId: id } });
   if (betCount > 0) throw new ApiError(409, "Bets reference this market — suspend it instead.", "HAS_BETS");

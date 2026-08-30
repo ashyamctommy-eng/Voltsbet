@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { handle, ok, requireAdmin, verifyCsrf, auditLog, ApiError } from "@/lib/api";
+import { handle, ok, auditLog, ApiError, sharedAdminGuard } from "@/lib/api";
 import { generateVouchers } from "@/lib/vouchers";
 import { z } from "zod";
 
@@ -19,8 +19,7 @@ const schema = z.object({
  * hashes are stored. Audited.
  */
 export const POST = handle(async (req: NextRequest) => {
-  await verifyCsrf(req);
-  const admin = await requireAdmin("vouchers");
+  const admin = await sharedAdminGuard(req, "vouchers");
   const body = await req.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success) throw new ApiError(400, parsed.error.issues[0].message, "VALIDATION");

@@ -10,24 +10,42 @@ export default function LoginPage() {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [otpRequired, setOtpRequired] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setNotice("");
     setLoading(true);
-    const res = await apiFetch<{ redirect: string }>("/api/auth/login", {
+    const res = await apiFetch<{ redirect: string; otpRequired?: boolean; message?: string }>("/api/auth/login", {
       method: "POST",
-      body: { identifier, password, remember },
+      body: { identifier, password, remember, ...(otp ? { otp } : {}) },
     });
     setLoading(false);
     if (!res.ok) {
+      // A failed OTP attempt keeps the OTP step visible so the user can retry
+      if (res.error.code !== "OTP_INVALID") setOtpRequired(false);
       setError(res.error.message);
+      return;
+    }
+    if (res.data.otpRequired) {
+      setOtpRequired(true);
+      setNotice(res.data.message ?? "Enter the code we sent to your Telegram.");
       return;
     }
     router.push(res.data.redirect ?? "/");
     router.refresh();
+  }
+
+  function resetOtpStep() {
+    setOtpRequired(false);
+    setOtp("");
+    setError("");
+    setNotice("");
   }
 
   return (
@@ -38,24 +56,55 @@ export default function LoginPage() {
 
         <form onSubmit={submit} className="mt-6 space-y-4">
           {error && <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">{error}</div>}
-          <div>
-            <label className="label" htmlFor="identifier">Username or email</label>
-            <input id="identifier" className="input" value={identifier} onChange={(e) => setIdentifier(e.target.value)} autoComplete="username" required />
-          </div>
-          <div>
-            <label className="label" htmlFor="password">Password</label>
-            <input id="password" type="password" className="input" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
-          </div>
-          <div className="flex items-center justify-between text-sm">
-            <label className="flex cursor-pointer items-center gap-2 text-ink2">
-              <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="h-4 w-4 accent-[var(--vb-primary)]" />
-              Remember me
-            </label>
-            <a href="#" className="text-ink3 hover:text-ink" onClick={(e) => e.preventDefault()}>Forgot password?</a>
-          </div>
-          <button className="btn btn-primary w-full py-3" disabled={loading}>
-            {loading ? "Logging in…" : "Log In"}
-          </button>
+          {notice && <div className="rounded-lg border border-brand/40 bg-brand/10 px-3 py-2 text-sm text-brand">{notice}</div>}
+
+          {!otpRequired ? (
+            <>
+              <div>
+                <label className="label" htmlFor="identifier">Username or email</label>
+                <input id="identifier" className="input" value={identifier} onChange={(e) => setIdentifier(e.target.value)} autoComplete="username" required />
+              </div>
+              <div>
+                <label className="label" htmlFor="password">Password</label>
+                <input id="password" type="password" className="input" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <label className="flex cursor-pointer items-center gap-2 text-ink2">
+                  <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="h-4 w-4 accent-[var(--vb-primary)]" />
+                  Remember me
+                </label>
+                <a href="#" className="text-ink3 hover:text-ink" onClick={(e) => e.preventDefault()}>Forgot password?</a>
+              </div>
+              <button className="btn btn-primary w-full py-3" disabled={loading}>
+                {loading ? "Logging in…" : "Log In"}
+              </button>
+            </>
+          ) : (
+            <>
+              <div>
+                <label className="label" htmlFor="otp">Telegram verification code</label>
+                <input
+                  id="otp"
+                  className="input text-center font-mono text-lg tracking-[0.5em]"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+                  placeholder="••••••"
+                  autoFocus
+                  required
+                />
+                <p className="mt-1.5 text-xs text-ink3">Check your Telegram DMs — the code is valid for 5 minutes.</p>
+              </div>
+              <button className="btn btn-primary w-full py-3" disabled={loading || otp.length !== 6}>
+                {loading ? "Verifying…" : "Verify & Log In"}
+              </button>
+              <button type="button" className="w-full text-center text-sm text-ink3 hover:text-ink" onClick={resetOtpStep}>
+                ← Back to password
+              </button>
+            </>
+          )}
         </form>
 
         <p className="mt-5 text-center text-sm text-ink2">

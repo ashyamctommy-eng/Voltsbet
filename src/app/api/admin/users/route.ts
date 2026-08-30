@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { handle, ok, requireAdmin, verifyCsrf, auditLog, ApiError } from "@/lib/api";
+import { handle, ok, auditLog, ApiError, sharedAdminGuard } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/auth";
 import { generateReferralCode } from "@/lib/referral";
@@ -28,7 +28,7 @@ const createSchema = z.object({
 });
 
 export const GET = handle(async (req: NextRequest) => {
-  await requireAdmin("users");
+  await sharedAdminGuard(req, "users");
   const q = req.nextUrl.searchParams.get("q") ?? "";
   const status = req.nextUrl.searchParams.get("status") ?? "";
   const users = await prisma.user.findMany({
@@ -55,12 +55,17 @@ export const GET = handle(async (req: NextRequest) => {
  *  wallet + referral share code. Admin-created users are verified + active by
  *  default so they can bet/withdraw immediately. */
 export const POST = handle(async (req: NextRequest) => {
-  await verifyCsrf(req);
-  const admin = await requireAdmin("users");
+  const admin = await sharedAdminGuard(req, "users");
   const body = await req.json().catch(() => null);
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) throw new ApiError(400, parsed.error.issues[0].message, "VALIDATION");
   const d = parsed.data;
+
+  // Admin/staff accounts may ONLY be created by a SUPER_ADMIN — a FINANCE or
+  // SUPPORT manager must not be able to mint new privileged logins.
+  if (d.role !== "CUSTOMER" && admin.role !== "SUPER_ADMIN") {
+    throw new ApiError(403, "Only a Super Admin can create admin accounts.", "FORBIDDEN");
+  }
 
   const email = d.email.toLowerCase().trim();
   const username = d.username.trim();

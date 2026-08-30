@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { handle, ok, ApiError, requireAdmin, verifyCsrf } from "@/lib/api";
+import { handle, ok, ApiError, sharedAdminGuard } from "@/lib/api";
 import { fetchOddsRetry } from "@/lib/odds-throttle";
 
 /**
@@ -10,8 +10,7 @@ import { fetchOddsRetry } from "@/lib/odds-throttle";
  * Reports quota usage from the response headers.
  */
 export const POST = handle(async (req: NextRequest) => {
-  await verifyCsrf(req);
-  await requireAdmin("settings");
+  await sharedAdminGuard(req, "settings");
   const body = await req.json().catch(() => null);
   const key = (typeof body?.apiKey === "string" && body.apiKey.trim()) || process.env.ODDS_API_KEY || "";
 

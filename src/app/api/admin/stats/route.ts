@@ -1,8 +1,9 @@
-import { handle, ok, requireAdmin } from "@/lib/api";
+import { NextRequest } from "next/server";
+import { handle, ok, sharedAdminGuard } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
-export const GET = handle(async () => {
-  await requireAdmin("dashboard");
+export const GET = handle(async (req: NextRequest) => {
+  await sharedAdminGuard(req, "dashboard");
 
   const [totalUsers, activeUsers, newRegistrations, totalDeposits, totalWithdrawals,
     totalStakes, openBets, winningBets, losingBets, pendingWithdrawals, pendingDeposits,

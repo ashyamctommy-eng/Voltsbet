@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { handle, ok, requireAdmin, verifyCsrf, ApiError } from "@/lib/api";
+import { handle, ok, ApiError, sharedAdminGuard } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { updateVoucherStatus } from "@/lib/vouchers";
 import { z } from "zod";
@@ -9,8 +9,8 @@ import { z } from "zod";
  *   GET  /api/admin/vouchers/[id] → full detail incl. redemption + audit trail
  *   POST /api/admin/vouchers/[id] → { action: cancel | suspend | reactivate }
  */
-export const GET = handle(async (_req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
-  await requireAdmin("vouchers");
+export const GET = handle(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
+  await sharedAdminGuard(req, "vouchers");
   const { id } = await ctx.params;
   const voucher = await prisma.voucher.findUnique({
     where: { id },
@@ -85,8 +85,7 @@ const statusSchema = z.object({
 });
 
 export const POST = handle(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
-  await verifyCsrf(req);
-  const admin = await requireAdmin("vouchers");
+  const admin = await sharedAdminGuard(req, "vouchers");
   const { id } = await ctx.params;
   const body = await req.json().catch(() => null);
   const parsed = statusSchema.safeParse(body);

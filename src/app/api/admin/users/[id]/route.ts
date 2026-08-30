@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { handle, ok, requireAdmin, verifyCsrf, auditLog, ApiError } from "@/lib/api";
+import { handle, ok, auditLog, ApiError, sharedAdminGuard } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
@@ -11,8 +11,7 @@ const schema = z.object({
 });
 
 export const PATCH = handle(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
-  await verifyCsrf(req);
-  const admin = await requireAdmin("users");
+  const admin = await sharedAdminGuard(req, "users");
   const { id } = await ctx.params;
   const body = await req.json().catch(() => null);
   const parsed = schema.safeParse(body);
@@ -31,6 +30,12 @@ export const PATCH = handle(async (req: NextRequest, ctx: { params: Promise<{ id
   });
 
   if (parsed.data.status && parsed.data.status !== prev.status) {
+    // Suspending (or otherwise deactivating) a user must kill every live
+    // session immediately — otherwise a logged-in abuser keeps full access
+    // until their cookie expires.
+    if (user.status !== "ACTIVE") {
+      await prisma.session.deleteMany({ where: { userId: id } });
+    }
     await prisma.notification.create({
       data: {
         userId: id, type: "ACCOUNT",

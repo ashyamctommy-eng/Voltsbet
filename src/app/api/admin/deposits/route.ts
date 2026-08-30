@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
-import { handle, ok, requireAdmin, ApiError } from "@/lib/api";
+import { handle, ok, ApiError, sharedAdminGuard } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
 export const GET = handle(async (req: NextRequest) => {
-  await requireAdmin("deposits");
+  await sharedAdminGuard(req, "deposits");
   const status = req.nextUrl.searchParams.get("status") ?? "";
   const deposits = await prisma.deposit.findMany({
     where: status ? { status } : {},
@@ -14,7 +14,7 @@ export const GET = handle(async (req: NextRequest) => {
   return ok({ deposits });
 });
 
-export const PATCH = handle(async () => {
-  await requireAdmin("deposits");
+export const PATCH = handle(async (req: NextRequest) => {
+  await sharedAdminGuard(req, "deposits");
   throw new ApiError(404, "Not found.", "NOT_FOUND");
 });

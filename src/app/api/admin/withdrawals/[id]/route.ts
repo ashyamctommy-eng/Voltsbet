@@ -1,33 +1,42 @@
 import { NextRequest } from "next/server";
-import { handle, ok, requireAdmin, verifyCsrf, auditLog, ApiError } from "@/lib/api";
+import { handle, ok, sharedAdminGuard, auditLog, ApiError } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { npCreatePayout } from "@/lib/providers/nowpayments";
 import { mpesaB2c, publicBaseUrl } from "@/lib/providers/mpesa";
-import { creditWallet, debitWallet } from "@/lib/wallet";
+import { creditWallet } from "@/lib/wallet";
 import { z } from "zod";
 
-const schema = z.object({ status: z.string().min(1), adminNote: z.string().optional().default("") });
+const schema = z.object({
+  status: z.string().min(1),
+  adminNote: z.string().optional().default(""),
+  payoutRef: z.string().optional().default(""), // external reference for manual payouts (tx hash, M-Pesa code…)
+});
 
 /**
- * Withdrawal state machine (money-safe):
+ * Withdrawal state machine (manual-ops model):
  *
- * MPESA  PENDING → PROCESSING (admin) — the PENDING→PROCESSING transition is
- *         claimed ATOMICALLY and the funds are RESERVED (wallet debit) in the
- *         SAME transaction, BEFORE the B2C payout fires. The B2C callback
- *         then finalizes: success → COMPLETED (no balance change), failure →
- *         FAILED + refund. COMPLETED can never be set directly for MPESA.
- * CRYPTO PENDING → PROCESSING (claim) → payout via provider → COMPLETED
- *         (debit only AFTER the provider confirms initiation). Without a
- *         payout key the action is refused — no silent "manual crypto"
- *         debit-with-no-transfer.
+ * Funds are RESERVED AT CREATION (instant wallet debit in
+ * /api/account/withdraw) — every PENDING withdrawal already holds its money.
+ * Admin actions only finalize or release:
  *
- * Concurrent clicks can't double-payout: only one caller wins the atomic
- * status claim; a crashed attempt is reclaimed only after 10 minutes.
+ *   APPROVE  PENDING/VERIFICATION_REQUIRED → COMPLETED
+ *            Manual path: requires an adminNote or payoutRef attesting how
+ *            the money was sent (external tx hash, M-Pesa code…). No wallet
+ *            movement — the reservation covered it.
+ *            Crypto auto-payout: when crypto.payoutApiKey is configured and
+ *            no payoutRef is given, the NOWPayments payout fires first; a
+ *            failed payout leaves the withdrawal PENDING and reserved.
+ *   REJECT   PENDING/VERIFICATION_REQUIRED/PROCESSING → REJECTED
+ *            Reserved funds are refunded to the wallet — exactly once.
+ *   PROCESSING (MPESA only) — fires the B2C payout; the callback completes
+ *            (no balance change) or fails (FAILED + automatic refund).
+ *
+ * All transitions are claimed with atomic status-guarded updateMany calls so
+ * two admins (or a webhook + an admin) can never double-refund or double-pay.
  */
 
-const STALE_PROCESSING_MS = 10 * 60_000;
-const PRE_PROCESSING = ["PENDING", "VERIFICATION_REQUIRED"];
+const PRE_FINAL = ["PENDING", "VERIFICATION_REQUIRED", "PROCESSING"];
 
 function safeMeta(metadata: string | null | undefined): Record<string, unknown> {
   try {
@@ -38,8 +47,7 @@ function safeMeta(metadata: string | null | undefined): Record<string, unknown> 
 }
 
 export const PATCH = handle(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
-  await verifyCsrf(req);
-  const admin = await requireAdmin("withdrawals");
+  const admin = await sharedAdminGuard(req, "withdrawals");
   const { id } = await ctx.params;
   const body = await req.json().catch(() => null);
   const parsed = schema.safeParse(body);
@@ -55,13 +63,15 @@ export const PATCH = handle(async (req: NextRequest, ctx: { params: Promise<{ id
   if (FINAL.includes(withdrawal.status)) {
     throw new ApiError(409, `This withdrawal is already ${withdrawal.status.toLowerCase()} and cannot be changed.`, "LOCKED");
   }
+  if (!["COMPLETED", "REJECTED", "CANCELLED", "PROCESSING"].includes(newStatus)) {
+    throw new ApiError(400, `Unsupported status transition: ${newStatus}.`, "BAD_STATUS");
+  }
 
   const settings = await getSettings();
   let metadata = safeMeta(withdrawal.metadata);
-
   const amount = Number(withdrawal.amount);
   const isMpesa = withdrawal.method === "MPESA";
-  const isCrypto = withdrawal.method === "CRYPTO";
+  const ref = withdrawal.trackingId ?? withdrawal.id;
 
   const notify = async (title: string, message: string) => {
     await prisma.notification.create({
@@ -69,266 +79,174 @@ export const PATCH = handle(async (req: NextRequest, ctx: { params: Promise<{ id
     });
   };
 
-  /**
-   * Atomically claim PENDING → PROCESSING (with reservation for MPESA).
-   * Exactly one caller wins; a PROCESSING row older than 10 minutes is
-   * treated as a crashed attempt and reclaimed:
-   *   - MPESA:   the old reservation is refunded, then re-reserved.
-   *   - CRYPTO:  if the payout was already initiated (payoutId stored) we
-   *              finalize instead of sending a second payout; otherwise the
-   *              row is reset to PENDING and re-claimed.
-   */
-  const beginProcessing = async (): Promise<void> => {
-    const claimTx = async () => {
-      const claimed = await prisma.$transaction(async (tx) => {
-        const res = await tx.withdrawal.updateMany({
-          where: { id, status: { in: PRE_PROCESSING } },
-          data: {
-            status: "PROCESSING",
-            metadata: JSON.stringify({
-              ...metadata,
-              processingStartedAt: new Date().toISOString(),
-              reserved: isMpesa,
-            }),
-          },
-        });
-        if (res.count === 0) return 0;
-        if (isMpesa) {
-          await debitWallet(tx, withdrawal.userId, amount, {
-            type: "WITHDRAWAL",
-            reason: `M-Pesa payout reserved — ${withdrawal.destination}`,
-            reference: withdrawal.id,
-          });
-        }
-        return 1;
+  /** Refund the reservation — caller must have won the atomic status claim. */
+  const refundReserved = async (reason: string) => {
+    const meta = safeMeta(withdrawal.metadata);
+    if (meta.reserved !== true || meta.refunded === true) return false;
+    await prisma.$transaction(async (tx) => {
+      await creditWallet(tx, withdrawal.userId, amount, {
+        type: "WITHDRAWAL_REFUND",
+        method: withdrawal.method,
+        reason,
+        reference: withdrawal.trackingId ?? withdrawal.id,
       });
-      if (claimed === 0) return false;
-      metadata = { ...metadata, processingStartedAt: new Date().toISOString(), reserved: isMpesa };
-      return true;
-    };
-
-    if (await claimTx()) return;
-
-    // Claim failed — either genuinely in progress, or a crashed attempt.
-    const current = await prisma.withdrawal.findUnique({
-      where: { id }, select: { status: true, metadata: true },
+      await tx.withdrawal.update({
+        where: { id },
+        data: { metadata: JSON.stringify({ ...safeMeta(withdrawal.metadata), refunded: true }) },
+      });
     });
-    const curMeta = safeMeta(current?.metadata);
-    const started = curMeta.processingStartedAt ? new Date(String(curMeta.processingStartedAt)).getTime() : 0;
-    const stale = current?.status === "PROCESSING" && Date.now() - started > STALE_PROCESSING_MS;
-
-    if (stale && isCrypto && curMeta.payoutId) {
-      // Payout was initiated before the crash — finish it, don't re-send.
-      return;
-    }
-    if (stale) {
-      if (isMpesa && curMeta.reserved === true) {
-        await prisma.$transaction(async (tx) => {
-          await creditWallet(tx, withdrawal.userId, amount, {
-            type: "WITHDRAWAL_REFUND",
-            reason: "M-Pesa payout attempt timed out — reservation returned",
-            reference: withdrawal.id,
-          });
-        });
-      }
-      await prisma.withdrawal.update({
-        where: { id },
-        data: { status: "PENDING", metadata: JSON.stringify({ ...curMeta, reserved: false }) },
-      });
-      if (await claimTx()) return;
-    }
-    throw new ApiError(409, "This payout is already being processed. Try again in a few minutes.", "ALREADY_PROCESSING");
+    return true;
   };
 
-  /** Revert an in-flight processing attempt (init failed / admin abort). */
-  const abortProcessing = async (abortStatus: string, reason: string) => {
-    const cur = await prisma.withdrawal.findUnique({ where: { id }, select: { metadata: true } });
-    const curMeta = safeMeta(cur?.metadata);
-    if (curMeta.reserved === true) {
-      await prisma.$transaction(async (tx) => {
-        await creditWallet(tx, withdrawal.userId, amount, {
-          type: "WITHDRAWAL_REFUND",
-          reason,
-          reference: withdrawal.id,
-        });
-        await tx.withdrawal.update({
-          where: { id },
-          data: { status: abortStatus, metadata: JSON.stringify({ ...curMeta, reserved: false }) },
-        });
-      });
-    } else {
-      await prisma.withdrawal.update({
-        where: { id },
-        data: { status: abortStatus, metadata: JSON.stringify(curMeta) },
-      });
-    }
-  };
-
-  // ── MPESA state machine ────────────────────────────────────────────────
-  if (isMpesa) {
-    if (newStatus === "COMPLETED") {
+  // ── REJECT / CANCEL — manual rejection path with exactly-once refund ────
+  if (newStatus === "REJECTED" || newStatus === "CANCELLED") {
+    // MPESA payouts already fired are finalized by the callback, not here.
+    if (isMpesa && withdrawal.status === "PROCESSING" && metadata.conversationId) {
       throw new ApiError(
         409,
-        "M-Pesa withdrawals are completed by the payout callback — set PROCESSING to send the B2C payout.",
+        "An M-Pesa payout is already in flight — wait for the callback to complete or fail it.",
+        "PAYOUT_IN_FLIGHT"
+      );
+    }
+    const claimed = await prisma.withdrawal.updateMany({
+      where: { id, status: { in: PRE_FINAL } },
+      data: { status: newStatus, adminNote: parsed.data.adminNote || null },
+    });
+    if (claimed.count === 0) {
+      throw new ApiError(409, "This withdrawal changed state — refresh and try again.", "RACE");
+    }
+    const refunded = await refundReserved(`Withdrawal ${ref} ${newStatus.toLowerCase()} — reserved funds returned`);
+    await notify(
+      newStatus === "REJECTED" ? "Withdrawal Rejected" : "Withdrawal Cancelled",
+      `Your withdrawal of ${withdrawal.amount} ${withdrawal.currencyCode} (${ref}) was ${newStatus.toLowerCase()}${refunded ? " and the reserved funds were returned to your balance" : ""}.`
+    );
+    await auditLog({
+      admin, action: "PAYMENT_STATUS_CHANGE", entity: "WITHDRAWAL", entityId: id, userId: withdrawal.userId,
+      prevValue: { status: withdrawal.status }, newValue: { status: newStatus, refunded, provider: withdrawal.method },
+    });
+    return ok({ withdrawal: { id, status: newStatus, refunded } });
+  }
+
+  // ── MPESA: fire the B2C payout (funds already reserved at creation) ─────
+  if (newStatus === "PROCESSING") {
+    if (!isMpesa) {
+      throw new ApiError(400, "PROCESSING is only used for M-Pesa B2C payouts.", "BAD_STATUS");
+    }
+    if (!settings.mpesaWithdrawalsEnabled) {
+      throw new ApiError(503, "M-Pesa withdrawals are disabled (payments.mpesaWithdrawalsEnabled).", "MPESA_WITHDRAWALS_DISABLED");
+    }
+    const claimed = await prisma.withdrawal.updateMany({
+      where: { id, status: { in: ["PENDING", "VERIFICATION_REQUIRED"] } },
+      data: {
+        status: "PROCESSING",
+        metadata: JSON.stringify({ ...metadata, processingStartedAt: new Date().toISOString() }),
+      },
+    });
+    if (claimed.count === 0) {
+      throw new ApiError(409, "This payout is already being processed.", "ALREADY_PROCESSING");
+    }
+    metadata = { ...metadata, processingStartedAt: new Date().toISOString() };
+
+    try {
+      const base = publicBaseUrl(settings);
+      const secret = settings.mpesaCallbackSecret;
+      const resultUrl = `${base}/api/webhooks/mpesa/b2c?secret=${secret}`;
+      const payout = await mpesaB2c({
+        amount,
+        phone: withdrawal.destination,
+        remarks: `VoltBet payout ${ref}`,
+        resultUrl,
+        queueTimeOutUrl: resultUrl,
+      });
+      // Persist the conversationId immediately — the callback matches on it.
+      await prisma.withdrawal.update({
+        where: { id },
+        data: {
+          adminNote: parsed.data.adminNote || withdrawal.adminNote,
+          metadata: JSON.stringify({
+            ...metadata,
+            conversationId: payout.ConversationID,
+            originatorConversationId: payout.OriginatorConversationID,
+          }),
+        },
+      });
+      await auditLog({
+        admin, action: "PAYOUT_INITIATED", entity: "WITHDRAWAL", entityId: id, userId: withdrawal.userId,
+        prevValue: { status: withdrawal.status, reserved: true },
+        newValue: { status: "PROCESSING", provider: "MPESA", conversationId: payout.ConversationID },
+      });
+      return ok({ withdrawal: { id, status: "PROCESSING", payoutInitiated: true, provider: "MPESA", reserved: true } });
+    } catch (e) {
+      // Initiation failed — no money moved. Back to PENDING (still reserved).
+      await prisma.withdrawal.update({
+        where: { id },
+        data: { status: "PENDING", metadata: JSON.stringify({ ...metadata, processingStartedAt: null }) },
+      });
+      throw new ApiError(
+        502,
+        `M-Pesa payout could not be initiated — nothing was sent and the withdrawal is back to pending. ${e instanceof Error ? e.message : ""}`,
+        "PAYOUT_INIT_FAILED"
+      );
+    }
+  }
+
+  // ── APPROVE → COMPLETED (manual payout attestation) ─────────────────────
+  if (newStatus === "COMPLETED") {
+    if (isMpesa) {
+      throw new ApiError(
+        409,
+        "M-Pesa withdrawals are completed by the payout callback — use PROCESSING to send the B2C payout.",
         "USE_PROCESSING"
       );
     }
 
-    if (newStatus === "PROCESSING") {
-      await beginProcessing();
-
-      // Fire the B2C payout. If initiation fails, refund the reservation and
-      // stay PENDING. (A response-timeout after Safaricom actually received
-      // the request can't be matched — the callback would carry a
-      // conversationId we never stored — such a payout needs manual
-      // reconciliation against M-Pesa statements.)
+    // Crypto auto-payout path when a payout key is configured and the admin
+    // hasn't attested a manual transfer. Funds stay reserved either way.
+    let payoutId: number | null = null;
+    if (settings.cryptoPayoutApiKey && !parsed.data.payoutRef) {
       try {
-        const base = publicBaseUrl(settings);
-        const secret = settings.mpesaCallbackSecret;
-        const resultUrl = `${base}/api/webhooks/mpesa/b2c?secret=${secret}`;
-        const payout = await mpesaB2c({
-          amount,
-          phone: withdrawal.destination,
-          remarks: `VoltBet payout ${withdrawal.id.slice(-8)}`,
-          resultUrl,
-          queueTimeOutUrl: resultUrl,
-        });
-        // Persist the conversationId immediately — the callback matches on it.
-        await prisma.withdrawal.update({
-          where: { id },
-          data: {
-            adminNote: parsed.data.adminNote || withdrawal.adminNote,
-            metadata: JSON.stringify({
-              ...metadata,
-              conversationId: payout.ConversationID,
-              originatorConversationId: payout.OriginatorConversationID,
-            }),
-          },
-        });
-        await auditLog({
-          admin, action: "PAYOUT_INITIATED", entity: "WITHDRAWAL", entityId: id, userId: withdrawal.userId,
-          prevValue: { status: withdrawal.status, reserved: true }, newValue: { status: "PROCESSING", provider: "MPESA", conversationId: payout.ConversationID },
-        });
-        return ok({ withdrawal: { id, status: "PROCESSING", payoutInitiated: true, provider: "MPESA", reserved: true } });
-      } catch (e) {
-        await abortProcessing("PENDING", "M-Pesa payout failed to initiate — reserved funds returned");
-        throw new ApiError(
-          502,
-          `M-Pesa payout could not be initiated — nothing was sent and the reservation was refunded. ${e instanceof Error ? e.message : ""}`,
-          "PAYOUT_INIT_FAILED"
-        );
-      }
-    }
-
-    // Aborting a payout that already reserved funds → return them.
-    if (withdrawal.status === "PROCESSING") {
-      await abortProcessing(newStatus, `M-Pesa payout ${newStatus.toLowerCase()} — reserved funds returned`);
-      await notify(
-        newStatus === "REJECTED" ? "Withdrawal Rejected" : "Withdrawal Cancelled",
-        `Your M-Pesa withdrawal of ${withdrawal.amount} ${withdrawal.currencyCode} was ${newStatus.toLowerCase()}. Reserved funds were returned to your balance.`
-      );
-      await auditLog({
-        admin, action: "PAYMENT_STATUS_CHANGE", entity: "WITHDRAWAL", entityId: id, userId: withdrawal.userId,
-        prevValue: { status: withdrawal.status }, newValue: { status: newStatus, refunded: true, provider: withdrawal.method },
-      });
-      return ok({ withdrawal: { id, status: newStatus, refunded: true } });
-    }
-
-    // Plain status change (PENDING / VERIFICATION_REQUIRED → REJECTED etc.)
-    await prisma.withdrawal.update({
-      where: { id },
-      data: { status: newStatus, adminNote: parsed.data.adminNote || null, metadata: JSON.stringify(metadata) },
-    });
-    await notify(
-      newStatus === "REJECTED" ? "Withdrawal Rejected" : "Withdrawal Cancelled",
-      `Your withdrawal of ${withdrawal.amount} ${withdrawal.currencyCode} is ${newStatus.toLowerCase()}.`
-    );
-    await auditLog({
-      admin, action: "PAYMENT_STATUS_CHANGE", entity: "WITHDRAWAL", entityId: id, userId: withdrawal.userId,
-      prevValue: { status: withdrawal.status }, newValue: { status: newStatus, provider: withdrawal.method },
-    });
-    return ok({ withdrawal: { id, status: newStatus } });
-  }
-
-  // ── CRYPTO: claim → payout → finalize (debit only after initiation) ────
-  let debited = false;
-  if (isCrypto && newStatus === "COMPLETED") {
-    if (!settings.cryptoPayoutApiKey) {
-      throw new ApiError(
-        503,
-        "Crypto payout is not configured (crypto.payoutApiKey). Configure it — or REJECT this withdrawal and return the funds with a balance adjustment.",
-        "PAYOUT_UNCONFIGURED"
-      );
-    }
-    await beginProcessing();
-
-    try {
-      // If a previous attempt already initiated the payout (crash recovery),
-      // skip straight to finalizing.
-      const cur = await prisma.withdrawal.findUnique({ where: { id }, select: { metadata: true } });
-      const curMeta = safeMeta(cur?.metadata);
-      let payoutId = curMeta.payoutId ? Number(curMeta.payoutId) : null;
-      if (!payoutId) {
         const payout = await npCreatePayout({
           address: withdrawal.destination,
           currency: withdrawal.currencyCode === "KES" ? "USDT" : withdrawal.currencyCode, // wallets hold KES → settle in USDT
           amount: amount / (settings.cryptoRates["USDT"] ?? 129),
-        }).catch((e) => {
-          throw new ApiError(502, `Crypto payout failed — no funds sent. ${e instanceof Error ? e.message : ""}`, "PAYOUT_FAILED");
         });
         payoutId = payout.withdrawals?.[0]?.id ?? null;
-        // Persist immediately so a crash here can't cause a second payout.
-        await prisma.withdrawal.update({
-          where: { id },
-          data: { metadata: JSON.stringify({ ...curMeta, payoutId }) },
-        });
+      } catch (e) {
+        throw new ApiError(502, `Crypto payout failed — no funds sent. ${e instanceof Error ? e.message : ""}`, "PAYOUT_FAILED");
       }
-
-      await prisma.$transaction(async (tx) => {
-        await debitWallet(tx, withdrawal.userId, amount, {
-          type: "WITHDRAWAL",
-          reason: `Withdrawal to ${withdrawal.destination} (${withdrawal.method})`,
-          reference: withdrawal.id,
-        });
-        await tx.withdrawal.update({
-          where: { id },
-          data: {
-            status: "COMPLETED",
-            adminNote: parsed.data.adminNote || null,
-            metadata: JSON.stringify({ ...curMeta, payoutId }),
-            processedAt: new Date(),
-          },
-        });
-      });
-    } catch (e) {
-      // Nothing was debited — reset so the admin can retry or reject.
-      await prisma.withdrawal.update({ where: { id }, data: { status: "PENDING" } });
-      throw e;
+    } else if (!parsed.data.payoutRef && !parsed.data.adminNote) {
+      // Manual completion with no provider and no paper trail is refused —
+      // the admin must record HOW the player was paid.
+      throw new ApiError(
+        400,
+        "Manual approval requires a payout reference (tx hash / payment code) or an admin note describing the payout.",
+        "PAYOUT_REF_REQUIRED"
+      );
     }
-    debited = true;
+
+    const claimed = await prisma.withdrawal.updateMany({
+      where: { id, status: { in: PRE_FINAL } },
+      data: {
+        status: "COMPLETED",
+        adminNote: parsed.data.adminNote || withdrawal.adminNote,
+        metadata: JSON.stringify({ ...metadata, ...(payoutId ? { payoutId } : {}), ...(parsed.data.payoutRef ? { payoutRef: parsed.data.payoutRef } : {}) }),
+        processedAt: new Date(),
+      },
+    });
+    if (claimed.count === 0) {
+      throw new ApiError(409, "This withdrawal changed state — refresh and try again.", "RACE");
+    }
     await notify(
       "Withdrawal Completed ✅",
-      `Your withdrawal of ${withdrawal.amount} ${withdrawal.currencyCode} is completed.`
+      `Your withdrawal of ${withdrawal.amount} ${withdrawal.currencyCode} (${ref}) is completed.`
     );
     await auditLog({
       admin, action: "PAYMENT_STATUS_CHANGE", entity: "WITHDRAWAL", entityId: id, userId: withdrawal.userId,
-      prevValue: { status: withdrawal.status }, newValue: { status: newStatus, debited, provider: withdrawal.method },
+      prevValue: { status: withdrawal.status },
+      newValue: { status: newStatus, provider: withdrawal.method, payoutId, payoutRef: parsed.data.payoutRef || undefined, manual: !payoutId },
     });
-    return ok({ withdrawal: { id, status: newStatus, debited } });
+    return ok({ withdrawal: { id, status: newStatus, reserved: true } });
   }
 
-  // Generic status change (no money movement)
-  await prisma.withdrawal.update({
-    where: { id },
-    data: { status: newStatus, adminNote: parsed.data.adminNote || null, metadata: JSON.stringify(metadata) },
-  });
-  await notify(
-    newStatus === "COMPLETED" ? "Withdrawal Completed ✅" : `Withdrawal ${newStatus.toLowerCase()}`,
-    `Your withdrawal of ${withdrawal.amount} ${withdrawal.currencyCode} is ${newStatus.toLowerCase()}.`
-  );
-  await auditLog({
-    admin, action: "PAYMENT_STATUS_CHANGE", entity: "WITHDRAWAL", entityId: id, userId: withdrawal.userId,
-    prevValue: { status: withdrawal.status }, newValue: { status: newStatus, debited, provider: withdrawal.method },
-  });
-  return ok({ withdrawal: { id, status: newStatus, debited } });
+  throw new ApiError(400, "Unsupported transition.", "BAD_STATUS");
 });

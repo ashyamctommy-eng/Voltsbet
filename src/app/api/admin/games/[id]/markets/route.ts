@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { handle, ok, requireAdmin, verifyCsrf, auditLog, ApiError } from "@/lib/api";
+import { handle, ok, auditLog, ApiError, sharedAdminGuard } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
@@ -22,8 +22,7 @@ const schema = z.object({
 });
 
 export const POST = handle(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
-  await verifyCsrf(req);
-  const admin = await requireAdmin("games");
+  const admin = await sharedAdminGuard(req, "games");
   const { id } = await ctx.params;
   const game = await prisma.game.findUnique({ where: { id } });
   if (!game) throw new ApiError(404, "Game not found.", "NOT_FOUND");

@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { handle, ok, requireAdmin, verifyCsrf, auditLog, ApiError } from "@/lib/api";
+import { handle, ok, auditLog, ApiError, sharedAdminGuard } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
@@ -12,8 +12,7 @@ const schema = z.object({
 });
 
 export const PATCH = handle(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
-  await verifyCsrf(req);
-  const admin = await requireAdmin("sports");
+  const admin = await sharedAdminGuard(req, "sports");
   const { id } = await ctx.params;
   const body = await req.json().catch(() => null);
   const parsed = schema.safeParse(body);
@@ -28,8 +27,7 @@ export const PATCH = handle(async (req: NextRequest, ctx: { params: Promise<{ id
 });
 
 export const DELETE = handle(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
-  await verifyCsrf(req);
-  const admin = await requireAdmin("sports");
+  const admin = await sharedAdminGuard(req, "sports");
   const { id } = await ctx.params;
   const gameCount = await prisma.game.count({ where: { sportId: id } });
   if (gameCount > 0) {

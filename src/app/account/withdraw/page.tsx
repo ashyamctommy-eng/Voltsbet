@@ -7,7 +7,7 @@ import { useToast } from "@/components/BetSlipContext";
 type ProfileData = {
   user: { currencyCode: string; status: string };
   wallet: { balance: number; currencyCode: string } | null;
-  limits: { depositMethods: string[] };
+  limits: { depositMethods: string[]; withdrawalMethods?: string[] };
 };
 
 export default function WithdrawPage() {
@@ -17,12 +17,13 @@ export default function WithdrawPage() {
   const [amount, setAmount] = useState("");
   const [destination, setDestination] = useState("");
   const [loading, setLoading] = useState(false);
+  const [trackingId, setTrackingId] = useState("");
 
   useEffect(() => {
     apiFetch<ProfileData>("/api/account").then((r) => r.ok && setProfile(r.data));
   }, []);
 
-  const methods = profile?.limits?.depositMethods ?? ["CRYPTO"];
+  const methods = profile?.limits?.withdrawalMethods ?? ["CRYPTO"];
   const max = profile?.wallet?.balance ?? 0;
 
   async function submit(e: React.FormEvent) {
@@ -31,13 +32,14 @@ export default function WithdrawPage() {
     if (!amt || amt <= 0) return push("error", "Enter a valid amount");
     if (amt > max) return push("error", "Amount exceeds your available balance");
     setLoading(true);
-    const res = await apiFetch("/api/account/withdraw", {
+    const res = await apiFetch<{ withdrawal: { trackingId?: string } }>("/api/account/withdraw", {
       method: "POST",
       body: { amount: amt, method, destination },
     });
     setLoading(false);
     if (!res.ok) return push("error", res.error.message);
-    push("success", "Withdrawal requested. It will be reviewed and paid out.");
+    setTrackingId(res.data.withdrawal.trackingId ?? "");
+    push("success", `Withdrawal requested${res.data.withdrawal.trackingId ? ` — ${res.data.withdrawal.trackingId}` : ""}. The amount is reserved until review.`);
     setAmount("");
     setDestination("");
   }
@@ -116,8 +118,13 @@ export default function WithdrawPage() {
         <button className="btn btn-primary w-full py-3" disabled={loading}>
           {loading ? "Requesting…" : "Request Withdrawal"}
         </button>
+        {trackingId && (
+          <p className="rounded-lg border border-brand/40 bg-brand/10 px-3 py-2 text-center text-sm font-bold text-brand">
+            Tracking ID: {trackingId}
+          </p>
+        )}
         <p className="text-xs text-ink3">
-          Withdrawals are reviewed by our finance team, then paid out automatically through the configured provider.
+          The amount is reserved from your balance immediately, then reviewed by our finance team and paid out. Save your tracking ID for support queries.
         </p>
       </form>
     </div>

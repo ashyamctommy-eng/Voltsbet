@@ -23,6 +23,11 @@ export type SiteSettings = {
   telegramText: string;
   telegramEnabled: boolean;
   telegramPosition: string;
+  // Telegram bot (OTP delivery + account linking)
+  telegramBotToken: string;
+  telegramBotUsername: string; // without @ — used to build t.me deep links
+  telegramWebhookSecret: string; // validates X-Telegram-Bot-Api-Secret-Token
+  telegramOtpEnabled: boolean; // require Telegram OTP at login for linked accounts
   supportEmail: string;
   supportPhone: string; // displayed in the support modal (Call Us)
   cryptoProvider: string;
@@ -37,6 +42,7 @@ export type SiteSettings = {
   cryptoCurrencies: string[];
   cryptoRates: Record<string, number>; // KES per 1 coin, for deposit estimates
   mpesaEnabled: boolean;
+  mpesaWithdrawalsEnabled: boolean; // offer M-Pesa as a WITHDRAWAL method (env ENABLE_MPESA_WITHDRAWALS wins)
   mpesaEnv: string; // sandbox | production
   mpesaConsumerKey: string;
   mpesaConsumerSecret: string;
@@ -86,6 +92,10 @@ const DEFAULTS: SiteSettings = {
   telegramText: "Join Our Telegram Group",
   telegramEnabled: false,
   telegramPosition: "bottom-left",
+  telegramBotToken: "",
+  telegramBotUsername: "",
+  telegramWebhookSecret: "",
+  telegramOtpEnabled: false,
   supportEmail: "",
   supportPhone: "0704 526 454",
   paymentsVoucherEnabled: true,
@@ -100,6 +110,7 @@ const DEFAULTS: SiteSettings = {
   cryptoCurrencies: ["BTC", "ETH", "USDT", "USDC"],
   cryptoRates: { BTC: 8500000, ETH: 430000, USDT: 129, USDC: 129 },
   mpesaEnabled: false,
+  mpesaWithdrawalsEnabled: false,
   mpesaEnv: "sandbox",
   mpesaConsumerKey: "",
   mpesaConsumerSecret: "",
@@ -154,6 +165,10 @@ export async function getSettings(): Promise<SiteSettings> {
   s.telegramText = raw["support.telegramText"] ?? s.telegramText;
   s.telegramEnabled = raw["support.telegramEnabled"] === "true";
   s.telegramPosition = raw["support.telegramPosition"] ?? s.telegramPosition;
+  s.telegramBotToken = raw["telegram.botToken"] ?? s.telegramBotToken;
+  s.telegramBotUsername = (raw["telegram.botUsername"] ?? s.telegramBotUsername).replace(/^@/, "");
+  s.telegramWebhookSecret = raw["telegram.webhookSecret"] ?? s.telegramWebhookSecret;
+  s.telegramOtpEnabled = raw["telegram.otpEnabled"] === "true";
   s.supportEmail = raw["support.email"] ?? s.supportEmail;
   s.supportPhone = raw["support.phone"] ?? s.supportPhone;
   s.paymentsVoucherEnabled = (raw["payments.voucherEnabled"] ?? String(DEFAULTS.paymentsVoucherEnabled)) === "true";
@@ -170,6 +185,12 @@ export async function getSettings(): Promise<SiteSettings> {
   try { s.cryptoRates = JSON.parse(raw["crypto.rates"] ?? "{}"); } catch {}
   if (!Object.keys(s.cryptoRates).length) s.cryptoRates = DEFAULTS.cryptoRates;
   s.mpesaEnabled = raw["mpesa.enabled"] === "true";
+  s.mpesaWithdrawalsEnabled =
+    process.env.ENABLE_MPESA_WITHDRAWALS !== undefined
+      ? process.env.ENABLE_MPESA_WITHDRAWALS === "true" // env wins when set
+      : raw["payments.mpesaWithdrawalsEnabled"] !== undefined
+        ? raw["payments.mpesaWithdrawalsEnabled"] === "true"
+        : s.mpesaEnabled; // backwards-compatible default: withdrawals followed deposits
   s.mpesaEnv = raw["mpesa.env"] ?? s.mpesaEnv;
   s.mpesaConsumerKey = raw["mpesa.consumerKey"] ?? s.mpesaConsumerKey;
   s.mpesaConsumerSecret = raw["mpesa.consumerSecret"] ?? s.mpesaConsumerSecret;

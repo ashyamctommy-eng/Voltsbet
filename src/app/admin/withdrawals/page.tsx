@@ -6,7 +6,7 @@ import { useToast } from "@/components/BetSlipContext";
 import { formatDateTime } from "@/lib/odds";
 
 type Withdrawal = {
-  id: string; amount: string; currencyCode: string; status: string; method: string;
+  id: string; trackingId: string | null; amount: string; currencyCode: string; status: string; method: string;
   destination: string; adminNote: string | null; createdAt: string;
   user: { username: string; email: string };
 };
@@ -17,6 +17,10 @@ export default function AdminWithdrawals() {
   const { push } = useToast();
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [status, setStatus] = useState("");
+  // Manual-approval attestation: which row is collecting a payout ref/note
+  const [attesting, setAttesting] = useState<string | null>(null);
+  const [payoutRef, setPayoutRef] = useState("");
+  const [note, setNote] = useState("");
 
   useEffect(() => {
     load();
@@ -28,11 +32,27 @@ export default function AdminWithdrawals() {
     if (r.ok) setWithdrawals(r.data.withdrawals);
   }
 
-  async function change(w: Withdrawal, s: string, note = "") {
-    const res = await apiFetch(`/api/admin/withdrawals/${w.id}`, { method: "PATCH", body: { status: s, adminNote: note } });
+  async function change(w: Withdrawal, s: string, extra: { adminNote?: string; payoutRef?: string } = {}) {
+    const res = await apiFetch(`/api/admin/withdrawals/${w.id}`, { method: "PATCH", body: { status: s, ...extra } });
     if (!res.ok) return push("error", res.error.message);
-    push("success", s === "COMPLETED" ? "Completed — user balance debited" : `Withdrawal → ${s.toLowerCase()}`);
+    push("success", s === "COMPLETED" ? "Approved — marked paid" : s === "REJECTED" ? "Rejected — reservation refunded" : `Withdrawal → ${s.toLowerCase()}`);
+    setAttesting(null);
+    setPayoutRef("");
+    setNote("");
     load();
+  }
+
+  /** COMPLETED needs a manual payout attestation unless NOWPayments payout is configured. */
+  function approve(w: Withdrawal) {
+    if (attesting === w.id) {
+      if (!payoutRef.trim() && !note.trim()) {
+        return push("error", "Enter the payout reference (tx hash / payment code) or a note describing the manual payout.");
+      }
+      return change(w, "COMPLETED", { payoutRef: payoutRef.trim(), adminNote: note.trim() });
+    }
+    setAttesting(w.id);
+    setPayoutRef("");
+    setNote("");
   }
 
   return (
@@ -54,6 +74,9 @@ export default function AdminWithdrawals() {
                 <div className="font-semibold">
                   {Number(w.amount).toLocaleString()} {w.currencyCode}
                   <span className="ml-2 rounded bg-card2 px-1.5 py-0.5 text-[10px] font-bold text-ink2">{w.method}</span>
+                  {w.trackingId && (
+                    <span className="ml-2 rounded bg-brand/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-brand">{w.trackingId}</span>
+                  )}
                 </div>
                 <div className="truncate text-xs text-ink3">
                   {w.user.username} · {w.user.email} · {formatDateTime(new Date(w.createdAt))}
@@ -62,31 +85,78 @@ export default function AdminWithdrawals() {
                 {w.adminNote && <div className="text-xs text-amber-400">Note: {w.adminNote}</div>}
               </div>
               <div className="flex flex-wrap gap-1.5">
-                {(w.method === "MPESA" ? ["PROCESSING", "REJECTED", "CANCELLED"] : ["COMPLETED", "REJECTED", "CANCELLED"]).map((s) => (
-                  <button
-                    key={s}
-                    className={`btn btn-sm ${
-                      (s === "COMPLETED" || s === "PROCESSING") && w.method === "MPESA" && s === "PROCESSING"
-                        ? "bg-green-600 text-white hover:brightness-110"
-                        : s === "COMPLETED" && w.method !== "MPESA"
-                          ? "bg-green-600 text-white hover:brightness-110"
-                          : s === "REJECTED"
-                            ? "bg-red-600 text-white hover:brightness-110"
-                            : "btn-ghost"
-                    }`}
-                    disabled={["COMPLETED", "REJECTED", "CANCELLED", "FAILED"].includes(w.status)}
-                    onClick={() => change(w, s)}
-                  >
-                    {s === "PROCESSING" ? "Send payout" : s}
-                  </button>
-                ))}
+                {w.method === "MPESA" ? (
+                  <>
+                    <button
+                      className="btn btn-sm bg-green-600 text-white hover:brightness-110"
+                      disabled={["COMPLETED", "REJECTED", "CANCELLED", "FAILED", "PROCESSING"].includes(w.status)}
+                      onClick={() => change(w, "PROCESSING")}
+                    >
+                      Send payout
+                    </button>
+                    <button
+                      className="btn btn-sm bg-red-600 text-white hover:brightness-110"
+                      disabled={["COMPLETED", "REJECTED", "CANCELLED", "FAILED"].includes(w.status)}
+                      onClick={() => change(w, "REJECTED")}
+                    >
+                      Reject
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      className="btn btn-sm bg-green-600 text-white hover:brightness-110"
+                      disabled={["COMPLETED", "REJECTED", "CANCELLED", "FAILED"].includes(w.status)}
+                      onClick={() => approve(w)}
+                    >
+                      {attesting === w.id ? "Confirm payout" : "Approve (mark paid)"}
+                    </button>
+                    <button
+                      className="btn btn-sm bg-red-600 text-white hover:brightness-110"
+                      disabled={["COMPLETED", "REJECTED", "CANCELLED", "FAILED"].includes(w.status)}
+                      onClick={() => change(w, "REJECTED")}
+                    >
+                      Reject
+                    </button>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      disabled={["COMPLETED", "REJECTED", "CANCELLED", "FAILED"].includes(w.status)}
+                      onClick={() => change(w, "CANCELLED")}
+                    >
+                      Cancel
+                    </button>
+                  </>
+                )}
               </div>
             </div>
+
+            {/* Manual payout attestation form */}
+            {attesting === w.id && (
+              <div className="mt-3 space-y-2 rounded-xl border border-brand/30 bg-brand/5 p-3">
+                <p className="text-xs text-ink2">
+                  Funds are already reserved. Record how you paid <b>{w.user.username}</b> {Number(w.amount).toLocaleString()} {w.currencyCode}:
+                </p>
+                <input
+                  className="input font-mono text-xs"
+                  placeholder="Payout reference — tx hash / M-Pesa code / bank ref"
+                  value={payoutRef}
+                  onChange={(e) => setPayoutRef(e.target.value)}
+                />
+                <input
+                  className="input text-xs"
+                  placeholder="Or an admin note describing the manual payout"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                />
+                <button className="btn btn-ghost btn-sm" onClick={() => setAttesting(null)}>Back</button>
+              </div>
+            )}
           </div>
         ))}
       </div>
       <p className="text-xs text-ink3">
-        {`M-Pesa: "Send payout" reserves the funds, then the B2C callback completes or refunds them. Crypto: "COMPLETED" pays out first, then debits. All actions are audited.`}
+        Funds are reserved at request time. M-Pesa: &quot;Send payout&quot; fires the B2C transfer; the callback completes or auto-refunds.
+        Crypto/manual: &quot;Approve&quot; requires a payout reference or note attesting the external transfer. &quot;Reject&quot; refunds the reservation. All actions are audited.
       </p>
     </div>
   );

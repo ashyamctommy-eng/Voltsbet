@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { handle, ok, requireAdmin, verifyCsrf, ApiError } from "@/lib/api";
+import { handle, ok, ApiError, sharedAdminGuard } from "@/lib/api";
 import { CRON_JOB_IDS, type CronJobId } from "@/lib/cron-jobs";
 import { syncGames } from "@/lib/sync";
 import { syncWeeklyFixtures, purgeExpiredFixtures } from "@/lib/schedule-sync";
@@ -8,8 +8,7 @@ import { autoSettleFinishedGames } from "@/lib/auto-settle";
 /** POST /api/admin/cronjobs/run — run a cron job right now (admin auth,
  *  no CRON_SECRET needed). */
 export const POST = handle(async (req: NextRequest) => {
-  await verifyCsrf(req);
-  await requireAdmin("settings");
+  await sharedAdminGuard(req, "settings");
   const body = (await req.json().catch(() => null)) as { job?: string } | null;
   const job = body?.job;
   if (!job || !CRON_JOB_IDS.includes(job as CronJobId)) {

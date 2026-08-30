@@ -1,4 +1,5 @@
-import { handle, ok, requireAdmin } from "@/lib/api";
+import { NextRequest } from "next/server";
+import { handle, ok, sharedAdminGuard } from "@/lib/api";
 
 /**
  * Admin API config — The Odds API (v4) — the ONLY sports data provider.
@@ -10,8 +11,8 @@ import { handle, ok, requireAdmin } from "@/lib/api";
  *
  * GET /api/admin/config/api → current provider status (key set, regions)
  */
-export const GET = handle(async () => {
-  await requireAdmin("settings");
+export const GET = handle(async (req: NextRequest) => {
+  await sharedAdminGuard(req, "settings");
   const key = process.env.ODDS_API_KEY ?? "";
   return ok({
     config: {

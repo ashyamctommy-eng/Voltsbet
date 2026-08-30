@@ -1,11 +1,10 @@
 import { NextRequest } from "next/server";
-import { handle, ok, requireAdmin, verifyCsrf, auditLog, ApiError } from "@/lib/api";
+import { handle, ok, auditLog, ApiError, sharedAdminGuard } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { invalidateCurrencyCache } from "@/lib/currency";
 
 export const PATCH = handle(async (req: NextRequest, ctx: { params: Promise<{ code: string }> }) => {
-  await verifyCsrf(req);
-  const admin = await requireAdmin("currencies");
+  const admin = await sharedAdminGuard(req, "currencies");
   const { code } = await ctx.params;
   const body = await req.json().catch(() => null);
   const prev = await prisma.currency.findUnique({ where: { code } });

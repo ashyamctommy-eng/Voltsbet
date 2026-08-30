@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { handle, ok, ApiError, requireAdmin, verifyCsrf, auditLog } from "@/lib/api";
+import { handle, ok, ApiError, auditLog, sharedAdminGuard } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -11,8 +11,8 @@ import { prisma } from "@/lib/prisma";
  *                              the bell dropdown stay consistent.
  * GET  /api/admin/broadcast  — recent broadcasts (admin drawer history).
  */
-export const GET = handle(async () => {
-  const admin = await requireAdmin("notifications");
+export const GET = handle(async (req: NextRequest) => {
+  const admin = await sharedAdminGuard(req, "notifications");
   const broadcasts = await prisma.broadcast.findMany({
     orderBy: { createdAt: "desc" },
     take: 20,
@@ -23,8 +23,7 @@ export const GET = handle(async () => {
 });
 
 export const POST = handle(async (req: NextRequest) => {
-  await verifyCsrf(req);
-  const admin = await requireAdmin("notifications");
+  const admin = await sharedAdminGuard(req, "notifications");
 
   const body = await req.json().catch(() => null);
   const title = String(body?.title ?? "").trim();

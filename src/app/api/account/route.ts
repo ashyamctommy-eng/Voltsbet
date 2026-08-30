@@ -76,6 +76,10 @@ export const GET = handle(async () => {
         ...(settings.mpesaEnabled ? ["MPESA" as const] : []),
         ...(settings.paymentsVoucherEnabled ? ["VOUCHER" as const] : []),
       ],
+      withdrawalMethods: [
+        "CRYPTO",
+        ...(settings.mpesaWithdrawalsEnabled ? ["MPESA" as const] : []),
+      ],
     },
     recentDeposits: recentDeposits.map((d) => ({
       id: d.id,

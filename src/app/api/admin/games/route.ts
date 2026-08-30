@@ -1,10 +1,10 @@
 import { NextRequest } from "next/server";
-import { handle, ok, requireAdmin, verifyCsrf, auditLog, ApiError } from "@/lib/api";
+import { handle, ok, auditLog, ApiError, sharedAdminGuard } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
 export const GET = handle(async (req: NextRequest) => {
-  await requireAdmin("games");
+  await sharedAdminGuard(req, "games");
   const sportId = req.nextUrl.searchParams.get("sportId") ?? undefined;
   const status = req.nextUrl.searchParams.get("status") ?? undefined;
   // Stale-fixture guard: upcoming-only statuses (and the "All statuses"
@@ -44,8 +44,7 @@ const createSchema = z.object({
 });
 
 export const POST = handle(async (req: NextRequest) => {
-  await verifyCsrf(req);
-  const admin = await requireAdmin("games");
+  const admin = await sharedAdminGuard(req, "games");
   const body = await req.json().catch(() => null);
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) throw new ApiError(400, parsed.error.issues[0].message, "VALIDATION");

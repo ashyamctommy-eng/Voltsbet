@@ -1,10 +1,10 @@
 import { NextRequest } from "next/server";
-import { handle, ok, requireAdmin, verifyCsrf, auditLog, ApiError } from "@/lib/api";
+import { handle, ok, auditLog, ApiError, sharedAdminGuard } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
-export const GET = handle(async () => {
-  await requireAdmin("languages");
+export const GET = handle(async (req: NextRequest) => {
+  await sharedAdminGuard(req, "languages");
   const languages = await prisma.language.findMany({ orderBy: { sortOrder: "asc" } });
   return ok({ languages });
 });
@@ -15,8 +15,7 @@ const langSchema = z.object({
 });
 
 export const POST = handle(async (req: NextRequest) => {
-  await verifyCsrf(req);
-  const admin = await requireAdmin("languages");
+  const admin = await sharedAdminGuard(req, "languages");
   const body = await req.json().catch(() => null);
   const parsed = langSchema.safeParse(body);
   if (!parsed.success) throw new ApiError(400, parsed.error.issues[0].message, "VALIDATION");
@@ -29,8 +28,7 @@ export const POST = handle(async (req: NextRequest) => {
 
 // ── Translations ──────────────────────────────────────────────
 export const PATCH = handle(async (req: NextRequest) => {
-  await verifyCsrf(req);
-  const admin = await requireAdmin("languages");
+  const admin = await sharedAdminGuard(req, "languages");
   const body = await req.json().catch(() => null);
   const { langCode, translations } = body ?? {};
   if (!langCode || !Array.isArray(translations)) throw new ApiError(400, "langCode + translations[] required.", "BAD_BODY");

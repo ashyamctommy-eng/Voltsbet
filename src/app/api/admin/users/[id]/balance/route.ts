@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { handle, ok, requireAdmin, verifyCsrf, ApiError } from "@/lib/api";
+import { handle, ok, ApiError, sharedAdminGuard } from "@/lib/api";
 import { adjustBalance } from "@/lib/settle";
 import { z } from "zod";
 
@@ -9,8 +9,7 @@ const schema = z.object({
 });
 
 export const POST = handle(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
-  await verifyCsrf(req);
-  const admin = await requireAdmin("transactions");
+  const admin = await sharedAdminGuard(req, "transactions");
   const { id } = await ctx.params;
   const body = await req.json().catch(() => null);
   const parsed = schema.safeParse(body);

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/client";
 import { useToast } from "@/components/BetSlipContext";
 import { formatDateTime } from "@/lib/odds";
-import TwoFactorCard from "@/components/TwoFactorCard";
+import TelegramLinkCard from "@/components/TelegramLinkCard";
 
 type ProfileData = {
   user: {
@@ -83,8 +83,8 @@ export default function SettingsPage() {
         />
       </div>
 
-      {/* 2FA — any user can enable it */}
-      <TwoFactorCard />
+      {/* Telegram linking — OTP delivery channel (replaces 2FA) */}
+      <TelegramLinkCard />
 
       {/* Preferences */}
       <div className="card space-y-4 p-6">

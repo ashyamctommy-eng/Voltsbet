@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { handle, requireAdmin, auditLog, ApiError } from "@/lib/api";
+import { handle, auditLog, ApiError, sharedAdminGuard } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { VOUCHER_STATUSES } from "@/lib/vouchers";
 
@@ -13,7 +13,7 @@ import { VOUCHER_STATUSES } from "@/lib/vouchers";
  * currency, expiry, batch, status) for archival/reporting.
  */
 export const GET = handle(async (req: NextRequest) => {
-  const admin = await requireAdmin("vouchers");
+  const admin = await sharedAdminGuard(req, "vouchers");
   if (admin.role !== "SUPER_ADMIN") {
     throw new ApiError(403, "Only super admins may export voucher data.", "ELEVATED_REQUIRED");
   }

@@ -128,6 +128,18 @@ const GROUPS: { title: string; anchor: string; icon: React.ReactNode; fields: Fi
       { key: "mpesa.initiatorName", label: "B2C initiator name", type: "text", hint: "Sandbox default: testapi" },
       { key: "mpesa.securityCredential", label: "B2C security credential", type: "password", hint: "Generate via scripts/gen-mpesa-credential.ts" },
       { key: "mpesa.callbackSecret", label: "Webhook URL secret", type: "password", hint: "Keep random; don't rotate mid-test" },
+      { key: "payments.mpesaWithdrawalsEnabled", label: "M-Pesa withdrawals enabled", type: "toggle", hint: "Offer M-Pesa as a payout method (env ENABLE_MPESA_WITHDRAWALS overrides)" },
+    ],
+  },
+  {
+    title: "Telegram Bot (OTP)",
+    anchor: "telegram-bot",
+    icon: <IconGlobe className="h-4 w-4" />,
+    fields: [
+      { key: "telegram.botToken", label: "Bot token", type: "password", hint: "From @BotFather" },
+      { key: "telegram.botUsername", label: "Bot username", type: "text", hint: "Without @ — used for t.me deep links" },
+      { key: "telegram.webhookSecret", label: "Webhook secret", type: "password", hint: "Set as secret_token on setWebhook" },
+      { key: "telegram.otpEnabled", label: "Require Telegram OTP at login", type: "toggle", hint: "Linked accounts get a 6-digit code in Telegram" },
     ],
   },
   {

@@ -49,10 +49,15 @@ export async function verifyCsrf(req: NextRequest) {
   if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") return;
   const cookie = await getCsrfToken();
   const header = req.headers.get("x-csrf-token") ?? "";
+  const fetchSite = req.headers.get("sec-fetch-site");
   const sameOrigin =
-    req.headers.get("sec-fetch-site") === "same-origin" ||
-    req.headers.get("sec-fetch-site") === "none" ||
-    req.headers.get("sec-fetch-site") === null;
+    fetchSite === "same-origin" ||
+    fetchSite === "none" ||
+    // Older browsers don't send Sec-Fetch-Site — fall back to matching the
+    // Origin/Referer against the Host. No header at all is only tolerated
+    // for same-origin navigations, never for state-changing API calls
+    // carrying a mismatched origin.
+    (fetchSite === null && originMatchesHost(req));
   if (!sameOrigin) {
     throw new ApiError(403, "Invalid or missing CSRF token. Refresh the page and try again.", "CSRF");
   }
@@ -77,6 +82,18 @@ export async function verifyCsrf(req: NextRequest) {
     }
   }
   throw new ApiError(403, "Invalid or missing CSRF token. Refresh the page and try again.", "CSRF");
+}
+
+/** Origin/Referer host must equal the request Host (CSRF fallback signal). */
+function originMatchesHost(req: NextRequest): boolean {
+  const host = req.headers.get("host");
+  const source = req.headers.get("origin") ?? req.headers.get("referer");
+  if (!host || !source) return false;
+  try {
+    return new URL(source).host === host;
+  } catch {
+    return false;
+  }
 }
 
 export async function requireUser(): Promise<User> {
@@ -118,6 +135,17 @@ export async function requireAdmin(resource: Resource): Promise<User> {
     throw new ApiError(403, "Your account is not active. Contact support.", "ACCOUNT_INACTIVE");
   }
   return user;
+}
+
+/**
+ * Shared guard for every /api/admin/* endpoint: CSRF enforcement on
+ * mutations + RBAC + active-account check, in one call. Replaces ad-hoc
+ * `verifyCsrf(req); requireAdmin(resource)` pairs so no endpoint can forget
+ * half the guard.
+ */
+export async function sharedAdminGuard(req: NextRequest, resource: Resource): Promise<User> {
+  await verifyCsrf(req); // no-op for GET/HEAD/OPTIONS
+  return requireAdmin(resource);
 }
 
 /** Log an admin action to the immutable audit trail. */

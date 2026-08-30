@@ -1,10 +1,10 @@
 import { NextRequest } from "next/server";
-import { handle, ok, requireAdmin, ApiError } from "@/lib/api";
+import { handle, ok, ApiError, sharedAdminGuard } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
 /** GET /api/admin/voucher-batches/[id] — batch + its vouchers (masked). */
-export const GET = handle(async (_req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
-  await requireAdmin("vouchers");
+export const GET = handle(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
+  await sharedAdminGuard(req, "vouchers");
   const { id } = await ctx.params;
   const batch = await prisma.voucherBatch.findUnique({ where: { id } });
   if (!batch) throw new ApiError(404, "Batch not found.", "NOT_FOUND");

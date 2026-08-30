@@ -1,11 +1,11 @@
 import { NextRequest } from "next/server";
-import { handle, ok, requireAdmin, verifyCsrf, auditLog, ApiError } from "@/lib/api";
+import { handle, ok, auditLog, ApiError, sharedAdminGuard } from "@/lib/api";
 import { setSetting } from "@/lib/settings";
 import { CRON_JOB_IDS, CRON_JOBS, scheduleSettingKey, type CronJobId } from "@/lib/cron-jobs";
 
 /** GET — effective schedules (saved overrides + defaults) for the admin page. */
-export const GET = handle(async () => {
-  await requireAdmin("settings");
+export const GET = handle(async (req: NextRequest) => {
+  await sharedAdminGuard(req, "settings");
   const { prisma } = await import("@/lib/prisma");
   const rows = await prisma.setting.findMany({ where: { key: { startsWith: "cron.jobs." } } });
   const saved: Record<string, string> = {};
@@ -16,8 +16,7 @@ export const GET = handle(async () => {
 
 /** POST — save schedule overrides for one or more jobs. */
 export const POST = handle(async (req: NextRequest) => {
-  await verifyCsrf(req);
-  const admin = await requireAdmin("settings");
+  const admin = await sharedAdminGuard(req, "settings");
   const body = (await req.json().catch(() => null)) as { jobs?: Record<string, string> } | null;
   const jobs = body?.jobs;
   if (!jobs || typeof jobs !== "object") throw new ApiError(400, "Missing jobs map.", "VALIDATION");

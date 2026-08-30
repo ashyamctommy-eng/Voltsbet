@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
-import { handle, ok, requireAdmin } from "@/lib/api";
+import { handle, ok, sharedAdminGuard } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
 export const GET = handle(async (req: NextRequest) => {
-  await requireAdmin("audit");
+  await sharedAdminGuard(req, "audit");
   const entity = req.nextUrl.searchParams.get("entity") ?? "";
   const logs = await prisma.auditLog.findMany({
     where: entity ? { entity } : {},

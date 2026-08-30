@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { handle, ok, requireAdmin, verifyCsrf, auditLog, ApiError } from "@/lib/api";
+import { handle, ok, auditLog, ApiError, sharedAdminGuard } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
@@ -20,8 +20,8 @@ const editSchema = z.object({
 });
 
 /** GET /api/admin/games/[id] — full game with markets/outcomes for the control room. */
-export const GET = handle(async (_req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
-  await requireAdmin("games");
+export const GET = handle(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
+  await sharedAdminGuard(req, "games");
   const { id } = await ctx.params;
   const game = await prisma.game.findUnique({
     where: { id },
@@ -43,8 +43,7 @@ export const GET = handle(async (_req: NextRequest, ctx: { params: Promise<{ id:
 });
 
 export const PATCH = handle(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
-  await verifyCsrf(req);
-  const admin = await requireAdmin("games");
+  const admin = await sharedAdminGuard(req, "games");
   const { id } = await ctx.params;
   const body = await req.json().catch(() => null);
   const parsed = editSchema.safeParse(body);
@@ -75,8 +74,7 @@ export const PATCH = handle(async (req: NextRequest, ctx: { params: Promise<{ id
 });
 
 export const DELETE = handle(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
-  await verifyCsrf(req);
-  const admin = await requireAdmin("games");
+  const admin = await sharedAdminGuard(req, "games");
   const { id } = await ctx.params;
   const betCount = await prisma.betSelection.count({ where: { gameId: id } });
   if (betCount > 0) {

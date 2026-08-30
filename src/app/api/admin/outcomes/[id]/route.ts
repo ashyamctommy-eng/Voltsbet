@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { handle, ok, requireAdmin, verifyCsrf, auditLog, ApiError } from "@/lib/api";
+import { handle, ok, auditLog, ApiError, sharedAdminGuard } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -7,8 +7,7 @@ import { prisma } from "@/lib/prisma";
  * Body: { odds?, status?, name?, label? }
  */
 export const PATCH = handle(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
-  await verifyCsrf(req);
-  const admin = await requireAdmin("odds");
+  const admin = await sharedAdminGuard(req, "odds");
   const { id } = await ctx.params;
   const body = await req.json().catch(() => null);
 
@@ -47,8 +46,7 @@ export const PATCH = handle(async (req: NextRequest, ctx: { params: Promise<{ id
 });
 
 export const DELETE = handle(async (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => {
-  await verifyCsrf(req);
-  const admin = await requireAdmin("odds");
+  const admin = await sharedAdminGuard(req, "odds");
   const { id } = await ctx.params;
   const betCount = await prisma.betSelection.count({ where: { outcomeId: id } });
   if (betCount > 0) throw new ApiError(409, "Bets reference this outcome — suspend it instead.", "HAS_BETS");
