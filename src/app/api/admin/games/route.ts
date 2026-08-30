@@ -38,7 +38,7 @@ const createSchema = z.object({
   homeLogo: z.string().optional().default(""),
   awayLogo: z.string().optional().default(""),
   startAt: z.string().min(1, "Date/time is required"),
-  status: z.string().optional().default("SCHEDULED"),
+  status: z.enum(["SCHEDULED", "LIVE", "HALF_TIME", "FINISHED", "CANCELLED", "POSTPONED"]).optional().default("SCHEDULED"),
   featured: z.boolean().optional().default(false),
   description: z.string().optional().default(""),
 });

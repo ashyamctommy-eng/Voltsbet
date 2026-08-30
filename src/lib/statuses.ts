@@ -43,7 +43,13 @@ export async function isUserActionAllowed(statusKey: string, action: "bet" | "de
 export async function userBlockReason(statusKey: string, action: string): Promise<string | null> {
   const s = await getStatus("USER", statusKey);
   const blocked = await blockedActionsFor("USER", statusKey);
-  if (blocked.includes(action) || (s?.allowedActions && !JSON.parse(s.allowedActions ?? "[]").includes(action))) {
+  let allowedIncludesAction = false;
+  try {
+    allowedIncludesAction = JSON.parse(s?.allowedActions ?? "[]").includes(action);
+  } catch {
+    allowedIncludesAction = false;
+  }
+  if (blocked.includes(action) || (s?.allowedActions && !allowedIncludesAction)) {
     switch (statusKey) {
       case "PENDING_VERIFICATION":
         return "Your account is pending verification. This feature is unlocked once your identity is verified.";

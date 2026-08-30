@@ -22,7 +22,14 @@ export const PATCH = handle(async (req: NextRequest, ctx: { params: Promise<{ id
     if (!(odds > 0)) throw new ApiError(400, "Odds must be positive.", "BAD_ODDS");
     data.odds = odds.toFixed(2);
   }
-  if (body?.status !== undefined) data.status = body.status;
+  // Status is validated against the status-engine enum — an unvalidated
+  // string like "SUSPENDDED" used to silently keep the outcome bettable.
+  if (body?.status !== undefined) {
+    if (!["ACTIVE", "SUSPENDED"].includes(body.status)) {
+      throw new ApiError(400, `Invalid outcome status: ${body.status}.`, "BAD_STATUS");
+    }
+    data.status = body.status;
+  }
   if (body?.name !== undefined) data.name = String(body.name);
   if (body?.label !== undefined) data.label = body.label === "" ? null : String(body.label);
 

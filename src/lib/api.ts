@@ -111,6 +111,11 @@ export async function requireAdmin(resource: Resource): Promise<User> {
   if (user.role === "CUSTOMER" || !can(user.role, resource)) {
     throw new ApiError(403, "You do not have permission to perform this action.", "FORBIDDEN");
   }
+  // A suspended/locked admin loses ALL access (reads included) — a live
+  // session must not keep opening admin data after the account is disabled.
+  if (user.status !== "ACTIVE") {
+    throw new ApiError(403, "Your account is not active. Contact support.", "ACCOUNT_INACTIVE");
+  }
   return user;
 }
 

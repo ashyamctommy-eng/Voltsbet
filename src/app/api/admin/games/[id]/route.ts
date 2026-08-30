@@ -9,7 +9,7 @@ const editSchema = z.object({
   awayName: z.string().min(1).optional(),
   startAt: z.string().optional(),
   featured: z.boolean().optional(),
-  status: z.string().optional(),
+  status: z.enum(["SCHEDULED", "LIVE", "HALF_TIME", "FINISHED", "CANCELLED", "POSTPONED"]).optional(),
   homeScore: z.number().optional(),
   awayScore: z.number().optional(),
   halfHomeScore: z.number().nullable().optional(),

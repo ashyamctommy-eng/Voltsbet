@@ -14,6 +14,12 @@ export const PATCH = handle(async (req: NextRequest, ctx: { params: Promise<{ id
   const prev = await prisma.market.findUnique({ where: { id } });
   if (!prev) throw new ApiError(404, "Market not found.", "NOT_FOUND");
 
+  // Status validated against the status-engine enum — a typo must not
+  // silently defeat the market-status gate in the betting engine.
+  if (status !== undefined && !["OPEN", "SUSPENDED", "CLOSED", "SETTLED"].includes(status)) {
+    throw new ApiError(400, `Invalid market status: ${status}.`, "BAD_STATUS");
+  }
+
   const market = await prisma.market.update({
     where: { id },
     data: { ...(name !== undefined ? { name } : {}), ...(status !== undefined ? { status } : {}) },

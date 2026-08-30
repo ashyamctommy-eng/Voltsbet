@@ -18,7 +18,9 @@ function hashToken(token: string): string {
 }
 
 export async function hashPassword(pw: string) {
-  return bcrypt.hash(pw, 10);
+  // Cost 12 — OWASP-recommended for 2026; cost 10 is the historical default
+  // and too fast on modern GPUs for a real-money platform.
+  return bcrypt.hash(pw, 12);
 }
 export async function verifyPassword(pw: string, hash: string) {
   return bcrypt.compare(pw, hash);

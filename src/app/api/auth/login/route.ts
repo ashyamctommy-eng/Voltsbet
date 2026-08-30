@@ -17,7 +17,7 @@ const MAX_FAILED = 5;
 const LOCK_MINUTES = 15;
 
 export const POST = handle(async (req: NextRequest) => {
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0] ?? "unknown";
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
   const rl = rateLimit(`login:${ip}`, 15, 15 * 60_000);
   if (!rl.ok) throw new ApiError(429, "Too many login attempts. Try again later.", "RATE_LIMITED");
 
@@ -50,7 +50,12 @@ export const POST = handle(async (req: NextRequest) => {
       const lockedUntil = failed >= MAX_FAILED ? new Date(Date.now() + LOCK_MINUTES * 60_000) : null;
       await prisma.user.update({
         where: { id: user.id },
-        data: { failedLogins: lockedUntil ? 0 : failed, ...(lockedUntil ? { lockedUntil } : {}) },
+        data: {
+          // Keep counting past the lock — resetting to 0 at lock time used to
+          // grant a fresh 5 tries per 15-minute window, forever.
+          failedLogins: failed,
+          ...(lockedUntil ? { lockedUntil } : {}),
+        },
       });
     }
     return badLogin();
@@ -69,7 +74,7 @@ export const POST = handle(async (req: NextRequest) => {
       const lockedUntil = failed >= MAX_FAILED ? new Date(Date.now() + LOCK_MINUTES * 60_000) : null;
       await prisma.user.update({
         where: { id: user.id },
-        data: { failedLogins: lockedUntil ? 0 : failed, ...(lockedUntil ? { lockedUntil } : {}) },
+        data: { failedLogins: failed, ...(lockedUntil ? { lockedUntil } : {}) },
       });
       throw new ApiError(401, "Invalid 2FA code.", "TOTP_INVALID");
     }
