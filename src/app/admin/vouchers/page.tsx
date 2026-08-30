@@ -156,9 +156,18 @@ export default function AdminVouchers() {
   }
 
   async function exportAll() {
-    const res = await apiFetch(`/api/admin/vouchers/export?status=${status !== "ALL" ? status : ""}${batchId ? `&batchId=${batchId}` : ""}`);
-    if (!res.ok) return push("error", res.error.message);
-    window.location.href = `/api/admin/vouchers/export?status=${status !== "ALL" ? status : ""}${batchId ? `&batchId=${batchId}` : ""}`;
+    const url = `/api/admin/vouchers/export?status=${status !== "ALL" ? status : ""}${batchId ? `&batchId=${batchId}` : ""}`;
+    const res = await fetch(url, { credentials: "same-origin" });
+    if (!res.ok) {
+      const j = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
+      return push("error", j?.error?.message ?? "Export failed (super admin only).");
+    }
+    const blob = await res.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "vouchers.csv";
+    a.click();
+    URL.revokeObjectURL(a.href);
   }
 
   const maxDay = useMemo(() => {
@@ -297,7 +306,9 @@ export default function AdminVouchers() {
           <option value="">All batches</option>
           {batches.map((b) => <option key={b.id} value={b.id}>{b.name ?? b.id.slice(-6)} ({b.currency} {b.value})</option>)}
         </select>
-        <span className="ml-auto text-[11px] font-semibold text-ink3">{total} vouchers</span>
+        <span className="ml-auto text-[11px] font-semibold text-ink3">
+          {total} vouchers{Object.keys(listStats).length ? ` · ${Object.entries(listStats).map(([k, v]) => `${k} ${v}`).join(" · ")}` : ""}
+        </span>
       </div>
 
       {/* Table */}
