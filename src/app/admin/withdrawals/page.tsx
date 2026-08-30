@@ -62,14 +62,22 @@ export default function AdminWithdrawals() {
                 {w.adminNote && <div className="text-xs text-amber-400">Note: {w.adminNote}</div>}
               </div>
               <div className="flex flex-wrap gap-1.5">
-                {["COMPLETED", "PROCESSING", "REJECTED", "CANCELLED"].map((s) => (
+                {(w.method === "MPESA" ? ["PROCESSING", "REJECTED", "CANCELLED"] : ["COMPLETED", "REJECTED", "CANCELLED"]).map((s) => (
                   <button
                     key={s}
-                    className={`btn btn-sm ${s === "COMPLETED" ? "bg-green-600 text-white hover:brightness-110" : s === "REJECTED" ? "bg-red-600 text-white hover:brightness-110" : "btn-ghost"}`}
+                    className={`btn btn-sm ${
+                      (s === "COMPLETED" || s === "PROCESSING") && w.method === "MPESA" && s === "PROCESSING"
+                        ? "bg-green-600 text-white hover:brightness-110"
+                        : s === "COMPLETED" && w.method !== "MPESA"
+                          ? "bg-green-600 text-white hover:brightness-110"
+                          : s === "REJECTED"
+                            ? "bg-red-600 text-white hover:brightness-110"
+                            : "btn-ghost"
+                    }`}
                     disabled={["COMPLETED", "REJECTED", "CANCELLED", "FAILED"].includes(w.status)}
                     onClick={() => change(w, s)}
                   >
-                    {s}
+                    {s === "PROCESSING" ? "Send payout" : s}
                   </button>
                 ))}
               </div>
@@ -77,7 +85,9 @@ export default function AdminWithdrawals() {
           </div>
         ))}
       </div>
-      <p className="text-xs text-ink3">Completing a withdrawal debits the user&apos;s balance atomically. All actions are audited.</p>
+      <p className="text-xs text-ink3">
+        M-Pesa: "Send payout" reserves the funds, then the B2C callback completes or refunds them. Crypto: "COMPLETED" pays out first, then debits. All actions are audited.
+      </p>
     </div>
   );
 }

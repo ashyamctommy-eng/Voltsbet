@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
+import { creditWallet } from "@/lib/wallet";
 
 /**
  * M-Pesa B2C payout callbacks — ResultURL (final result) and QueueTimeOutURL
  * both point here (with ?secret=). ResultCode 0 = money sent.
  *
- * The withdrawal was created as PROCESSING when the payout was initiated
- * (conversationId stored in metadata). On success we debit the wallet + mark
- * COMPLETED; on failure/timeout we mark FAILED without debiting.
+ * Funds were already RESERVED when the admin marked the withdrawal PROCESSING
+ * (atomic wallet debit). This callback only finalizes:
+ *   - success → COMPLETED (no balance change — the debit happened at reserve)
+ *   - failure → FAILED + the reserved funds are refunded to the wallet
  */
 export async function POST(req: NextRequest) {
   const secret = req.nextUrl.searchParams.get("secret") ?? "";
@@ -58,54 +60,54 @@ export async function POST(req: NextRequest) {
   }
 
   if (resultCode === 0) {
-    // Payout succeeded → debit the wallet atomically + complete.
-    const outcome = await prisma.$transaction(async (tx) => {
-      const wallet = await tx.wallet.findUnique({ where: { userId: withdrawal.userId } });
-      if (!wallet) throw new Error("no wallet");
-      const prev = Number(wallet.balance);
-      const amount = Number(withdrawal.amount);
-      if (prev < amount) throw new Error("insufficient balance");
-      const next = Math.round((prev - amount) * 100) / 100;
-      await tx.wallet.update({ where: { userId: withdrawal.userId }, data: { balance: next.toFixed(2) } });
-      await tx.transaction.create({
-        data: {
-          userId: withdrawal.userId, type: "WITHDRAWAL", amount: (-amount).toFixed(2),
-          currencyCode: withdrawal.currencyCode, prevBalance: prev.toFixed(2), newBalance: next.toFixed(2),
-          reason: `M-Pesa payout to ${withdrawal.destination}`, reference: withdrawal.id,
-        },
-      });
-      await tx.withdrawal.update({
-        where: { id: withdrawal.id },
-        data: {
-          status: "COMPLETED",
-          processedAt: new Date(),
-          metadata: JSON.stringify({ ...safeMeta(withdrawal.metadata), transactionId, resultDesc }),
-        },
-      });
-      await tx.notification.create({
+    // Payout succeeded — finalize. The wallet was already debited when the
+    // payout was reserved (PROCESSING), so no balance change here.
+    const claimed = await prisma.withdrawal.updateMany({
+      where: { id: withdrawal.id, status: "PROCESSING" },
+      data: {
+        status: "COMPLETED",
+        processedAt: new Date(),
+        metadata: JSON.stringify({ ...safeMeta(withdrawal.metadata), transactionId, resultDesc }),
+      },
+    });
+    if (claimed.count > 0) {
+      await prisma.notification.create({
         data: {
           userId: withdrawal.userId, type: "WITHDRAWAL",
           title: "Withdrawal Completed ✅",
           message: `KSh ${Number(withdrawal.amount).toLocaleString()} sent to ${withdrawal.destination} via M-Pesa.`,
         },
       });
-      return { prev, next };
-    });
-    return NextResponse.json({ ok: true, outcome });
+    }
+    return NextResponse.json({ ok: true });
   }
 
-  // Failed / timed out → FAILED, no debit.
-  await prisma.withdrawal.update({
-    where: { id: withdrawal.id },
-    data: { status: "FAILED", metadata: JSON.stringify({ ...safeMeta(withdrawal.metadata), resultCode, resultDesc }) },
-  });
-  await prisma.notification.create({
+  // Failed / timed out → refund the reserved funds + FAILED. The atomic
+  // PROCESSING → FAILED claim guarantees the refund happens exactly once
+  // even if Safaricom retries the callback.
+  const claimed = await prisma.withdrawal.updateMany({
+    where: { id: withdrawal.id, status: "PROCESSING" },
     data: {
-      userId: withdrawal.userId, type: "WITHDRAWAL",
-      title: "Withdrawal Failed",
-      message: `Your M-Pesa payout could not be completed (${resultDesc || `code ${resultCode}`}). No funds were debited.`,
+      status: "FAILED",
+      metadata: JSON.stringify({ ...safeMeta(withdrawal.metadata), resultCode, resultDesc }),
     },
   });
+  if (claimed.count > 0) {
+    await prisma.$transaction(async (tx) => {
+      await creditWallet(tx, withdrawal.userId, Number(withdrawal.amount), {
+        type: "WITHDRAWAL_REFUND",
+        reason: `M-Pesa payout failed — reserved funds returned`,
+        reference: withdrawal.id,
+      });
+      await tx.notification.create({
+        data: {
+          userId: withdrawal.userId, type: "WITHDRAWAL",
+          title: "Withdrawal Failed",
+          message: `Your M-Pesa payout could not be completed (${resultDesc || `code ${resultCode}`}). Reserved funds were returned to your balance.`,
+        },
+      });
+    });
+  }
   return NextResponse.json({ ok: true, failed: true });
 }
 
