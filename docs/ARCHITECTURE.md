@@ -69,12 +69,13 @@ Bet slip lives in a React context, persisted to localStorage, feeding a
 client-side-only API. Odds are never trusted from the client: the server re-reads
 current odds, and mismatches trigger the §17 confirmation dialog.
 
-## Data model (24 tables)
+## Data model (27 tables)
 
 users · sessions · sports · competitions · teams · games · markets · outcomes ·
 bets · bet_selections · wallets · transactions · deposits · withdrawals ·
 currencies · languages · translations · banners · promotions · testimonials ·
-notifications · status_types · settings · audit_logs
+notifications · status_types · settings · audit_logs · voucher_batches ·
+vouchers · voucher_redemptions
 
 ## Security checklist
 

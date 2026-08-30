@@ -31,7 +31,9 @@ Built with **Next.js 16 (App Router) + TypeScript + Prisma + PostgreSQL + Tailwi
 **Customer site** — homepage (hero banners, featured matches, promos),
 sports catalogue (14 sports, DB-driven), match pages with full markets, live
 betting with scores/clocks, bet slip (singles + accumulators, instant calc,
-odds-change confirmation), search, results, promotions, responsible gambling,
+odds-change confirmation, cash-out on open bets), parlay reduction (void legs
+continue at reduced odds), search, results, promotions, responsible gambling,
+**voucher deposits** (redeem prepaid codes in Wallet → Deposit → Voucher),
 floating WhatsApp + Telegram widgets, mobile bottom-nav + desktop three-column
 layout.
 
@@ -46,11 +48,12 @@ reopened (guarded). Optional auto-settlement via cron.
 
 **Admin panel** `/admin` — dashboard stats, sports CRUD, manual games + live
 score control, markets/outcomes with inline odds editing, settlement UI, user
-management, crypto deposits + withdrawals review, currencies, languages +
-translations, promotions/banners, announcements, website settings (branding
-colors, limits, support links, crypto config), **API Settings** (The
-Odds API status + connection test), **Cronjobs** (scheduler config generator), audit logs, on-demand API
-sync button.
+management, crypto deposits + withdrawals review, **Vouchers** (bulk-generate
+secure codes, batches, cancel/suspend, export + print, stats, search/filters),
+currencies, languages + translations, promotions/banners, announcements,
+website settings (branding colors, limits, support links, crypto config),
+**API Settings** (The Odds API status + connection test), **Cronjobs**
+(scheduler config generator), audit logs, on-demand API sync button.
 
 **Data-driven everything** — statuses, currencies, languages, settings and
 content are all DB tables the admin can edit without touching code. **Branding
@@ -69,7 +72,7 @@ rebrandable.
 | Styling | Tailwind 4, dark-first theme |
 | i18n | react-i18next — en / sw / fr / pt / es (DB-overridable) |
 | Auth | HttpOnly cookie sessions, bcrypt, CSRF double-submit, RBAC |
-| Payments | NOWPayments (crypto) + M-Pesa Daraja (STK Push / B2C), provider-swappable |
+| Payments | NOWPayments (crypto) + M-Pesa Daraja (STK Push / B2C) + prepaid Voucher codes (hashed at rest, admin-generated) |
 | Process | PM2 / `next start` (Railway: custom start command) |
 
 ---
