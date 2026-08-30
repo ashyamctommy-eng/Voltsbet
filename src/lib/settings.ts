@@ -26,6 +26,7 @@ export type SiteSettings = {
   supportEmail: string;
   supportPhone: string; // displayed in the support modal (Call Us)
   cryptoProvider: string;
+  paymentsVoucherEnabled: boolean; // allow Voucher deposits (redeemable codes)
   cryptoApiKey: string;
   cryptoIpnSecret: string;
   cryptoPayoutApiKey: string;
@@ -87,6 +88,7 @@ const DEFAULTS: SiteSettings = {
   telegramPosition: "bottom-left",
   supportEmail: "",
   supportPhone: "0704 526 454",
+  paymentsVoucherEnabled: true,
   cryptoProvider: "",
   cryptoApiKey: "",
   cryptoIpnSecret: "",
@@ -154,6 +156,7 @@ export async function getSettings(): Promise<SiteSettings> {
   s.telegramPosition = raw["support.telegramPosition"] ?? s.telegramPosition;
   s.supportEmail = raw["support.email"] ?? s.supportEmail;
   s.supportPhone = raw["support.phone"] ?? s.supportPhone;
+  s.paymentsVoucherEnabled = (raw["payments.voucherEnabled"] ?? String(DEFAULTS.paymentsVoucherEnabled)) === "true";
   s.cryptoProvider = raw["crypto.provider"] ?? s.cryptoProvider;
   s.cryptoApiKey = raw["crypto.apiKey"] ?? s.cryptoApiKey;
   s.cryptoIpnSecret = raw["crypto.ipnSecret"] ?? s.cryptoIpnSecret;

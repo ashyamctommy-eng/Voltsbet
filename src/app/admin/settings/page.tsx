@@ -111,6 +111,7 @@ const GROUPS: { title: string; anchor: string; icon: React.ReactNode; fields: Fi
       { key: "crypto.expirationMinutes", label: "Payment expiration (minutes)", type: "number" },
       { key: "crypto.currencies", label: "Supported cryptos", type: "text", hint: 'JSON array, e.g. ["BTC","USDT"]' },
       { key: "crypto.rates", label: "Crypto rates (KES per 1 coin)", type: "text", hint: 'JSON object, e.g. {"BTC":8500000,"USDT":129}' },
+      { key: "payments.voucherEnabled", label: "Voucher deposits enabled", type: "toggle", hint: "Let players redeem prepaid voucher codes in Wallet → Deposit → Voucher" },
     ],
   },
   {

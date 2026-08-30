@@ -11,6 +11,8 @@ export function toCents(n: number): number {
 export type WalletOp = {
   /** Transaction type string, e.g. BET_STAKE, BET_WIN, DEPOSIT, WITHDRAWAL. */
   type: string;
+  /** Payment channel for DEPOSIT/WITHDRAWAL rows: CRYPTO | MPESA | VOUCHER … */
+  method?: string;
   reason: string;
   reference?: string;
   currencyCode?: string;
@@ -55,6 +57,7 @@ export async function debitWallet(
     data: {
       userId,
       type: opts.type,
+      method: opts.method ?? null,
       amount: (-amt).toFixed(2),
       currencyCode: opts.currencyCode ?? wallet.currencyCode,
       prevBalance: prev.toFixed(2),
@@ -96,6 +99,7 @@ export async function creditWallet(
     data: {
       userId,
       type: opts.type,
+      method: opts.method ?? null,
       amount: amt.toFixed(2),
       currencyCode: opts.currencyCode ?? wallet.currencyCode,
       prevBalance: prev.toFixed(2),

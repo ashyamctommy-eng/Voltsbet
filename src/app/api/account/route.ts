@@ -22,6 +22,21 @@ export const GET = handle(async () => {
   const walletCur = wallet?.currencyCode ?? user.currencyCode;
   const balance = wallet ? await convert(Number(wallet.balance), walletCur, displayCur) : 0;
 
+  // Voucher deposit history (method=VOUCHER redemptions, newest first).
+  const recentVoucherDeposits = await prisma.voucherRedemption.findMany({
+    where: { userId: user.id },
+    orderBy: { redeemedAt: "desc" },
+    take: 5,
+  });
+  const voucherTxnRefs = new Map(
+    (
+      await prisma.transaction.findMany({
+        where: { id: { in: recentVoucherDeposits.map((r) => r.transactionId).filter(Boolean) as string[] } },
+        select: { id: true, reference: true },
+      })
+    ).map((t) => [t.id, t.reference]),
+  );
+
   return ok({
     user: {
       id: user.id,
@@ -56,7 +71,11 @@ export const GET = handle(async () => {
       depositMax: settings.cryptoMaxDeposit,
       cryptoCurrencies: settings.cryptoCurrencies,
       cryptoRates: settings.cryptoRates,
-      depositMethods: ["CRYPTO", ...(settings.mpesaEnabled ? ["MPESA" as const] : [])],
+      depositMethods: [
+        "CRYPTO",
+        ...(settings.mpesaEnabled ? ["MPESA" as const] : []),
+        ...(settings.paymentsVoucherEnabled ? ["VOUCHER" as const] : []),
+      ],
     },
     recentDeposits: recentDeposits.map((d) => ({
       id: d.id,
@@ -65,6 +84,13 @@ export const GET = handle(async () => {
       status: d.status,
       cryptoCurrency: d.cryptoCurrency,
       createdAt: d.createdAt,
+    })),
+    recentVoucherDeposits: recentVoucherDeposits.map((r) => ({
+      id: r.id,
+      amount: Number(r.amount),
+      currencyCode: r.currency,
+      redeemedAt: r.redeemedAt,
+      reference: r.transactionId ? voucherTxnRefs.get(r.transactionId) ?? null : null,
     })),
     bettingLocked: !!blocked,
     bettingLockReason: blocked,

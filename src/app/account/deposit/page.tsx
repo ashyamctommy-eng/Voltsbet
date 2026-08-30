@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/client";
 import { useToast } from "@/components/BetSlipContext";
+import VoucherDeposit from "@/components/account/VoucherDeposit";
 
 type AccountData = {
   user: { status: string; currencyCode: string };
@@ -44,7 +45,7 @@ const STATUS_PILL: Record<string, string> = {
 export default function DepositPage() {
   const { push } = useToast();
   const [account, setAccount] = useState<AccountData | null>(null);
-  const [method, setMethod] = useState<"CRYPTO" | "MPESA">("CRYPTO");
+  const [method, setMethod] = useState<"CRYPTO" | "MPESA" | "VOUCHER">("CRYPTO");
   const [crypto, setCrypto] = useState("USDT");
   const [phone, setPhone] = useState("");
   const [amount, setAmount] = useState("");
@@ -152,15 +153,23 @@ export default function DepositPage() {
       </div>
 
       {/* Method toggle */}
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {methods.includes("CRYPTO") && (
           <MethodCard active={method === "CRYPTO"} icon="₿" title="Crypto" sub="BTC · ETH · USDT" onClick={() => { setMethod("CRYPTO"); setPending(null); }} />
         )}
         {methods.includes("MPESA") && (
           <MethodCard active={method === "MPESA"} icon="📱" title="M-Pesa" sub="STK push · instant" onClick={() => { setMethod("MPESA"); setPending(null); }} />
         )}
+        {methods.includes("VOUCHER") && (
+          <MethodCard active={method === "VOUCHER"} icon="🎟️" title="Voucher" sub="redeem a code" onClick={() => { setMethod("VOUCHER"); setPending(null); }} />
+        )}
       </div>
 
+      {/* Voucher panel replaces the amount stepper (amount comes from the code) */}
+      {method === "VOUCHER" ? (
+        <VoucherDeposit onSuccess={refresh} />
+      ) : (
+      <>
       {/* Stepper */}
       <div className="flex items-center gap-2 text-[11px] font-bold">
         {[
@@ -388,6 +397,8 @@ export default function DepositPage() {
             </ol>
           </div>
         </div>
+      )}
+      </>
       )}
 
       {/* Recent deposits */}

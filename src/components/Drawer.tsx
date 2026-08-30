@@ -53,6 +53,7 @@ const STAFF_ITEMS: MenuItem[] = [
   { href: "/admin/users", label: "Users Management", Icon: IconUsers, color: "dark:text-sky-300 text-sky-600" },
   { href: "/admin/deposits", label: "Crypto Transactions", Icon: IconDownload, color: "dark:text-amber-300 text-amber-600" },
   { href: "/admin/withdrawals", label: "Withdrawals", Icon: IconUpload, color: "dark:text-sky-100 text-sky-600" },
+  { href: "/admin/vouchers", label: "Vouchers", Icon: IconGift, color: "dark:text-yellow-300 text-yellow-600" },
   { href: "/admin/settings#payments", label: "Payments", Icon: IconCoins, color: "dark:text-purple-400 text-purple-600" },
   { href: "/admin/api-settings", label: "API Settings — The Odds API (v4)", Icon: IconPlug, color: "dark:text-green-400 text-green-600" },
   { href: "/admin/settings", label: "Website Settings", Icon: IconGear, color: "text-ink2" },

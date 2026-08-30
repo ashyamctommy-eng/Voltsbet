@@ -76,6 +76,12 @@ const OPS: Op[] = [
     type: "API",
   },
   {
+    name: "Vouchers",
+    route: "/admin/vouchers",
+    description: "Generate/redeem/cancel deposit vouchers, batches, export + print.",
+    type: "Admin",
+  },
+  {
     name: "Default Currency",
     route: "/admin/settings/currency",
     description: "Platform-wide display currency (KES/TZS/UGX/USD/EUR/GHS) — betslip + balances re-label instantly.",

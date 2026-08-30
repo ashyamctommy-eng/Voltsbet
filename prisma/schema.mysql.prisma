@@ -239,18 +239,79 @@ model Transaction {
   id           String   @id @default(cuid())
   userId       String
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type         String // DEPOSIT | WITHDRAWAL | BET_STAKE | BET_WIN | BET_REFUND | BONUS | ADJUSTMENT
+  type         String // DEPOSIT | WITHDRAWAL | BET_STAKE | BET_WIN | BET_REFUND | BONUS | ADJUSTMENT | CASH_OUT
+  method       String? // payment channel: CRYPTO | MPESA | VOUCHER | MANUAL ...
   amount       Decimal
   currencyCode String
   prevBalance  Decimal
   newBalance   Decimal
   reason       String?
-  reference    String? // bet code, deposit id, etc.
+  reference    String? // bet code, deposit id, DEP-… voucher reference, etc.
   createdById  String? // admin who performed an adjustment
   createdAt    DateTime @default(now())
 
   @@index([userId, createdAt])
   @@index([type])
+}
+
+model VoucherBatch {
+  id        String   @id @default(cuid())
+  name      String? // campaign/batch name e.g. "Christmas 2026"
+  currency  String
+  value     Decimal
+  quantity  Int
+  prefix    String? // code prefix e.g. "TTB"
+  notes     String?
+  createdBy String?
+  createdAt DateTime @default(now())
+
+  vouchers Voucher[]
+
+  @@index([createdAt])
+}
+
+model Voucher {
+  id           String   @id @default(cuid())
+  codeHash     String   @unique // sha256(full code)
+  codeLast4    String // last 4 chars for admin reference
+  displayCode  String // masked form: PREFIX-****-****-ABCD
+  value        Decimal
+  currency     String
+  status       String   @default("UNUSED") // UNUSED | REDEEMED | EXPIRED | CANCELLED | SUSPENDED
+  batchId      String?
+  batch        VoucherBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  expiresAt    DateTime?
+  notes        String?
+  createdById  String?
+  createdAt    DateTime @default(now())
+  redeemedAt   DateTime?
+  redeemedById String?
+  cancelledAt  DateTime?
+  cancelledBy  String?
+  suspendedAt  DateTime?
+  suspendedBy  String?
+
+  redemption VoucherRedemption?
+
+  @@index([status])
+  @@index([currency])
+  @@index([batchId])
+  @@index([createdAt])
+}
+
+model VoucherRedemption {
+  id            String   @id @default(cuid())
+  voucherId     String   @unique
+  voucher       Voucher  @relation(fields: [voucherId], references: [id], onDelete: Restrict)
+  userId        String
+  transactionId String? // Transaction.id — the DEP-… reference lives on that row
+  amount        Decimal
+  currency      String
+  redeemedAt    DateTime @default(now())
+  ipAddress     String?
+  deviceInfo    String?
+
+  @@index([userId, redeemedAt])
 }
 
 model Deposit {
