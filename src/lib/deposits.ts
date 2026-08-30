@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { ApiError } from "@/lib/api";
 import { awardReferralBonusIfFirstDeposit } from "@/lib/referral";
+import { creditWallet } from "@/lib/wallet";
 
 /**
  * Shared payment-confirmation logic. Every provider (demo webhook,
@@ -12,7 +13,11 @@ import { awardReferralBonusIfFirstDeposit } from "@/lib/referral";
 const CREDITABLE_FROM = ["AWAITING_PAYMENT", "PAYMENT_DETECTED", "CONFIRMING", "CONFIRMED"];
 
 /** Atomically confirm a deposit: COMPLETED + wallet credit + transaction + notification. */
-export async function confirmDeposit(depositId: string, opts: { txHash?: string; providerRef?: string } = {}) {
+export async function confirmDeposit(
+  depositId: string,
+  opts: { txHash?: string; providerRef?: string } = {},
+  adminOverride = false
+) {
   const deposit = await prisma.deposit.findUnique({
     where: { id: depositId },
     include: { user: { include: { wallet: true } } },
@@ -21,23 +26,23 @@ export async function confirmDeposit(depositId: string, opts: { txHash?: string;
   if (deposit.status === "COMPLETED") {
     return { alreadyCompleted: true, deposit };
   }
-  if (!CREDITABLE_FROM.includes(deposit.status)) {
+  if (!adminOverride && !CREDITABLE_FROM.includes(deposit.status)) {
     throw new ApiError(409, `Deposit is in status ${deposit.status} and cannot be completed.`, "BAD_STATUS");
   }
 
   const result = await prisma.$transaction(async (tx) => {
-    const wallet = deposit.user.wallet!;
-    const prev = Number(wallet.balance);
-    const amount = Number(deposit.amount);
-    const next = Math.round((prev + amount) * 100) / 100;
-
     // merge provider refs into metadata (keep prior info like payment address)
     let metadata: Record<string, unknown> = {};
     try { metadata = JSON.parse(deposit.metadata ?? "{}"); } catch {}
     if (opts.providerRef) metadata.providerRef = opts.providerRef;
 
-    await tx.deposit.update({
-      where: { id: deposit.id },
+    // Atomic status claim — concurrent confirmations (webhook retry + admin
+    // click, STK callback + GET poll) can never both credit: exactly one
+    // caller flips a non-COMPLETED status → COMPLETED.
+    const claimed = await tx.deposit.updateMany({
+      where: adminOverride
+        ? { id: deposit.id, status: { not: "COMPLETED" } }
+        : { id: deposit.id, status: { in: CREDITABLE_FROM } },
       data: {
         status: "COMPLETED",
         ...(opts.txHash ? { txHash: opts.txHash } : {}),
@@ -45,18 +50,21 @@ export async function confirmDeposit(depositId: string, opts: { txHash?: string;
         confirmedAt: new Date(),
       },
     });
-    await tx.wallet.update({ where: { userId: deposit.userId }, data: { balance: next.toFixed(2) } });
-    await tx.transaction.create({
-      data: {
-        userId: deposit.userId,
-        type: "DEPOSIT",
-        amount: amount.toFixed(2),
-        currencyCode: deposit.currencyCode,
-        prevBalance: prev.toFixed(2),
-        newBalance: next.toFixed(2),
-        reason: `Deposit via ${deposit.provider}${deposit.cryptoCurrency ? ` (${deposit.cryptoCurrency})` : ""}`,
-        reference: deposit.id,
-      },
+    if (claimed.count === 0) {
+      // Lost the race — a concurrent call completed it, or the status moved.
+      const fresh = await tx.deposit.findUnique({ where: { id: deposit.id }, select: { status: true } });
+      if (fresh?.status === "COMPLETED") {
+        throw new ApiError(409, "Deposit already completed.", "ALREADY_COMPLETED");
+      }
+      throw new ApiError(409, `Deposit is in status ${fresh?.status ?? "?"} and cannot be completed.`, "BAD_STATUS");
+    }
+
+    const amount = Number(deposit.amount);
+    await creditWallet(tx, deposit.userId, amount, {
+      type: "DEPOSIT",
+      reason: `Deposit via ${deposit.provider}${deposit.cryptoCurrency ? ` (${deposit.cryptoCurrency})` : ""}`,
+      reference: deposit.id,
+      currencyCode: deposit.currencyCode,
     });
     await tx.notification.create({
       data: {
@@ -70,7 +78,7 @@ export async function confirmDeposit(depositId: string, opts: { txHash?: string;
     // First-deposit referral reward for whoever referred this user
     await awardReferralBonusIfFirstDeposit(tx, deposit);
 
-    return { prev, next, amount };
+    return { amount };
   });
 
   return { alreadyCompleted: false, ...result, deposit };

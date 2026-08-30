@@ -1,5 +1,6 @@
 import { prisma } from "./prisma";
 import { ApiError, auditLog } from "./api";
+import { creditWallet, debitWallet, toCents } from "./wallet";
 export type SettleActor = { id: string; username: string };
 
 /**
@@ -8,6 +9,10 @@ export type SettleActor = { id: string; username: string };
  *
  * Multiples rule (documented MVP behavior): any void selection voids the whole
  * accumulator with a full stake refund; a single lost leg loses the bet.
+ *
+ * Race-safety: the outcome is claimed with an atomic `settled:false` guard
+ * inside the transaction, so two concurrent settle calls (admin + auto-settle
+ * cron) can never both pay the same open bets.
  */
 export async function settleOutcome(admin: SettleActor, outcomeId: string, result: "WON" | "LOST" | "VOID") {
   const outcome = await prisma.outcome.findUnique({
@@ -20,7 +25,14 @@ export async function settleOutcome(admin: SettleActor, outcomeId: string, resul
   }
 
   const settled = await prisma.$transaction(async (tx) => {
-    await tx.outcome.update({ where: { id: outcomeId }, data: { result, settled: true } });
+    // Atomic claim — exactly one caller may settle this outcome.
+    const claimed = await tx.outcome.updateMany({
+      where: { id: outcomeId, settled: false },
+      data: { result, settled: true },
+    });
+    if (claimed.count === 0) {
+      throw new ApiError(409, "This outcome is already settled. Reopen it first to change the result.", "ALREADY_SETTLED");
+    }
 
     // Find open bets that contain this outcome
     const openBets = await tx.bet.findMany({
@@ -72,22 +84,11 @@ export async function settleOutcome(admin: SettleActor, outcomeId: string, resul
           data: { status: newStatus, settledAt: new Date() },
         });
 
-        const wallet = bet.user.wallet;
-        if (wallet && payout > 0 && payoutType) {
-          const prev = Number(wallet.balance);
-          const next = Math.round((prev + payout) * 100) / 100;
-          await tx.wallet.update({ where: { userId: bet.userId }, data: { balance: next.toFixed(2) } });
-          await tx.transaction.create({
-            data: {
-              userId: bet.userId,
-              type: payoutType,
-              amount: payout.toFixed(2),
-              currencyCode: wallet.currencyCode,
-              prevBalance: prev.toFixed(2),
-              newBalance: next.toFixed(2),
-              reason: `${payoutType === "BET_WIN" ? "Bet won" : "Bet voided"} ${bet.code}`,
-              reference: bet.code,
-            },
+        if (payout > 0 && payoutType) {
+          await creditWallet(tx, bet.userId, payout, {
+            type: payoutType,
+            reason: `${payoutType === "BET_WIN" ? "Bet won" : "Bet voided"} ${bet.code}`,
+            reference: bet.code,
           });
         }
         affected.push(bet.code);
@@ -176,22 +177,23 @@ export async function adjustBalance(
     const wallet = await tx.wallet.findUnique({ where: { userId } });
     if (!wallet) throw new ApiError(404, "User has no wallet.", "NO_WALLET");
     const prev = Number(wallet.balance);
-    const next = Math.round((prev + amount) * 100) / 100;
+    const next = toCents(prev + amount);
     if (next < 0) throw new ApiError(400, "Adjustment would make the balance negative.", "NEGATIVE_BALANCE");
-    await tx.wallet.update({ where: { userId }, data: { balance: next.toFixed(2) } });
-    const txn = await tx.transaction.create({
-      data: {
-        userId,
+
+    if (amount > 0) {
+      await creditWallet(tx, userId, amount, {
         type: "ADJUSTMENT",
-        amount: amount.toFixed(2),
-        currencyCode: wallet.currencyCode,
-        prevBalance: prev.toFixed(2),
-        newBalance: next.toFixed(2),
         reason,
         createdById: admin.id,
-      },
-    });
-    return txn;
+      });
+    } else {
+      await debitWallet(tx, userId, -amount, {
+        type: "ADJUSTMENT",
+        reason,
+        createdById: admin.id,
+      });
+    }
+    return { amount, prev, next };
   });
   await auditLog({
     admin,
