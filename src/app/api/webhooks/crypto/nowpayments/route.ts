@@ -97,6 +97,14 @@ export async function POST(req: NextRequest) {
     if (deposit.status === "UNDERPAID") {
       await updateDepositStatus(deposit.id, "PAYMENT_DETECTED");
     }
+    // Payment arrived after the deposit expired/was failed — acknowledge so
+    // the provider stops retrying, but never credit an inactive window.
+    if (deposit.status === "EXPIRED" || deposit.status === "FAILED") {
+      return NextResponse.json({
+        ok: true,
+        note: "Deposit no longer active — payment acknowledged, not credited",
+      });
+    }
   }
 
   switch (status) {

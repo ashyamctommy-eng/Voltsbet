@@ -1,6 +1,7 @@
 import { prisma } from "./prisma";
 import { settleOutcome } from "./settle";
 import { getSettings } from "./settings";
+import { ApiError } from "./api";
 
 /**
  * Auto-settlement — resolves finished games' markets from the final score and
@@ -48,8 +49,18 @@ export async function autoSettleFinishedGames(): Promise<{ settled: string[]; sk
         try {
           await settleOutcome(SYSTEM_ACTOR, outcome.id, result);
           settled.push(`${game.homeName} vs ${game.awayName} · ${market.name} · ${outcome.name}`);
-        } catch {
-          // outcome may have been settled by another run / admin in between
+        } catch (e) {
+          // ALREADY_SETTLED is the normal race (another run / admin settled it
+          // first) — skip quietly. Anything else is a real failure (DB error,
+          // credit failure) that used to be swallowed by an empty catch,
+          // hiding money-path bugs in production — log it.
+          const isRace = e instanceof ApiError && e.code === "ALREADY_SETTLED";
+          if (!isRace) {
+            console.error(
+              `[auto-settle] failed to settle outcome ${outcome.id} (${game.homeName} vs ${game.awayName} · ${market.name})`,
+              e instanceof Error ? e.message : e
+            );
+          }
           skipped.push(outcome.id);
         }
       }

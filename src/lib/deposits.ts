@@ -92,3 +92,22 @@ export async function updateDepositStatus(depositId: string, status: string) {
   await prisma.deposit.update({ where: { id: depositId }, data: { status } });
   return { skipped: false };
 }
+
+/**
+ * Expire stale payment windows: deposits still awaiting payment after their
+ * provider expiry (crypto payments have expiresAt) are flipped to EXPIRED so
+ * they surface in the admin panel instead of lingering forever. Money-safe:
+ * only non-COMPLETED deposits are touched, and EXPIRED is not a creditable
+ * status — a late webhook can never credit an expired deposit through the
+ * normal confirm path.
+ */
+export async function expireStaleDeposits(): Promise<number> {
+  const res = await prisma.deposit.updateMany({
+    where: {
+      status: { in: CREDITABLE_FROM },
+      expiresAt: { lt: new Date() },
+    },
+    data: { status: "EXPIRED" },
+  });
+  return res.count;
+}

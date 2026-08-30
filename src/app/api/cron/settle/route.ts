@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
-import { handle, ok, ApiError } from "@/lib/api";
-import { getSettings } from "@/lib/settings";
+import { handle, ok } from "@/lib/api";
+import { checkCronSecret, makeCronJob } from "@/lib/cron-guard";
 import { autoSettleFinishedGames } from "@/lib/auto-settle";
 
 /**
@@ -13,19 +13,19 @@ import { autoSettleFinishedGames } from "@/lib/auto-settle";
  *     GET https://your-app/api/cron/settle?secret=<cron.secret>
  *
  * Responds 200 with counts; 401 without the secret; 503 if unconfigured.
+ * Throttled/coalesced per process so overlapping triggers never run the
+ * settlement sweep twice concurrently.
  */
+const job = makeCronJob(Number(process.env.SETTLE_THROTTLE_MINUTES) || 5);
+
 export const GET = handle(async (req: NextRequest) => {
-  const settings = await getSettings();
-  const secret = settings.cronSecret || process.env.CRON_SECRET || "";
-  if (!secret) {
-    throw new ApiError(503, "Cron secret not configured — set cron.secret in admin settings.", "CRON_NOT_CONFIGURED");
-  }
-  const provided = req.nextUrl.searchParams.get("secret") ?? req.headers.get("x-cron-secret") ?? "";
-  if (provided !== secret) {
-    throw new ApiError(401, "Invalid cron secret.", "UNAUTHORIZED");
-  }
-  const result = await autoSettleFinishedGames();
-  return ok(result);
+  await checkCronSecret(req);
+  const { result, throttled, coalesced, retryInSeconds } = await job.run(autoSettleFinishedGames);
+  return ok({
+    ...result,
+    ...(throttled ? { throttled: true, retryInSeconds } : {}),
+    ...(coalesced ? { coalesced: true } : {}),
+  });
 });
 
 export const POST = GET;

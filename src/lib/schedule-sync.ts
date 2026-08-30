@@ -140,42 +140,54 @@ export async function syncWeeklyFixtures(): Promise<ScheduleSyncResult> {
         startAt,
       };
 
-      // 1) exact upsert key — same Odds API event id the odds sync uses
-      const byExt = await prisma.game.findUnique({ where: { externalId: ev.id } });
-      if (byExt) {
-        // Don't clobber status (LIVE/FINISHED from the live engine or scores
-        // sync) — /events carries no status field.
-        await prisma.game.update({ where: { id: byExt.id }, data: payload });
-        updated++;
-        continue;
-      }
-      // 2) merge onto an existing game (same teams, ~kickoff)
-      const byMatch = await prisma.game.findFirst({
-        where: {
-          homeName: ev.home_team,
-          awayName: ev.away_team,
-          startAt: {
-            gte: new Date(startAt.getTime() - 3 * 3600_000),
-            lte: new Date(startAt.getTime() + 3 * 3600_000),
+      try {
+        // 1) exact upsert key — same Odds API event id the odds sync uses
+        const byExt = await prisma.game.findUnique({ where: { externalId: ev.id } });
+        if (byExt) {
+          // Don't clobber status (LIVE/FINISHED from the live engine or scores
+          // sync) — /events carries no status field.
+          await prisma.game.update({ where: { id: byExt.id }, data: payload });
+          updated++;
+          continue;
+        }
+        // 2) merge onto an existing game (same teams, ~kickoff) — ONLY onto
+        //    scheduled API/SCHEDULE rows: admin-created manual games and
+        //    in-play/finished games must never be overwritten by the calendar.
+        const byMatch = await prisma.game.findFirst({
+          where: {
+            homeName: ev.home_team,
+            awayName: ev.away_team,
+            startAt: {
+              gte: new Date(startAt.getTime() - 3 * 3600_000),
+              lte: new Date(startAt.getTime() + 3 * 3600_000),
+            },
+            status: "SCHEDULED",
+            source: { not: "MANUAL" },
           },
-        },
-      });
-      if (byMatch) {
-        await prisma.game.update({ where: { id: byMatch.id }, data: payload });
-        updated++;
-        continue;
+        });
+        if (byMatch) {
+          await prisma.game.update({ where: { id: byMatch.id }, data: payload });
+          updated++;
+          continue;
+        }
+        // 3) brand-new schedule row (no odds yet — prices attach later)
+        await prisma.game.create({
+          data: {
+            ...payload,
+            status: "SCHEDULED",
+            sportId: sport.id,
+            source: "SCHEDULE",
+            externalId: ev.id,
+          },
+        });
+        created++;
+      } catch (e) {
+        // One bad event (e.g. the odds sync created the same externalId in
+        // the milliseconds between our findUnique and create — P2002) must
+        // not abort the whole league run: log it, keep going.
+        errors.push(`${leagueKey}: ${ev.home_team} vs ${ev.away_team} failed (${e instanceof Error ? e.message : "unknown"})`);
+        skipped++;
       }
-      // 3) brand-new schedule row (no odds yet — prices attach later)
-      await prisma.game.create({
-        data: {
-          ...payload,
-          status: "SCHEDULED",
-          sportId: sport.id,
-          source: "SCHEDULE",
-          externalId: ev.id,
-        },
-      });
-      created++;
     }
   }
 

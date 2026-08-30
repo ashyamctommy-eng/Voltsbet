@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
-import { handle, ok, ApiError } from "@/lib/api";
-import { getSettings } from "@/lib/settings";
+import { handle, ok } from "@/lib/api";
+import { checkCronSecret } from "@/lib/cron-guard";
 import { syncGames } from "@/lib/sync";
 import { refreshLiveScores } from "@/lib/live-scores";
 import { clearPrematchFeedCache } from "@/lib/feed";
@@ -51,15 +51,7 @@ async function runSync(): Promise<SyncOutcome> {
 }
 
 export const GET = handle(async (req: NextRequest) => {
-  const settings = await getSettings();
-  const secret = settings.cronSecret || process.env.CRON_SECRET || "";
-  if (!secret) {
-    throw new ApiError(503, "Cron secret not configured — set cron.secret in admin settings.", "CRON_NOT_CONFIGURED");
-  }
-  const provided = req.nextUrl.searchParams.get("secret") ?? req.headers.get("x-cron-secret") ?? "";
-  if (provided !== secret) {
-    throw new ApiError(401, "Invalid cron secret.", "UNAUTHORIZED");
-  }
+  await checkCronSecret(req);
   const force = req.nextUrl.searchParams.get("force") === "1";
 
   // Once-per-window guard: overlapping scheduler triggers don't re-sync.
