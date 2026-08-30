@@ -86,7 +86,7 @@ export default function AdminWithdrawals() {
         ))}
       </div>
       <p className="text-xs text-ink3">
-        M-Pesa: "Send payout" reserves the funds, then the B2C callback completes or refunds them. Crypto: "COMPLETED" pays out first, then debits. All actions are audited.
+        {`M-Pesa: "Send payout" reserves the funds, then the B2C callback completes or refunds them. Crypto: "COMPLETED" pays out first, then debits. All actions are audited.`}
       </p>
     </div>
   );
