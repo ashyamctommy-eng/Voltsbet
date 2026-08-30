@@ -78,7 +78,7 @@ export default async function HomePage() {
             THE ODDS API
           </span>
           <span className="text-[11px] font-semibold text-ink3">
-            {apiFeed.matches.length} matches · Today's pre-match odds — The Odds API
+            {`${apiFeed.matches.length} matches · Today's pre-match odds — The Odds API`}
           </span>
         </div>
       ) : null}

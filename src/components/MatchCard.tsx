@@ -19,7 +19,7 @@ type MarketLite = {
 
 type GameLite = {
   id: string;
-  /** True when rendered from the live BetsAPI feed (no DB fixture page). */
+  /** True when rendered from the API feed (no DB fixture page). */
   isApiMatch?: boolean;
   homeName: string;
   awayName: string;

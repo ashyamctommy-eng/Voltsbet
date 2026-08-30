@@ -14,7 +14,7 @@ answer a few questions. No coding knowledge needed.
 - [ ] A **VPS** running Ubuntu 24.04 (2 GB RAM+) with root access
 - [ ] A **domain** (optional but recommended) — you can start on an IP address
 - [ ] Your **The Odds API key** (from https://the-odds-api.com)
-- [ ] Your **BetsAPI key** (from RapidAPI) — needed after install, in the admin panel
+- [ ] Your **Odds API key** (`ODDS_API_KEY`) — the only sports-data credential
 
 ---
 
@@ -86,8 +86,8 @@ then visit your domain. Done when the padlock icon appears.
 
 1. **Log in** at `/admin` with the printed email + password. Change the
    password in Account → Settings.
-2. **Add your BetsAPI key** → Admin → **API Settings** (host
-   `betsapi2.p.rapidapi.com`, your key, base `https://betsapi2.p.rapidapi.com`).
+2. **Set your Odds API key** → `ODDS_API_KEY` env var (Admin → **API Settings**
+   shows provider status + a connection test).
 3. **Load matches once** — Admin → **Cronjobs** → find "Sync odds prices" →
    click **Run now** (takes ~50 seconds the first time). Then check
    Admin → **Games** — fixtures with prices should appear.

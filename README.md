@@ -48,8 +48,8 @@ reopened (guarded). Optional auto-settlement via cron.
 score control, markets/outcomes with inline odds editing, settlement UI, user
 management, crypto deposits + withdrawals review, currencies, languages +
 translations, promotions/banners, announcements, website settings (branding
-colors, limits, support links, crypto config), **API Settings** (BetsAPI
-creds), **Cronjobs** (scheduler config generator), audit logs, on-demand API
+colors, limits, support links, crypto config), **API Settings** (The
+Odds API status + connection test), **Cronjobs** (scheduler config generator), audit logs, on-demand API
 sync button.
 
 **Data-driven everything** — statuses, currencies, languages, settings and
@@ -97,17 +97,23 @@ pnpm dev                      # http://localhost:3000
 
 ## Data providers
 
-Two providers, one job each — verified live 2026-08-25:
+One provider, every job — The Odds API (v4) powers the whole sports data
+surface; no other provider is used:
 
-| Provider | Job | Where configured |
+| Job | Endpoint | Where configured |
 |---|---|---|
-| **The Odds API** | Pre-match fixtures + **odds** (`/api/cron/sync`) and the free **7-day calendar** (`/api/cron/schedule`, 0-quota `/events` endpoint) | `ODDS_API_KEY` env var |
-| **BetsAPI (RapidAPI)** | **Live in-play engine** (scores, live odds, settlement inputs) | Admin → **API Settings** (DB-stored, **not** an env var) |
+| Pre-match fixtures + **odds** (expanded markets) | `/api/cron/sync` | `ODDS_API_KEY` env var |
+| Free **7-day calendar** (0-quota `/events`) | `/api/cron/schedule` | `ODDS_API_KEY` env var |
+| **Live in-play** scores/status (no sockets needed) | `/api/cron/sync` + `/live` (throttled `/scores` sweep) | `ODDS_API_KEY` env var |
+| Settlement inputs (finished scores) | `/api/cron/settle` | derived from `/scores` |
 
-Provider bake-off (live, all three with real keys): The Odds API `/events`
-won the calendar job — 0 quota cost, deepest horizon (303 events, EPL → Sep 6),
-no third provider. BetsAPI `upcoming` lists *today only* (a live engine, not a
-calendar). Sportmonks fixtures are fine but trial coverage is thin.
+Expanded market set requested on every pre-match fetch: `h2h, spreads,
+totals, h2h_h1, totals_h1, h2h_h2, totals_h2, correct_score` — the UI renders
+1st Half / 2nd Half / Totals / Correct Score tabs whenever prices exist.
+Live scores come from `GET /v4/sports/{sport}/scores?daysFrom=1` (at most one
+sweep per active league per 5-min window; match minutes are ESTIMATED from
+kickoff — The Odds API exposes no match clock; the `completed` flag and
+scores are authoritative).
 
 **League priority:** UEFA → EFL → La Liga → rest of the big five, then the
 verified priced additions (Serie B, Bundesliga 2, Ligue 2, Segunda, Eredivisie,
@@ -140,10 +146,12 @@ preference → IP detection (ipapi.co → ipinfo.io fallback, ~160-country map) 
 | `SHOW_SEEDED_GAMES` | — | **unset** | **Leave UNSET in production** — setting it to `true` reveals demo games |
 | `SPORTMONKS_API_TOKEN` | — | — | **No longer needed** (calendar moved to The Odds API `/events`) |
 
-### 2. BetsAPI credentials — Admin, not env
+### 2. API status — Admin
 
-Admin → **API Settings**: host `betsapi2.p.rapidapi.com`, your RapidAPI key,
-base URL `https://betsapi2.p.rapidapi.com`. Stored in the DB.
+Admin → **API Settings** shows the The Odds API provider status (key from the
+`ODDS_API_KEY` env var, bookmaker regions) and a connection test that also
+reports your remaining monthly quota. There are no per-provider credentials in
+the DB anymore.
 
 ---
 
@@ -228,8 +236,8 @@ What it does, step by step:
 Also in `deploy/`: `post-install.mjs` (rebrand + reset admin password anytime).
 
 **VPS checklist before installing:** a domain pointed at the server (optional,
-works on IP too), an Odds API key, and the BetsAPI key ready for Admin → API
-Settings after install.
+works on IP too), and an Odds API key (`ODDS_API_KEY` env var — the only
+sports-data credential in the stack).
 
 ---
 
@@ -248,12 +256,11 @@ customization line-item.
 - `deploy/install.sh` + `deploy/post-install.mjs`
 - This README
 - Accounts checklist (they create their own): VPS, domain, Odds API,
-  RapidAPI/BetsAPI, NOWPayments, M-Pesa Daraja sandbox→live
+  NOWPayments, M-Pesa Daraja sandbox→live
 - 1-hour setup call (run the installer together), optional support retainer
 
-**Bring-your-own-keys rule:** never ship your own API keys. Odds API is
-env-only and BetsAPI is DB-stored via Admin — nothing key-related lives in the
-code or git history.
+**Bring-your-own-keys rule:** never ship your own API keys. The Odds API key
+is env-only — nothing key-related lives in the code or git history.
 
 ---
 

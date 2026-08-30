@@ -38,7 +38,7 @@ type FeedGame = {
  * home feed; here every card is a game in progress with a ticking clock.
  * Scores and timers auto-refresh every `refreshSeconds` via router.refresh()
  * (no reload, client state like the ticking clocks is preserved); the server
- * page also pulls fresh scores from BetsAPI on each poll (throttled).
+ * page also pulls fresh scores from The Odds API /scores on each poll (throttled).
  */
 export default function LiveFeed({
   games,

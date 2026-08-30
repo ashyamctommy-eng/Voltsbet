@@ -19,9 +19,7 @@ type SyncResult = {
   updated?: number;
   scoreUpdates?: number;
   gamesSynced?: number;
-  prematchProvider?: string;
-  liveProvider?: string;
-  liveConfigured?: boolean;
+  provider?: string;
 };
 
 /** Provider id → display label for the sync feedback line. */
@@ -56,7 +54,7 @@ export default function AdminGames() {
     if (!r.ok) return push("error", r.error.message);
     setLastSync(r.data);
     if (r.data.skipped) return push("info", `Sync skipped: ${r.data.reason}`);
-    push("success", `Sync done: ${r.data.created} new, ${r.data.updated} updated, ${r.data.scoreUpdates} scores`);
+    push("success", `Sync done: ${r.data.created} new, ${r.data.updated} updated`);
     load();
   }
 
@@ -88,17 +86,11 @@ export default function AdminGames() {
           ) : (
             <>
               <span>
-                ⟳ Last sync: {lastSync.created} new · {lastSync.updated} updated ·{" "}
-                {lastSync.scoreUpdates} scores{lastSync.gamesSynced !== undefined ? ` · ${lastSync.gamesSynced} fixtures` : ""}
+                ⟳ Last sync: {lastSync.created} new · {lastSync.updated} updated{lastSync.gamesSynced !== undefined ? ` · ${lastSync.gamesSynced} fixtures` : ""}
               </span>
               <span className="text-ink3">|</span>
               <span>
-                pre-match: <b className="text-ink">{providerLabel(lastSync.prematchProvider)}</b>
-              </span>
-              <span className="text-ink3">|</span>
-              <span>
-                live: <b className="text-ink">{providerLabel(lastSync.liveProvider)}</b>
-                {lastSync.liveConfigured === false ? <span className="text-amber-400"> (live key missing — pre-match only)</span> : null}
+                provider: <b className="text-ink">{providerLabel(lastSync.provider)}</b>
               </span>
             </>
           )}

@@ -8,9 +8,8 @@ import { clearPrematchFeedCache } from "@/lib/feed";
 /**
  * Cron endpoint — automated pre-match sync + live-score refresh.
  *
- * Runs the configured sync provider (the-odds-api / api-football) to refresh
- * fixtures + odds in the DB, then pulls fresh in-play scores (BetsAPI live
- * engine, throttled). The homepage feed reads the API directly (no sync
+ * Runs the pre-match sync (The Odds API) to refresh fixtures + odds in the
+ * DB, then pulls fresh in-play scores (The Odds API /scores, throttled). The homepage feed reads the API directly (no sync
  * needed to display); this keeps the DB fresh for /live, fixture pages,
  * settlement and the admin Games page.
  *

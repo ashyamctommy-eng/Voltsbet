@@ -16,7 +16,7 @@
 import { prisma } from "@/lib/prisma";
 import { TheOddsApi, OddsProvider, ApiGame } from "@/lib/providers/odds-api";
 import { teamLogo } from "@/lib/team-logos";
-import { getSettings, setSetting } from "@/lib/settings";
+import { setSetting } from "@/lib/settings";
 import { deriveDoubleChance, deriveDrawNoBet } from "@/lib/derived-markets";
 import { LEAGUE_TITLES } from "@/lib/feed";
 
@@ -67,7 +67,6 @@ export const SPORT_KEY_MAP: Record<string, string> = {
 };
 
 export async function syncGames(providerId?: string) {
-  const s = await getSettings();
   const providerId_ = providerId ?? "the-odds-api";
   const provider = PROVIDERS[providerId_]?.();
   if (!provider) throw new Error(`Unknown provider: ${providerId_}`);

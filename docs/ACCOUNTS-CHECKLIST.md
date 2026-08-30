@@ -9,7 +9,7 @@ developer never holds your keys.
 | 1 | **VPS (server)** | DigitalOcean / Hetzner / Vultr / Linode | Hosts the site. Pick **Ubuntu 24.04**, **2 GB RAM minimum (4 GB recommended)**, any region near your users | 10 min | ~$6–12/mo |
 | 2 | **Domain + DNS** | Namecheap / Cloudflare / your registrar | Your site's address (e.g. `bet.yourbrand.com`) | 10 min | ~$10/yr |
 | 3 | **The Odds API** | https://the-odds-api.com | Pre-match odds — the data engine. Free key = 500 requests/mo (≈1 sync every 3 days); paid plan removes limits | 5 min | Free → ~$49/mo |
-| 4 | **RapidAPI + BetsAPI** | https://rapidapi.com → subscribe to **BetsAPI** | Live in-play scores/odds engine | 5 min | Free tier → paid later |
+| 4 | **The Odds API** | https://the-odds-api.com (key emailed) | The ONLY sports data provider: pre-match odds, live scores, settlement | 5 min | Free 500 req/mo → paid |
 | 5 | **NOWPayments** (optional) | https://nowpayments.io | Crypto deposits (BTC/ETH/USDT…) | 15 min | 0.5% per deposit |
 | 6 | **M-Pesa Daraja** (optional) | Safaricom Daraja (Kenya) | Mobile-money deposits/withdrawals (STK Push) | 1–2 days (KYC) | Sandbox free |
 
@@ -28,7 +28,7 @@ developer never holds your keys.
 
 - A live site at your domain with SSL
 - Admin panel at `/admin` (your login)
-- Real pre-match odds + live scores (once your Odds API + BetsAPI keys are in)
+- Real pre-match odds + live scores (once your Odds API key is in)
 - Automatic daily backups + the 4 cron jobs running (odds sync, calendar,
   settlements, cleanup)
 - Developer support on Telegram / WhatsApp

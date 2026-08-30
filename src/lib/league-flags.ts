@@ -1,5 +1,5 @@
 /**
- * Country-flag lookup for BetsAPI league names ("England - Premier League").
+ * Country-flag lookup for league names ("England - Premier League").
  * Pure + client-safe; unknown leagues render without a flag.
  */
 const COUNTRY_FLAGS: [string, string][] = [
@@ -125,7 +125,7 @@ const COUNTRY_FLAGS: [string, string][] = [
 ];
 
 /**
- * Flag emoji for a BetsAPI league name ("England - Premier League" → 🏴󠁧󠁢󠁥󠁮󠁧󠁿).
+ * Flag emoji for a league name ("England - Premier League" → 🏴󠁧󠁢󠁥󠁮󠁧󠁿).
  * Continental cups fall back to a region glyph; unknown → "".
  */
 export function flagForLeague(name: string | null | undefined): string {
@@ -144,7 +144,7 @@ export function flagForLeague(name: string | null | undefined): string {
 
 /**
  * Country name for a competition — powers the "England • Premier League"
- * card header. BetsAPI-style names carry the country prefix ("England -
+ * card header. Odds API titles carry the country prefix ("England -
  * Premier League"); known leagues without a prefix get a fallback map.
  */
 const LEAGUE_COUNTRY_FALLBACK: [string, string][] = [
