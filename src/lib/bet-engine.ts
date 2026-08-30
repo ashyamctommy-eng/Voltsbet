@@ -20,6 +20,8 @@ export type PlaceBetInput = {
   stake: number;
   type: "SINGLE" | "MULTIPLE";
   acceptOddsChange?: boolean;
+  /** Client-generated idempotency key — replays return the original bet. */
+  idempotencyKey?: string;
 };
 
 const BET_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -34,7 +36,7 @@ function betCode(): string {
   return `VB-${s}`;
 }
 
-function isUniqueViolation(e: unknown): boolean {
+function isUniqueViolation(e: unknown): e is Prisma.PrismaClientKnownRequestError {
   return e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
 }
 
@@ -74,6 +76,30 @@ export async function placeBet(user: User, input: PlaceBetInput) {
   }
   if (input.stake > settings.maxStake) {
     throw new ApiError(400, `Maximum stake is ${settings.maxStake}.`, "STAKE_TOO_HIGH");
+  }
+
+  // 2b. Idempotent replay: the same key always returns the original bet (the
+  // client retries the same submission after a network blip, or a double
+  // click fires twice) instead of placing a second bet.
+  const replayBet = async (key: string) => {
+    const existing = await prisma.bet.findUnique({ where: { idempotencyKey: key } });
+    if (existing) {
+      if (existing.userId !== user.id) {
+        throw new ApiError(400, "Invalid request key.", "BAD_IDEMPOTENCY_KEY");
+      }
+      return {
+        bet: existing,
+        totalOdds: Number(existing.totalOdds),
+        potentialWin: Number(existing.potentialWin),
+        acceptedOdds: [],
+        replayed: true,
+      };
+    }
+    return null;
+  };
+  if (input.idempotencyKey) {
+    const replay = await replayBet(input.idempotencyKey);
+    if (replay) return replay;
   }
 
   // 3. Place + validate inside one transaction (fresh reads, row locks,
@@ -181,6 +207,7 @@ export async function placeBet(user: User, input: PlaceBetInput) {
         return await tx.bet.create({
           data: {
             code,
+            idempotencyKey: input.idempotencyKey ?? null,
             userId: user.id,
             type: input.type,
             stake: input.stake.toFixed(2),
@@ -207,9 +234,21 @@ export async function placeBet(user: User, input: PlaceBetInput) {
         });
       });
     } catch (e) {
-      if (isUniqueViolation(e) && attempt < MAX_CODE_ATTEMPTS - 1) {
-        lastError = e; // bet code collision — retry with a fresh code
-        continue;
+      // Bet-code collision → retry with a fresh code. Idempotency-key
+      // collision (a concurrent duplicate of the SAME submission) → replay
+      // the original bet instead of placing a second one.
+      if (isUniqueViolation(e)) {
+        const target = e.meta?.target;
+        const fields = Array.isArray(target) ? target : [String(target ?? "")];
+        if (fields.some((f) => String(f).includes("idempotencyKey")) && input.idempotencyKey) {
+          const replay = await replayBet(input.idempotencyKey);
+          if (replay) return replay;
+          throw new ApiError(409, "This bet was already placed.", "DUPLICATE_BET");
+        }
+        if (fields.some((f) => String(f).includes("code")) && attempt < MAX_CODE_ATTEMPTS - 1) {
+          lastError = e;
+          continue;
+        }
       }
       throw e;
     }

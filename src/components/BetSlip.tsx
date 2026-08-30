@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useBetSlip } from "@/components/BetSlipContext";
 import { useToast } from "@/components/BetSlipContext";
@@ -30,6 +30,18 @@ export default function BetSlip() {
   const [placing, setPlacing] = useState(false);
   const [account, setAccount] = useState<SlipAccount | null>(null);
   const [oddsChange, setOddsChange] = useState<{ changed: { outcomeId: string; name: string; oldOdds: number; newOdds: number }[]; totalOdds: number; potentialWin: number } | null>(null);
+
+  // Idempotency key for the CURRENT submission: stable while the slip contents
+  // don't change (so retrying the same place — network blip, double click —
+  // can never place the same bet twice), fresh whenever the slip changes.
+  const idemKeyRef = useRef<string>(newIdemKey());
+  const slipContentsRef = useRef<string>("");
+
+  function newIdemKey() {
+    return typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `vb-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
 
   useEffect(() => {
     apiFetch<SlipAccount>("/api/account").then((r) => r.ok && setAccount(r.data));
@@ -61,6 +73,13 @@ export default function BetSlip() {
 
   async function place(accept: boolean) {
     if (items.length === 0) return;
+    // New slip contents → new idempotency key; same contents keep it so
+    // retries of this exact submission replay the original bet.
+    const contents = JSON.stringify({ items, stake, mode });
+    if (slipContentsRef.current !== contents) {
+      slipContentsRef.current = contents;
+      idemKeyRef.current = newIdemKey();
+    }
     setPlacing(true);
     const res = await apiFetch<PlaceResponse>("/api/bets/place", {
       method: "POST",
@@ -72,6 +91,7 @@ export default function BetSlip() {
         stake: stakeNum,
         type: mode === "SINGLE" && items.length === 1 ? "SINGLE" : mode,
         acceptOddsChange: accept,
+        idempotencyKey: idemKeyRef.current,
       },
     });
     setPlacing(false);

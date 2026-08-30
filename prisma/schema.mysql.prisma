@@ -184,6 +184,7 @@ model Outcome {
 model Bet {
   id           String   @id @default(cuid())
   code         String   @unique // human-friendly bet code, e.g. "VB-8F3K2A"
+  idempotencyKey String? @unique // client-supplied key — replays return the original bet (double-click safety)
   userId       String
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   type         String   @default("SINGLE") // SINGLE | MULTIPLE
