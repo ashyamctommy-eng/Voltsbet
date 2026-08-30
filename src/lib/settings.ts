@@ -48,18 +48,11 @@ export type SiteSettings = {
   heroTitle: string;
   heroSubtitle: string;
   // Odds & risk
-  oddsProvider: string; // legacy PRIMARY (fallback for the role settings)
-  oddsPrematchProvider: string; // ROLE: pre-match source (empty = follow oddsProvider)
-  oddsLiveProvider: string; // ROLE: live source (empty = follow oddsProvider)
   oddsMarginPercent: number; // overround added on top of feed odds (e.g. 6 = 6%)
   maxLiabilityPerMarket: number; // max exposure (potential payout) per market
-  // Primary API (BetsAPI via RapidAPI) — bet365 odds feed
-  apiRapidKey: string; // X-RapidAPI-Key
-  apiRapidHost: string; // X-RapidAPI-Host (betsapi2.p.rapidapi.com)
-  apiRapidBase: string; // base target URL (https://betsapi2.p.rapidapi.com)
   // Games display
   hideSeededGames: boolean; // show only synced (source=API) games in public lists; auto-on after first successful sync
-  liveRefreshSeconds: number; // /live auto-refresh + live-score poll interval (1 BetsAPI inplay request per window)
+  liveRefreshSeconds: number; // /live auto-refresh + live-score poll interval (1 Odds API scores request per window per active league)
   // Referrals
   referralEnabled: boolean;
   referralBonusPercent: number; // % of referee's first deposit credited to referrer
@@ -113,14 +106,8 @@ const DEFAULTS: SiteSettings = {
   appUrl: "",
   heroTitle: "Bet on the games you love",
   heroSubtitle: "Fast odds, instant crypto deposits, live betting.",
-  oddsProvider: "the-odds-api", // primary: The Odds API (ODDS_API_KEY)
-  oddsPrematchProvider: "", // empty = follow oddsProvider
-  oddsLiveProvider: "", // empty = follow oddsProvider
   oddsMarginPercent: 6,
   maxLiabilityPerMarket: 500000,
-  apiRapidKey: "",
-  apiRapidHost: "betsapi2.p.rapidapi.com",
-  apiRapidBase: "https://betsapi2.p.rapidapi.com",
   hideSeededGames: false,
   liveRefreshSeconds: 60,
   referralEnabled: true,
@@ -142,12 +129,6 @@ export async function getSettings(): Promise<SiteSettings> {
   if (cache) return cache;
   const raw = await rawSettings();
   const s: SiteSettings = { ...DEFAULTS };
-  // Provider options are now exactly: the-odds-api | api-football. Legacy
-  // values (betsapi / odds-api-io / oddspapi) fall back to the-odds-api so a
-  // stored old setting never breaks sync after the provider cleanup.
-  const VALID_PROVIDERS = new Set(["the-odds-api", "api-football"]);
-  const sanitizeProvider = (v: string | undefined, fallback: string) =>
-    v && VALID_PROVIDERS.has(v) ? v : fallback;
   s.siteName = raw["site.name"] ?? s.siteName;
   s.tagline = raw["site.tagline"] ?? s.tagline;
   s.currencyDefault = raw["currency.default"] ?? s.currencyDefault;
@@ -192,13 +173,8 @@ export async function getSettings(): Promise<SiteSettings> {
   s.appUrl = raw["app.url"] ?? s.appUrl;
   s.heroTitle = raw["home.heroTitle"] ?? s.heroTitle;
   s.heroSubtitle = raw["home.heroSubtitle"] ?? s.heroSubtitle;
-  s.oddsProvider = sanitizeProvider(raw["odds.provider"], s.oddsProvider);
-  s.oddsPrematchProvider = sanitizeProvider(raw["odds.prematchProvider"], "");
-  s.oddsLiveProvider = sanitizeProvider(raw["odds.liveProvider"], "");  s.oddsMarginPercent = Number(raw["odds.marginPercent"] ?? s.oddsMarginPercent);
+  s.oddsMarginPercent = Number(raw["odds.marginPercent"] ?? s.oddsMarginPercent);
   s.maxLiabilityPerMarket = Number(raw["betting.maxLiabilityPerMarket"] ?? s.maxLiabilityPerMarket);
-  s.apiRapidKey = raw["api.rapidKey"] ?? s.apiRapidKey;
-  s.apiRapidHost = raw["api.rapidHost"] ?? s.apiRapidHost;
-  s.apiRapidBase = raw["api.rapidBase"] ?? s.apiRapidBase;
   s.hideSeededGames =
     process.env.SHOW_SEEDED_GAMES !== undefined
       ? process.env.SHOW_SEEDED_GAMES !== "true" // env wins: "false" = hide seeds

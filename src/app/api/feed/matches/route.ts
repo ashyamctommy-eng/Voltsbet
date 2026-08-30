@@ -1,7 +1,7 @@
 import { handle, ok, ApiError } from "@/lib/api";
 import { getPrematchFeed } from "@/lib/feed";
 
-export type { BetsApiMatchView } from "@/lib/feed";
+export type { FeedMatchView } from "@/lib/feed";
 
 /**
  * GET /api/feed/matches — today's pre-match fixtures with odds, transformed

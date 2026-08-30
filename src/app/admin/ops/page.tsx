@@ -24,13 +24,13 @@ const OPS: Op[] = [
   {
     name: "Live Monitor",
     route: "/live",
-    description: "In-play matches, scores + ticking clocks. Auto-refreshes and pulls BetsAPI inplay (throttled).",
+    description: "In-play matches, scores + ticking clocks. Auto-refreshes via The Odds API /scores (throttled).",
     type: "Monitor",
   },
   {
     name: "Today's Pre-match",
     route: "/",
-    description: "Today's fixtures + odds on the homepage — DB-first feed (The Odds API → API-Football → DB).",
+    description: "Today's fixtures + odds on the homepage — DB-first feed (The Odds API → DB).",
     type: "Monitor",
   },
   {
@@ -60,19 +60,19 @@ const OPS: Op[] = [
   {
     name: "API Settings & Test",
     route: "/admin/api-settings",
-    description: "BetsAPI live-engine credentials (RapidAPI key/host/base) + connection test. Not pre-match.",
+    description: "The Odds API (v4) provider status + connection test — the single sports data source.",
     type: "Admin",
   },
   {
     name: "Feed Proxy",
     route: "/api/feed/matches",
-    description: "Homepage pre-match feed route (The Odds API → API-Football → DB). TTL-cached 6h.",
+    description: "Homepage pre-match feed route (The Odds API → DB). TTL-cached 6h.",
     type: "API",
   },
   {
     name: "Health Check",
     route: "/api/test/all",
-    description: "Full BetsAPI diagnostics (7 endpoints). Burns rate-limited requests — run only when needed.",
+    description: "Full The Odds API diagnostics (sports/odds/scores). Burns rate-limited requests — run only when needed.",
     type: "API",
   },
   {
@@ -102,7 +102,7 @@ const OPS: Op[] = [
   {
     name: "Website Settings",
     route: "/admin/settings",
-    description: "Branding, limits, odds provider (the-odds-api/api-football), support, payments, cron secret.",
+    description: "Branding, limits, odds provider (The Odds API), support, payments, cron secret.",
     type: "Admin",
   },
 ];
@@ -180,8 +180,8 @@ export default async function OpsPage() {
       </div>
 
       <p className="mt-3 text-xs text-ink3">
-        Budget watch: The Odds API free tier = 500 req/month (~40/mo at 6h cron). BetsAPI = RapidAPI quota
-        (live polling 1 req/60s + manual tests).
+        Budget watch: The Odds API free tier = 500 req/month; paid tiers raise this. Pre-match sync ~1 req/league,
+        live scores ~1 req per active league per sweep (throttled).
       </p>
     </div>
   );

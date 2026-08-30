@@ -89,8 +89,11 @@ function resolveOutcome(
   const name = outcomeName.toLowerCase().trim();
   const label = (outcomeLabel ?? "").toLowerCase();
 
-  // ── Match result family (1 / X / 2) ─────────────────────────
-  if (["MATCH_RESULT", "h2h", "HT_RESULT", "DRAW_NO_BET"].includes(marketKey)) {
+  // ── Match result family (1 / X / 2) — FULL-TIME markets only. HT_RESULT /
+  //    2H_RESULT / half-totals are intentionally NOT here: resolving a
+  //    half-time market with the full-time score would be wrong, and The
+  //    Odds API /scores does not expose half-time scores — they go to admin.
+  if (["MATCH_RESULT", "h2h", "DRAW_NO_BET"].includes(marketKey)) {
     const isHome = label === "1" || name === game.homeName.toLowerCase();
     const isAway = label === "2" || name === game.awayName.toLowerCase();
     const isDraw = label === "x" || name === "draw";

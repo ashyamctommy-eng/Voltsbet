@@ -11,7 +11,7 @@ import { leagueRank } from "@/lib/league-rank";
 import { buildDateOptions, dayWindow, dateParamToValue, valueToDateParam } from "@/lib/feed-dates";
 import { flagForLeague, countryForLeague } from "@/lib/league-flags";
 import { isLiveStatus } from "@/lib/game-status";
-import { apiMatchToFeedGame, type ApiFeedGame, type BetsApiMatchView } from "@/lib/providers/betsapi-transformer";
+import { apiMatchToFeedGame, type ApiFeedGame, type FeedMatchView } from "@/lib/match-view";
 
 type FeedGame = ApiFeedGame;
 
@@ -222,7 +222,7 @@ export default function MatchFeed({
           }
           throw new Error(msg);
         }
-        const data: { matches?: BetsApiMatchView[] } = await res.json();
+        const data: { matches?: FeedMatchView[] } = await res.json();
         const mapped: FeedGame[] = (data.matches ?? []).map(apiMatchToFeedGame);
         feedCache.set(sportKey, mapped);
         if (alive) setClientGames(mapped);

@@ -44,9 +44,6 @@ const GROUPS: { title: string; anchor: string; icon: React.ReactNode; fields: Fi
     anchor: "odds-risk",
     icon: <IconGear className="h-4 w-4" />,
     fields: [
-      { key: "odds.provider", label: "Primary provider", type: "select", options: ["the-odds-api", "api-football"], hint: "Pre-match odds source. the-odds-api = The Odds API (ODDS_API_KEY, free 500 req/month, clean h2h/totals) · api-football = API-Football (ODDS_API_IO_KEY, 100 req/day, global + African leagues). Live in-play always runs on BetsAPI (/live engine, creds in Admin → API Settings)." },
-      { key: "odds.prematchProvider", label: "Pre-match provider (role)", type: "select", options: ["", "the-odds-api", "api-football"], emptyLabel: "— Primary (default) —", hint: "ROLE: source for upcoming fixtures + prematch odds. Empty = follow the primary." },
-      { key: "odds.liveProvider", label: "Live provider (role)", type: "select", options: ["", "the-odds-api", "api-football"], emptyLabel: "— Primary (default) —", hint: "ROLE: source for in-play scores/timers during sync. Empty = follow the primary. (The /live page itself always uses BetsAPI.)" },
       { key: "odds.marginPercent", label: "Odds margin %", type: "number", hint: "Overround added to feed odds — this is your edge. 0 = pass through, 6 = 6% book" },
       { key: "games.hideSeeded", label: "Disable seeded / virtual matches", type: "toggle", hint: "Show only live API-feed matches (source=API). Turns on automatically after the first successful sync that adds games. Env override: SHOW_SEEDED_GAMES=false" },
       { key: "currency.forceDefault", label: "Force default currency (ignore IP auto-detect)", type: "toggle", hint: "ON = every visitor sees the platform default currency regardless of location or profile. OFF = per-user display preference wins, then IP auto-detection (ipapi.co → currency, fallback USD)." },
@@ -58,7 +55,7 @@ const GROUPS: { title: string; anchor: string; icon: React.ReactNode; fields: Fi
     anchor: "live",
     icon: <IconTv className="h-4 w-4" />,
     fields: [
-      { key: "live.refreshSeconds", label: "Live page auto-refresh (seconds)", type: "number", hint: "How often /live polls for fresh scores/timers. Each refresh costs 1 BetsAPI inplay request — at 60s that is 60/hr (BASIC plans cap ~16/hr; raise this on tight plans or upgrade the tier)" },
+      { key: "live.refreshSeconds", label: "Live page auto-refresh (seconds)", type: "number", hint: "How often /live polls for fresh scores/timers. The Odds API /scores sweep runs at most once per this window per active league (throttled separately, default 5 min)" },
     ],
   },
   {

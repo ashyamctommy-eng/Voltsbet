@@ -10,7 +10,6 @@ import { setSetting, invalidateSettingsCache } from "@/lib/settings";
  * preserves the stored secret. Typing a new value replaces it.
  */
 const SECRET_SETTINGS = new Set([
-  "api.rapidKey",
   "crypto.apiKey",
   "crypto.ipnSecret",
   "crypto.payoutApiKey",

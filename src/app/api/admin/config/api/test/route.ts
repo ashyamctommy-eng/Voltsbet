@@ -1,92 +1,71 @@
 import { NextRequest } from "next/server";
 import { handle, ok, ApiError, requireAdmin, verifyCsrf } from "@/lib/api";
-import { getSettings } from "@/lib/settings";
+import { fetchOddsRetry } from "@/lib/odds-throttle";
 
 /**
- * POST /api/admin/config/api/test — verify the BetsAPI connection end-to-end:
- *  1. GET /v1/bet365/upcoming?sport_id=1   (fixture list — proves the key)
- *  2. GET /v3/bet365/prematch?FI=<first>    (deep odds — proves the parser's
- *     source of truth and shows the market count)
+ * POST /api/admin/config/api/test — verify the The Odds API (v4) connection:
+ *  1. GET /v4/sports            (quota-free — proves the key is valid)
+ *  2. GET /v4/sports/soccer_epl/odds?markets=h2h,spreads,totals,correct_score
+ *                               (proves odds access + the expanded market set)
+ * Reports quota usage from the response headers.
  */
 export const POST = handle(async (req: NextRequest) => {
   await verifyCsrf(req);
   await requireAdmin("settings");
   const body = await req.json().catch(() => null);
-  const s = await getSettings();
-
-  const key = typeof body?.rapidKey === "string" && body.rapidKey.trim()
-    ? body.rapidKey.trim()
-    : s.apiRapidKey;
-  const host =
-    typeof body?.rapidHost === "string" && body.rapidHost.trim()
-      ? body.rapidHost.trim()
-      : s.apiRapidHost || "betsapi2.p.rapidapi.com";
-  const base =
-    typeof body?.rapidBase === "string" && body.rapidBase.trim()
-      ? body.rapidBase.trim().replace(/\/+$/, "")
-      : s.apiRapidBase || "https://betsapi2.p.rapidapi.com";
+  const key = (typeof body?.apiKey === "string" && body.apiKey.trim()) || process.env.ODDS_API_KEY || "";
 
   if (!key) {
-    throw new ApiError(400, "Enter an X-RapidAPI-Key first.", "VALIDATION");
+    throw new ApiError(400, "ODDS_API_KEY is not set — add it to the server environment first.", "VALIDATION");
   }
 
-  const headers = { "x-rapidapi-key": key, "x-rapidapi-host": host };
+  const BASE = "https://api.the-odds-api.com/v4";
   const signal = AbortSignal.timeout(15000);
+  const q = (path: string) => `${BASE}${path}${path.includes("?") ? "&" : "?"}apiKey=${key}`;
 
-  try {
-    // Step 1 — fixture list
-    const listRes = await fetch(`${base}/v1/bet365/upcoming?sport_id=1`, { headers, signal });
-    const listText = await listRes.text();
-    let list: { success?: number; error?: string; error_detail?: string; results?: { id: string; league?: { name?: string }; home?: { name?: string }; away?: { name?: string }; time?: string }[] } | null = null;
-    try {
-      list = JSON.parse(listText);
-    } catch {
-      /* not JSON */
-    }
-    if (!listRes.ok || list?.success !== 1) {
-      return ok({
-        ok: false,
-        step: "upcoming",
-        status: listRes.status,
-        error: (list?.error_detail ?? list?.error ?? listText).slice(0, 300),
-      });
-    }
-    const events = list.results ?? [];
-    const first = events[0];
-
-    // Step 2 — prematch deep odds for the first event
-    const prematch: { markets?: string[]; sample?: string; error?: string } = { markets: [] };
-    if (first) {
-      const pmRes = await fetch(`${base}/v3/bet365/prematch?FI=${encodeURIComponent(first.id)}`, { headers, signal });
-      const pmText = await pmRes.text();
-      try {
-        const pm = JSON.parse(pmText) as { success?: number; results?: { main?: { sp?: Record<string, unknown> } }[] };
-        if (pm.success === 1) {
-          const sp = pm.results?.[0]?.main?.sp ?? {};
-          prematch.markets = Object.keys(sp);
-        } else {
-          prematch.error = pmText.slice(0, 200);
-        }
-      } catch {
-        prematch.error = pmText.slice(0, 200);
-      }
-      prematch.sample = first.league?.name
-        ? `${first.league.name} — ${first.home?.name ?? "?"} vs ${first.away?.name ?? "?"}`
-        : `${first.home?.name ?? "?"} vs ${first.away?.name ?? "?"}`;
-    }
-
-    return ok({
-      ok: true,
-      status: listRes.status,
-      events: events.length,
-      sample: prematch.sample ?? null,
-      prematchMarkets: prematch.markets ?? [],
-      prematchError: prematch.error ?? null,
-    });
-  } catch (err) {
+  // Step 1 — sports list (quota-free)
+  const listRes = await fetchOddsRetry(q("/sports"), { signal });
+  const used = listRes.headers.get("x-requests-used");
+  const remaining = listRes.headers.get("x-requests-remaining");
+  if (!listRes.ok) {
     return ok({
       ok: false,
-      error: err instanceof Error ? err.message : "Connection failed",
+      step: "sports",
+      status: listRes.status,
+      error: (await listRes.text().catch(() => "")).slice(0, 300),
     });
   }
+  const sports = (await listRes.json().catch(() => null)) as { key: string; title: string; active: boolean }[] | null;
+  const activeSoccer = (sports ?? []).filter((s) => s.active && s.key.startsWith("soccer_")).length;
+
+  // Step 2 — odds for one league with the expanded market set
+  let markets: string[] = [];
+  let marketSample: string | null = null;
+  const oddsRes = await fetchOddsRetry(
+    q("/sports/soccer_epl/odds?regions=us&markets=h2h,spreads,totals,h2h_h1,totals_h1,h2h_h2,totals_h2,correct_score&oddsFormat=decimal"),
+    { signal },
+  );
+  if (oddsRes.ok) {
+    const odds = (await oddsRes.json().catch(() => null)) as
+      | { home_team?: string; away_team?: string; bookmakers: { markets: { key: string }[] }[] }[]
+      | null;
+    const first = odds?.[0];
+    const seen = new Set<string>();
+    for (const b of first?.bookmakers ?? []) {
+      for (const m of b.markets) seen.add(m.key);
+    }
+    markets = [...seen];
+    marketSample = first?.home_team ? `${first.home_team} vs ${first.away_team}` : null;
+  }
+
+  return ok({
+    ok: true,
+    step: "odds",
+    status: oddsRes.status,
+    quota: { used, remaining },
+    activeSoccerLeagues: activeSoccer,
+    markets,
+    marketSample,
+    note: oddsRes.ok ? "The Odds API connection verified — expanded markets returned." : "Key verified, odds call failed — see status.",
+  });
 });

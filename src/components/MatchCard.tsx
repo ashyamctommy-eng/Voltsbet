@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import OddsButton from "@/components/OddsButton";
 import TeamLogo from "@/components/TeamLogo";
 import { liveContext } from "@/lib/kickoff";
-import { toMatchView } from "@/lib/providers/betsapi-transformer";
+import { toMatchView } from "@/lib/match-view";
 import { flagForLeague, countryForLeague } from "@/lib/league-flags";
 
 type MarketLite = {

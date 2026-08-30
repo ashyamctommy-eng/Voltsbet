@@ -1,7 +1,12 @@
 /**
- * Sync service — pulls from the configured provider and upserts into the DB.
+ * Sync service — pulls from The Odds API (v4) and upserts into the DB.
  * Dedup via Game.externalId (unique). Idempotent: repeated runs never
  * duplicate games, and odds are updated in place.
+ *
+ * The Odds API is the ONLY sports data provider. The /scores pipeline
+ * (src/lib/live-scores.ts) owns in-play/finished games; this module owns
+ * pre-match fixtures + odds — games that already kicked off are filtered
+ * out here (commence_time > now) and never clobbered (see below).
  *
  * Wire-up options:
  *   1. Cron: run this module on a schedule (node-cron / system cron / Railway cron).
@@ -13,21 +18,16 @@ import { TheOddsApi, OddsProvider, ApiGame } from "@/lib/providers/odds-api";
 import { teamLogo } from "@/lib/team-logos";
 import { getSettings, setSetting } from "@/lib/settings";
 import { deriveDoubleChance, deriveDrawNoBet } from "@/lib/derived-markets";
-import { ApiFootballProvider } from "@/lib/providers/api-football";
-import { BetsApiProvider } from "@/lib/providers/betsapi";
 import { LEAGUE_TITLES } from "@/lib/feed";
 
 export const PROVIDERS: Record<string, () => OddsProvider> = {
-  "the-odds-api": () => new TheOddsApi(), // primary — free 500 req/month, clean h2h/totals
-  "api-football": () => new ApiFootballProvider(), // API-Football — 100 req/day, global + African leagues
-  "betsapi": () => new BetsApiProvider(), // live engine (bet365 via RapidAPI) — usable as a live source
+  "the-odds-api": () => new TheOddsApi(), // the ONLY provider
 };
 
-/** Env var that gates each provider — checked before syncing so a missing key
- *  never silently skips (and never blocks the other provider). */
+/** Env var that gates the provider — checked before syncing so a missing key
+ *  never silently skips. */
 export const PROVIDER_KEY_ENV: Record<string, string> = {
   "the-odds-api": "ODDS_API_KEY",
-  "api-football": "ODDS_API_IO_KEY",
 };
 
 // Map provider sport keys → local sport slugs. Extend per your feed.
@@ -35,7 +35,7 @@ export const PROVIDER_KEY_ENV: Record<string, string> = {
 // keys (soccer_la_liga → soccer_spain_la_liga, etc.). Tennis is now
 // tournament-specific (tennis_atp_cincinnati_open, …) and cricket_ipl only
 // exists during its season — add them back when in season, as needed.
-const SPORT_KEY_MAP: Record<string, string> = {
+export const SPORT_KEY_MAP: Record<string, string> = {
   // UEFA — priority 1 (club comps + nations league; qualification runs early season)
   soccer_uefa_champs_league: "football",
   soccer_uefa_champs_league_qualification: "football",
@@ -62,57 +62,27 @@ const SPORT_KEY_MAP: Record<string, string> = {
   soccer_brazil_campeonato: "football",
   soccer_usa_mls: "football",
   soccer_turkey_super_league: "football",
-  football: "football", // api-football (API-Football) sport key
   basketball_nba: "basketball",
   baseball_mlb: "baseball", icehockey_nhl: "ice-hockey",
-  "1": "football", "3": "basketball", "2": "tennis", "4": "ice-hockey", // betsapi sport ids
 };
-
-/** Resolve the sync roles: pre-match source and live source. Each role falls
- *  back to the legacy primary (odds.provider), then to BetsAPI. */
-export function resolveSyncRoles(s: {
-  oddsPrematchProvider?: string;
-  oddsLiveProvider?: string;
-  oddsProvider?: string;
-}): { prematch: string; live: string } {
-  const primary = s.oddsProvider || "betsapi";
-  return {
-    prematch: s.oddsPrematchProvider || primary,
-    live: s.oddsLiveProvider || primary,
-  };
-}
 
 export async function syncGames(providerId?: string) {
   const s = await getSettings();
-  // Per-provider roles: a pre-match source (fixtures + prematch odds) and a
-  // live source (in-play scores/timers). Empty = follow the primary.
-  // Passing providerId forces both roles to that single provider.
-  const roles = providerId ? { prematch: providerId, live: providerId } : resolveSyncRoles(s);
-  const provider = PROVIDERS[roles.prematch]?.();
-  const liveSource = PROVIDERS[roles.live]?.();
-  if (!provider) throw new Error(`Unknown pre-match provider: ${roles.prematch}`);
-  if (!liveSource) throw new Error(`Unknown live provider: ${roles.live}`);
+  const providerId_ = providerId ?? "the-odds-api";
+  const provider = PROVIDERS[providerId_]?.();
+  if (!provider) throw new Error(`Unknown provider: ${providerId_}`);
 
-  // Key guard per role — BetsAPI creds live in the DB (Admin → API Settings);
-  // other providers are gated by their env key.
-  const missingKey = (id: string): string | null => {
-    if (id === "betsapi") return s.apiRapidKey ? null : "RapidAPI key not configured — set it in Admin → API Settings";
-    const keyEnv = PROVIDER_KEY_ENV[id] ?? "ODDS_API_KEY";
-    return process.env[keyEnv] ? null : `${keyEnv} not set — keeping manual/seed games`;
-  };
-  const prematchMissing = missingKey(roles.prematch);
-  if (prematchMissing) return { skipped: true, reason: prematchMissing };
-  // A missing live-source key degrades gracefully: pre-match still syncs.
-  const liveConfigured = !missingKey(roles.live);
+  // Key guard — a missing key never silently skips.
+  const keyEnv = PROVIDER_KEY_ENV[providerId_] ?? "ODDS_API_KEY";
+  if (!process.env[keyEnv]) {
+    return { skipped: true, reason: `${keyEnv} not set — keeping manual/seed games` };
+  }
 
   const sports = await provider.fetchSports();
   const wanted = sports.filter((s) => SPORT_KEY_MAP[s.key]);
   const sportKeys = wanted.map((s) => s.key);
 
-  const [games, scores] = await Promise.all([
-    provider.fetchUpcomingGames(sportKeys),
-    liveConfigured ? liveSource.fetchLiveScores(sportKeys) : Promise.resolve([]),
-  ]);
+  const games = await provider.fetchUpcomingGames(sportKeys);
 
   let created = 0, updated = 0;
   for (const game of games) {
@@ -127,7 +97,7 @@ export async function syncGames(providerId?: string) {
     // Never touch in-play / finished / cancelled games in the pre-match pass:
     // their markets may be suspended or settled, and re-marking them SCHEDULED
     // used to clobber live scores, resurrect settled outcomes and hide live
-    // games from isLiveStatus() surfaces. The live-score loop below owns them.
+    // games from isLiveStatus() surfaces. The live-score pipeline owns them.
     if (existing && ["LIVE", "HALF_TIME", "FINISHED", "CANCELLED", "POSTPONED"].includes(existing.status)) {
       continue;
     }
@@ -147,62 +117,6 @@ export async function syncGames(providerId?: string) {
     }
   }
 
-  // Apply live scores / final results
-  let scoreUpdates = 0;
-  for (const score of scores) {
-    const game = await prisma.game.findUnique({ where: { externalId: score.externalId } });
-    if (!game) continue;
-    await prisma.game.update({
-      where: { id: game.id },
-      data: {
-        ...(score.homeScore !== undefined ? { homeScore: score.homeScore } : {}),
-        ...(score.awayScore !== undefined ? { awayScore: score.awayScore } : {}),
-        status: score.status === "finished" ? "FINISHED" : score.status === "live" ? "LIVE" : game.status,
-        ...(score.status === "live" ? { live: true, clock: score.clock ?? null, period: score.period ?? null } : {}),
-        ...(score.status === "finished" ? { live: false } : {}), // finished is never live
-      },
-    });
-    scoreUpdates++;
-  }
-
-  // Optional settlement sweep — a live provider with fetchResults() (betsapi)
-  // pulls finished outcomes for due games so they can be marked FINISHED and
-  // auto-settled. Capped so the request budget stays sane on rate-limited
-  // plans. (Previously gated on the PRE-match role being betsapi, which could
-  // never happen — this branch never ran.)
-  if (roles.live === "betsapi" && liveConfigured && typeof liveSource.fetchResults === "function") {
-    const due = await prisma.game.findMany({
-      where: {
-        source: "API",
-        externalId: { startsWith: "betsapi-" },
-        startAt: { lt: new Date() },
-        status: { notIn: ["FINISHED", "CANCELLED", "POSTPONED"] },
-      },
-      select: { externalId: true },
-      take: 20,
-    });
-    if (due.length) {
-      const ids = due
-        .map((g) => g.externalId)
-        .filter((id): id is string => !!id);
-      const finished = await liveSource.fetchResults(ids);
-      for (const score of finished) {
-        const game = await prisma.game.findUnique({ where: { externalId: score.externalId } });
-        if (!game) continue;
-        await prisma.game.update({
-          where: { id: game.id },
-          data: {
-            ...(score.homeScore !== undefined ? { homeScore: score.homeScore } : {}),
-            ...(score.awayScore !== undefined ? { awayScore: score.awayScore } : {}),
-            status: "FINISHED",
-            live: false,
-          },
-        });
-        scoreUpdates++;
-      }
-    }
-  }
-
   // Auto-hide seed/manual games once the provider feed is live — the site then
   // shows only synced (API) games. Auto-enables on any successful sync that
   // found feed games, but ONLY while the admin has never touched the toggle:
@@ -217,11 +131,8 @@ export async function syncGames(providerId?: string) {
   return {
     created,
     updated,
-    scoreUpdates,
     gamesSynced: games.length,
-    prematchProvider: roles.prematch,
-    liveProvider: roles.live,
-    liveConfigured,
+    provider: providerId_,
   };
 }
 
@@ -247,7 +158,7 @@ async function buildPayload(
       // Pre-match sync rows are never live — explicitly reset the flag so
       // stale live:true from older syncs can't hide SCHEDULED games from
       // isLiveStatus() surfaces (home feed, slideshow). The live-score
-      // sweep re-marks genuinely in-play games right after this loop.
+      // pipeline re-marks genuinely in-play games.
       live: false,
       source: "API",
     },
@@ -255,7 +166,6 @@ async function buildPayload(
 }
 
 async function upsertMarkets(gameId: string, game: ApiGame) {
-  // h2h → MATCH_RESULT (1/X/2 for soccer), totals → OVER_UNDER
   for (const [i, m] of game.markets.entries()) {
     const existing = await prisma.market.findFirst({
       where: { gameId, key: m.key },
@@ -302,7 +212,7 @@ async function upsertMarkets(gameId: string, game: ApiGame) {
       });
     }
 
-    // Derive extra bettable markets from any 3-way h2h (Double Chance, Draw No Bet)
+    // Derive extra bettable markets from any full-time 3-way h2h (Double Chance, Draw No Bet)
     if (m.key === "MATCH_RESULT" || m.key === "h2h") {
       await upsertDerived(gameId, m, game.homeName, game.awayName);
     }

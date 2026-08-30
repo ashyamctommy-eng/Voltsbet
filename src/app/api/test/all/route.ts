@@ -1,119 +1,78 @@
 import { handle, ok, requireAdmin } from "@/lib/api";
-import { BetsApiClient, firstId } from "@/lib/providers/betsapi-client";
+import { fetchOddsRetry } from "@/lib/odds-throttle";
 
 type Check = {
   endpoint: string;
   status: "ok" | "error" | "skipped";
   httpStatus?: number;
-  hasResults: boolean;
   note?: string;
 };
 
-/** True when `results` carries any payload (array with items or non-empty object). */
-function hasData(results: unknown): boolean {
-  if (Array.isArray(results)) return results.length > 0;
-  return !!results && typeof results === "object" && Object.keys(results as object).length > 0;
-}
-
-/** In-play results may be the RAW compressed format (array-of-arrays) — no id. */
-function inplayId(results: unknown): string | null {
-  if (!Array.isArray(results) || !results.length) return null;
-  if (Array.isArray(results[0])) return null; // raw format
-  return firstId(results);
-}
-
-const count = (results: unknown) =>
-  Array.isArray(results) ? results.length : results && typeof results === "object" ? Object.keys(results as object).length : 0;
+const BASE = "https://api.the-odds-api.com/v4";
 
 /**
- * GET /api/test/all — sequential health check across all 7 BetsAPI endpoints.
- * Ids for getInplayEvent / getResults / getPrematchOdds are extracted at
- * runtime from live responses (inplay first, then upcoming).
+ * GET /api/test/all — sequential health check of The Odds API (v4).
+ *  1. GET /sports                    (does NOT count toward monthly quota)
+ *  2. GET /sports/soccer_epl/odds    (proves odds access + market payload)
+ *  3. GET /sports/soccer_epl/scores  (proves the live/scores pipeline)
  *
- * Admin-only: this burns up to ~7 requests per hit on a rate-limited plan.
+ * Admin-only: burns up to ~3 requests per hit on a quota-metered plan.
  */
 export const GET = handle(async () => {
   await requireAdmin("settings");
-  const client = await BetsApiClient.fromSettings();
+  const key = process.env.ODDS_API_KEY;
   const checks: Check[] = [];
 
-  if (!client.hasCredentials()) {
+  if (!key) {
     return ok({
-      checks: [{ endpoint: "all", status: "skipped", hasResults: false, note: "RapidAPI key not configured — Admin → API Settings" }],
+      checks: [{ endpoint: "all", status: "skipped", httpStatus: undefined, note: "ODDS_API_KEY not set — configure the env var" }],
+      quota: null,
     });
   }
 
-  const run = async (
-    endpoint: string,
-    fn: () => Promise<{ results: unknown }>,
-    after?: (results: unknown) => void,
-  ): Promise<void> => {
+  let quota: { used?: string; remaining?: string } | null = null;
+
+  const run = async (endpoint: string, path: string): Promise<void> => {
     try {
-      const res = await fn();
-      after?.(res.results);
+      const res = await fetchOddsRetry(`${BASE}${path}${path.includes("?") ? "&" : "?"}apiKey=${key}`);
+      quota = {
+        used: res.headers.get("x-requests-used") ?? undefined,
+        remaining: res.headers.get("x-requests-remaining") ?? undefined,
+      };
+      if (!res.ok) {
+        checks.push({
+          endpoint,
+          status: "error",
+          httpStatus: res.status,
+          note: (await res.text().catch(() => "")).slice(0, 160),
+        });
+        return;
+      }
+      const data = (await res.json().catch(() => null)) as unknown[] | null;
       checks.push({
         endpoint,
         status: "ok",
-        httpStatus: 200,
-        hasResults: hasData(res.results),
-        note: `${count(res.results)} results`,
+        httpStatus: res.status,
+        note: `${Array.isArray(data) ? data.length : "?"} results`,
       });
     } catch (err) {
-      const status = err instanceof Error && "status" in err ? Number((err as { status: number }).status) : undefined;
       checks.push({
         endpoint,
         status: "error",
-        httpStatus: status,
-        hasResults: false,
+        httpStatus: undefined,
         note: (err instanceof Error ? err.message : String(err)).slice(0, 160),
       });
     }
   };
 
-  // 1 — In-Play Filter
-  await run("1 · inplay_filter", () => client.getInplayFilter());
-
-  // 2 — In-Play (capture an id for the event/result checks)
-  let liveId: string | null = null;
-  await run("2 · inplay", () => client.getInplay(), (r) => {
-    liveId = inplayId(r);
-  });
-
-  // 4 — Upcoming Events (id fallback + the FI source for prematch)
-  let upcomingId: string | null = null;
-  await run("4 · upcoming", () => client.getUpcomingEvents(), (r) => {
-    upcomingId = firstId(r);
-  });
-
-  // 5 — Upcoming Leagues
-  await run("5 · league", () => client.getUpcomingLeagues());
-
-  // 6 — Pre-Match Odds (FI required)
-  const fi = upcomingId ?? liveId;
-  if (fi) {
-    await run(`6 · prematch (FI=${fi})`, () => client.getPrematchOdds(fi));
-  } else {
-    checks.push({ endpoint: "6 · prematch", status: "skipped", hasResults: false, note: "no FI available from live responses" });
-  }
-
-  // 3 — In-Play Event (stats=1&lineup=1&FI=)
-  const eventId = liveId ?? upcomingId;
-  if (eventId) {
-    await run(`3 · inplay_event (FI=${eventId})`, () => client.getInplayEvent(eventId));
-  } else {
-    checks.push({ endpoint: "3 · inplay_event", status: "skipped", hasResults: false, note: "no active id available" });
-  }
-
-  // 7 — Results (settlement)
-  if (eventId) {
-    await run(`7 · result (event_id=${eventId})`, () => client.getResults(eventId));
-  } else {
-    checks.push({ endpoint: "7 · result", status: "skipped", hasResults: false, note: "no active id available" });
-  }
+  await run("1 · sports (quota-free)", "/sports");
+  await run("2 · odds soccer_epl", "/sports/soccer_epl/odds?regions=us&markets=h2h,spreads,totals,correct_score&oddsFormat=decimal");
+  await run("3 · scores soccer_epl", "/sports/soccer_epl/scores?daysFrom=1");
 
   const okCount = checks.filter((c) => c.status === "ok").length;
   return ok({
     checks,
+    quota,
     summary: { total: checks.length, ok: okCount, failed: checks.length - okCount },
   });
 });

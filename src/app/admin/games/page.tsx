@@ -27,7 +27,7 @@ type SyncResult = {
 /** Provider id → display label for the sync feedback line. */
 const PROVIDER_LABELS: Record<string, string> = {
   "the-odds-api": "the-odds-api",
-  "api-football": "api-football",
+  
 };
 const providerLabel = (id?: string) => (id ? (PROVIDER_LABELS[id] ?? id) : "—");
 

@@ -76,13 +76,10 @@ export default async function HomePage() {
         <div className="mt-4 flex items-center gap-2">
           <span className="flex items-center gap-1.5 rounded-full bg-brand/10 px-2.5 py-1 text-[10px] font-bold text-brand">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand" />
-            {apiFeed.source === "api-football" ? "API-FOOTBALL" : "THE ODDS API"}
+            THE ODDS API
           </span>
           <span className="text-[11px] font-semibold text-ink3">
-            {apiFeed.matches.length} matches ·{" "}
-            {apiFeed.source === "api-football"
-              ? "Pre-match odds — API-Football"
-              : "Today's pre-match odds — The Odds API"}
+            {apiFeed.matches.length} matches · Today's pre-match odds — The Odds API
           </span>
         </div>
       ) : null}
