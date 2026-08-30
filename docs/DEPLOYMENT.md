@@ -3,6 +3,31 @@
 Two supported targets: **Railway** (fastest, managed) and a **VPS** (full control).
 Both use PostgreSQL in production.
 
+## VPS quick start — `installer.sh` (Ubuntu/Debian)
+
+The repo root ships a fully automated installer that takes a bare VPS to a
+running sportsbook in one command:
+
+```bash
+sudo bash installer.sh
+```
+
+It installs Node.js LTS, PM2, PostgreSQL, Nginx and Certbot; prompts for the
+domain, DB credentials, `THE_ODDS_API_KEY`, Telegram bot token and the initial
+Super Admin credentials; then writes a sanitized `.env`, runs
+`npm install` → `prisma migrate deploy` → `prisma db seed` → `npm run build`,
+generates `ecosystem.config.js` and boots the app under PM2 (`pm2 save` +
+systemd startup), configures Nginx as a reverse proxy on 80/443, and issues a
+Let's Encrypt certificate when a domain is present. Non-interactive use:
+
+```bash
+DOMAIN=bet.example.com THE_ODDS_API_KEY=xxx \
+  ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD='S3cret!' \
+  sudo -E bash installer.sh
+```
+
+Re-running is idempotent (existing `.env` is preserved unless `FORCE_ENV=1`).
+
 ## 0. Prepare
 
 1. Create a GitHub repo and push the contents of `app/` (the Next.js project).

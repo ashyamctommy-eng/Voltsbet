@@ -70,6 +70,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       }
     >
       <body className="min-h-screen">
+        {/* Pre-paint theme bootstrap: flips <html data-theme> before first
+            paint so returning users never flash the wrong theme while React
+            hydrates (the provider itself hydrates with the stable default). */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var t=localStorage.getItem("voltbet-theme");if(t==="light"||t==="dark"){document.documentElement.dataset.theme=t;document.documentElement.style.colorScheme=t;}}catch(e){}`,
+          }}
+        />
         <ThemeProvider>
           <I18nSync />
           <CurrencyProvider>

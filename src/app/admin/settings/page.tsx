@@ -39,6 +39,8 @@ const GROUPS: { title: string; anchor: string; icon: React.ReactNode; fields: Fi
       { key: "betting.maxPayout", label: "Maximum payout", type: "number" },
       { key: "betting.cashoutEnabled", label: "Cash-out enabled", type: "toggle", hint: "Let players cash out open bets early at a live quote" },
       { key: "betting.cashoutMarginPercent", label: "Cash-out margin %", type: "number", hint: "Book margin taken off the fair-value quote (e.g. 5 = player gets 95% of fair value)" },
+      { key: "betting.dailyStakeLimit", label: "Daily stake limit per user", type: "number", hint: "Responsible gambling: max total staked per user per rolling 24h. 0 = unlimited" },
+      { key: "betting.dailyLossLimit", label: "Daily loss limit per user", type: "number", hint: "Responsible gambling: max net loss per user per rolling 24h. 0 = unlimited" },
     ],
   },
   {

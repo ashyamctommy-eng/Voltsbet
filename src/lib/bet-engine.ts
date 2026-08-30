@@ -78,6 +78,49 @@ export async function placeBet(user: User, input: PlaceBetInput) {
     throw new ApiError(400, `Maximum stake is ${settings.maxStake}.`, "STAKE_TOO_HIGH");
   }
 
+  // 2c. Responsible-gambling velocity caps (rolling 24h, enforced server-side):
+  //     - dailyStakeLimit: total amount staked in the last 24h
+  //     - dailyLossLimit:  net loss (staked − returned) in the last 24h
+  //     Checked BEFORE the transaction — a violation is deterministic from
+  //     committed ledger state, and the check is re-validated inside the tx
+  //     below so concurrent placements can't both squeeze under the cap.
+  async function checkVelocityCaps(tx?: Prisma.TransactionClient) {
+    if (settings.dailyStakeLimit <= 0 && settings.dailyLossLimit <= 0) return;
+    const db = tx ?? prisma;
+    const since = new Date(Date.now() - 24 * 3600_000);
+    const rows = await db.transaction.findMany({
+      where: {
+        userId: user.id,
+        createdAt: { gte: since },
+        type: { in: ["BET_STAKE", "BET_WIN", "BET_REFUND", "CASH_OUT"] },
+      },
+      select: { type: true, amount: true },
+    });
+    let staked = 0;
+    let returned = 0;
+    for (const r of rows) {
+      const amt = Number(r.amount);
+      if (r.type === "BET_STAKE") staked += Math.abs(amt);
+      else returned += amt; // BET_WIN / BET_REFUND / CASH_OUT are credits
+    }
+    if (settings.dailyStakeLimit > 0 && staked + input.stake > settings.dailyStakeLimit) {
+      throw new ApiError(
+        400,
+        `Daily stake limit reached — you've staked ${staked.toLocaleString()} of your ${settings.dailyStakeLimit.toLocaleString()} limit in the last 24h. See Responsible Gambling.`,
+        "DAILY_STAKE_LIMIT",
+      );
+    }
+    const netLoss = staked - returned;
+    if (settings.dailyLossLimit > 0 && netLoss + input.stake > settings.dailyLossLimit) {
+      throw new ApiError(
+        400,
+        `Daily loss limit reached — your net loss over the last 24h is ${Math.max(0, netLoss).toLocaleString()} of a ${settings.dailyLossLimit.toLocaleString()} limit. See Responsible Gambling.`,
+        "DAILY_LOSS_LIMIT",
+      );
+    }
+  }
+  await checkVelocityCaps();
+
   // 2b. Idempotent replay: the same key always returns the original bet (the
   // client retries the same submission after a network blip, or a double
   // click fires twice) instead of placing a second bet.
@@ -196,7 +239,9 @@ export async function placeBet(user: User, input: PlaceBetInput) {
           }
         }
 
-        // 7. Wallet check + atomic debit
+        // 7. Wallet check + atomic debit. Velocity caps are re-checked under
+        //    the tx so two concurrent placements can't both slip under them.
+        await checkVelocityCaps(tx);
         const code = betCode();
         await debitWallet(tx, user.id, input.stake, {
           type: "BET_STAKE",

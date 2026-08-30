@@ -14,6 +14,7 @@
  *   3. Interval loop inside the Next.js server (simplest for a single instance).
  */
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { TheOddsApi, OddsProvider, ApiGame } from "@/lib/providers/odds-api";
 import { teamLogo } from "@/lib/team-logos";
 import { setSetting } from "@/lib/settings";
@@ -83,37 +84,72 @@ export async function syncGames(providerId?: string) {
 
   const games = await provider.fetchUpcomingGames(sportKeys);
 
-  let created = 0, updated = 0;
-  for (const game of games) {
-    // Unpriced-league filter: fixtures with no active market prices are never
-    // synced, so empty cards never reach the homepage.
-    if (!game.markets?.length) continue;
-    const sportSlug = SPORT_KEY_MAP[game.sportKey];
-    const sport = await prisma.sport.findUnique({ where: { slug: sportSlug } });
-    if (!sport) continue;
+  // ── Batch prefetch (kills the N+1 loop) ────────────────────────────
+  // Before: each of ~150 fixtures did findUnique(sport) + findUnique(game)
+  // + per-market findFirst + per-outcome update → ~600 queries per run.
+  // After: sports, games, markets and outcomes are pulled in 4 flat queries
+  // up front; only actual row changes hit the DB inside the loop.
+  const priced = games.filter((g) => g.markets?.length);
+  const neededSlugs = [...new Set(priced.map((g) => SPORT_KEY_MAP[g.sportKey]).filter(Boolean))];
+  const [sportRows, existingGames] = await Promise.all([
+    prisma.sport.findMany({ where: { slug: { in: neededSlugs } } }),
+    prisma.game.findMany({
+      where: { externalId: { in: priced.map((g) => g.externalId) } },
+      select: { id: true, externalId: true, status: true, homeLogo: true, awayLogo: true },
+    }),
+  ]);
+  const sportsBySlug = new Map(sportRows.map((s) => [s.slug, s]));
+  const gamesByExternalId = new Map(existingGames.map((g) => [g.externalId, g]));
 
-    const existing = await prisma.game.findUnique({ where: { externalId: game.externalId } });
+  const liveLike = new Set(["LIVE", "HALF_TIME", "FINISHED", "CANCELLED", "POSTPONED"]);
+  const plan: {
+    game: ApiGame;
+    sportId: string;
+    existing?: { id: string; homeLogo: string | null; awayLogo: string | null };
+  }[] = [];
+  for (const game of priced) {
+    const sport = sportsBySlug.get(SPORT_KEY_MAP[game.sportKey]);
+    if (!sport) continue;
+    const existing = gamesByExternalId.get(game.externalId);
     // Never touch in-play / finished / cancelled games in the pre-match pass:
     // their markets may be suspended or settled, and re-marking them SCHEDULED
     // used to clobber live scores, resurrect settled outcomes and hide live
     // games from isLiveStatus() surfaces. The live-score pipeline owns them.
-    if (existing && ["LIVE", "HALF_TIME", "FINISHED", "CANCELLED", "POSTPONED"].includes(existing.status)) {
-      continue;
-    }
+    if (existing && liveLike.has(existing.status)) continue;
+    plan.push({ game, sportId: sport.id, existing });
+  }
 
-    const payload = await buildPayload(game, sport.id, existing ?? undefined);
+  // One query for every market (+outcomes) of every game we're touching.
+  const marketRows = plan.length
+    ? await prisma.market.findMany({
+        where: { gameId: { in: plan.map((p) => p.existing?.id ?? "∅") } },
+        include: { outcomes: true },
+      })
+    : [];
+  const marketsByGame = new Map<string, typeof marketRows>();
+  for (const m of marketRows) {
+    const list = marketsByGame.get(m.gameId) ?? [];
+    list.push(m);
+    marketsByGame.set(m.gameId, list);
+  }
 
+  let created = 0, updated = 0;
+  for (const { game, sportId, existing } of plan) {
+    const payload = await buildPayload(game, sportId, existing ?? undefined);
+
+    let gameId: string;
     if (existing) {
       await prisma.game.update({ where: { id: existing.id }, data: payload.game });
-      await upsertMarkets(existing.id, game);
+      gameId = existing.id;
       updated++;
     } else {
       const createdGame = await prisma.game.create({
         data: { ...payload.game, externalId: game.externalId, source: "API" },
       });
-      await upsertMarkets(createdGame.id, game);
+      gameId = createdGame.id;
       created++;
     }
+    await upsertMarkets(gameId, game, marketsByGame.get(gameId) ?? []);
   }
 
   // Auto-hide seed/manual games once the provider feed is live — the site then
@@ -164,43 +200,69 @@ async function buildPayload(
   };
 }
 
-async function upsertMarkets(gameId: string, game: ApiGame) {
+type MarketWithOutcomes = {
+  id: string;
+  gameId: string;
+  key: string;
+  status: string;
+  outcomes: { id: string; name: string; settled: boolean; status: string; odds: unknown }[];
+};
+
+/**
+ * Upsert a game's markets from the feed. `prefetched` carries the game's
+ * existing markets+outcomes (one flat query for the whole sync run), so the
+ * loop below does zero read queries. All outcome writes for the game are
+ * batched into ONE transaction — worst case a sync touches 1 (game write)
+ * + N (new-market creates) + 1 (batched outcome writes) round trips per
+ * fixture instead of per-market/per-outcome queries.
+ */
+async function upsertMarkets(gameId: string, game: ApiGame, prefetched: MarketWithOutcomes[]) {
+  const byKey = new Map<string, MarketWithOutcomes>();
+  for (const m of prefetched) if (!byKey.has(m.key)) byKey.set(m.key, m);
+  const ops: Prisma.PrismaPromise<unknown>[] = [];
+
   for (const [i, m] of game.markets.entries()) {
-    const existing = await prisma.market.findFirst({
-      where: { gameId, key: m.key },
-      include: { outcomes: true },
-    });
+    const existing = byKey.get(m.key);
     if (existing) {
       // Settled markets are sacred: never re-open, never re-price, never add
       // outcomes to them.
       if (existing.status === "SETTLED") continue;
 
-      // Update odds in place; suspend outcomes no longer in the feed.
       const feedNames = new Set(m.outcomes.map((o) => o.name));
+      const existingByName = new Map(existing.outcomes.map((o) => [o.name, o]));
+
       for (const o of m.outcomes) {
-        const outcome = existing.outcomes.find((x) => x.name === o.name);
+        const outcome = existingByName.get(o.name);
         if (outcome) {
           // A settled outcome must never be resurrected by a feed refresh.
           if (outcome.settled) continue;
-          await prisma.outcome.update({
-            where: { id: outcome.id },
-            data: { odds: o.odds.toFixed(2), status: "ACTIVE" },
-          });
+          const nextOdds = o.odds.toFixed(2);
+          // Write only when something actually changed.
+          if (Number(outcome.odds).toFixed(2) !== nextOdds || outcome.status !== "ACTIVE") {
+            ops.push(
+              prisma.outcome.update({
+                where: { id: outcome.id },
+                data: { odds: nextOdds, status: "ACTIVE" },
+              })
+            );
+          }
         } else {
-          await prisma.outcome.create({
-            data: { marketId: existing.id, name: o.name, label: o.label ?? null, odds: o.odds.toFixed(2) },
-          });
+          ops.push(
+            prisma.outcome.create({
+              data: { marketId: existing.id, name: o.name, label: o.label ?? null, odds: o.odds.toFixed(2) },
+            })
+          );
         }
       }
       // Outcomes the feed no longer carries are stale prices — suspend them
       // (they stay bettable-proof without deleting history).
       for (const o of existing.outcomes) {
         if (!feedNames.has(o.name) && !o.settled && o.status !== "SUSPENDED") {
-          await prisma.outcome.update({ where: { id: o.id }, data: { status: "SUSPENDED" } });
+          ops.push(prisma.outcome.update({ where: { id: o.id }, data: { status: "SUSPENDED" } }));
         }
       }
     } else {
-      await prisma.market.create({
+      const created = await prisma.market.create({
         data: {
           gameId,
           name: m.name,
@@ -209,21 +271,27 @@ async function upsertMarkets(gameId: string, game: ApiGame) {
           outcomes: { create: m.outcomes.map((o, j) => ({ name: o.name, label: o.label ?? null, odds: o.odds.toFixed(2), sortOrder: j })) },
         },
       });
+      byKey.set(m.key, { id: created.id, gameId, key: m.key, status: "OPEN", outcomes: [] });
     }
 
     // Derive extra bettable markets from any full-time 3-way h2h (Double Chance, Draw No Bet)
     if (m.key === "MATCH_RESULT" || m.key === "h2h") {
-      await upsertDerived(gameId, m, game.homeName, game.awayName);
+      await upsertDerived(gameId, m, game.homeName, game.awayName, byKey, ops);
     }
   }
+
+  if (ops.length) await prisma.$transaction(ops);
 }
 
-/** Upsert a derived market (DOUBLE_CHANCE / DRAW_NO_BET) from an h2h market. */
+/** Upsert a derived market (DOUBLE_CHANCE / DRAW_NO_BET) from an h2h market.
+ *  Outcome writes are pushed into the game's shared `ops` batch. */
 async function upsertDerived(
   gameId: string,
   source: { key: string; name: string; outcomes: { name: string; label?: string | null; odds: number }[] },
   homeName: string,
   awayName: string,
+  byKey: Map<string, MarketWithOutcomes>,
+  ops: Prisma.PrismaPromise<unknown>[],
 ) {
   const derived: { key: string; name: string; outcomes: { name: string; odds: string }[] | null }[] = [
     { key: "DOUBLE_CHANCE", name: "Double Chance", outcomes: deriveDoubleChance(source.outcomes, homeName, awayName) },
@@ -231,26 +299,29 @@ async function upsertDerived(
   ];
   for (const d of derived) {
     if (!d.outcomes) continue; // not a 3-way market (e.g. NBA moneyline)
-    const existing = await prisma.market.findFirst({ where: { gameId, key: d.key }, include: { outcomes: true } });
+    const existing = byKey.get(d.key);
     if (existing) {
       if (existing.status === "SETTLED") continue; // never touch settled markets
       const feedNames = new Set(d.outcomes.map((o) => o.name));
+      const existingByName = new Map(existing.outcomes.map((o) => [o.name, o]));
       for (const o of d.outcomes) {
-        const outcome = existing.outcomes.find((x) => x.name === o.name);
+        const outcome = existingByName.get(o.name);
         if (outcome) {
           if (outcome.settled) continue; // never resurrect settled outcomes
-          await prisma.outcome.update({ where: { id: outcome.id }, data: { odds: o.odds, status: "ACTIVE" } });
+          if (Number(outcome.odds).toFixed(2) !== o.odds || outcome.status !== "ACTIVE") {
+            ops.push(prisma.outcome.update({ where: { id: outcome.id }, data: { odds: o.odds, status: "ACTIVE" } }));
+          }
         } else {
-          await prisma.outcome.create({ data: { marketId: existing.id, name: o.name, odds: o.odds } });
+          ops.push(prisma.outcome.create({ data: { marketId: existing.id, name: o.name, odds: o.odds } }));
         }
       }
       for (const o of existing.outcomes) {
         if (!feedNames.has(o.name) && !o.settled && o.status !== "SUSPENDED") {
-          await prisma.outcome.update({ where: { id: o.id }, data: { status: "SUSPENDED" } });
+          ops.push(prisma.outcome.update({ where: { id: o.id }, data: { status: "SUSPENDED" } }));
         }
       }
     } else {
-      await prisma.market.create({
+      const created = await prisma.market.create({
         data: {
           gameId,
           name: d.name,
@@ -259,6 +330,9 @@ async function upsertDerived(
           outcomes: { create: d.outcomes.map((o, j) => ({ name: o.name, odds: o.odds, sortOrder: j })) },
         },
       });
+      // Keep the in-memory index honest so a second source market in the same
+      // run sees the derived market instead of creating a duplicate.
+      byKey.set(d.key, { id: created.id, gameId, key: d.key, status: "OPEN", outcomes: [] });
     }
   }
 }

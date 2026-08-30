@@ -91,6 +91,16 @@ export default function MatchCard({
   const isLive = view.isLive;
   const isFinished = game.status === "FINISHED";
 
+  // Kickoff labels ("Today at 19:00") depend on `new Date()` + the runtime
+  // locale/timezone — computing them during SSR produced different markup
+  // than the client's first render (hydration mismatch). Render a stable
+  // placeholder on the server, then the real label after mount.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    const t0 = setTimeout(() => setMounted(true), 0);
+    return () => clearTimeout(t0);
+  }, []);
+
   // Card header: country • league. The Odds API league names already carry a
   // country prefix ("England - Premier League") — strip it to avoid
   // "England • England - Premier League" duplication.
@@ -146,8 +156,10 @@ export default function MatchCard({
               <span className="live-dot" />
               {view.elapsedMinute ? <LiveElapsed clock={view.elapsedMinute} /> : (ctx ?? t("match.inPlay"))}
             </span>
-          ) : (
+          ) : mounted ? (
             view.kickoffLabel
+          ) : (
+            " "
           )}
         </span>
       </div>

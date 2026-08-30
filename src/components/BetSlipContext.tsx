@@ -17,6 +17,9 @@ export type SlipItem = {
   odds: number;
   gameStatus: string;
   live?: boolean;
+  /** Transient odds-movement marker set by syncOdds() — drives the
+   *  green/red flash on the slip. Cleared automatically after the flash. */
+  trend?: "up" | "down" | null;
 };
 
 type BetSlipCtx = {
@@ -33,6 +36,10 @@ type BetSlipCtx = {
   totalOdds: number;
   potentialWin: number;
   hasOddsChange: boolean;
+  /** Feed-driven price refresh: updates slip odds in place and flags the
+   *  direction of any change so the slip can flash green (drifted up) or
+   *  red (shortened). */
+  syncOdds: (prices: Record<string, number>) => void;
 };
 
 const Ctx = createContext<BetSlipCtx | null>(null);
@@ -75,11 +82,18 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
     itemsRef.current = items;
   }, [items]);
 
-  // Auto-open the desktop rail when the first selection lands; on mobile the
-  // floating mini-bar appears instead (the sheet only opens on explicit tap).
+  // Auto-open the slip when the first selection lands (0 → 1). Desktop shows
+  // the rail; mobile opens the sheet once so the user sees where their pick
+  // went — later additions don't yank the sheet open again while browsing.
+  const hadItemsRef = useRef(false);
   useEffect(() => {
-    if (items.length === 0 || open) return;
-    if (typeof window === "undefined" || window.innerWidth < 1280) return;
+    if (items.length === 0) {
+      hadItemsRef.current = false;
+      return;
+    }
+    const firstSelection = !hadItemsRef.current;
+    hadItemsRef.current = true;
+    if (!firstSelection || open) return;
     const t = setTimeout(() => setOpen(true), 0);
     return () => clearTimeout(t);
   }, [items.length, open]);
@@ -146,9 +160,30 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
     return Math.round(s * totalOdds * 100) / 100;
   }, [stake, totalOdds]);
 
+  const trendTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const syncOdds = useCallback((prices: Record<string, number>) => {
+    const prev = itemsRef.current;
+    if (prev.length === 0) return;
+    let moved = false;
+    const next = prev.map((it) => {
+      const price = prices[it.outcomeId];
+      if (price == null || !(price > 0)) return it;
+      if (Math.abs(price - it.odds) < 0.001) return it.trend ? { ...it, trend: it.trend } : it;
+      moved = true;
+      return { ...it, odds: price, trend: price > it.odds ? ("up" as const) : ("down" as const) };
+    });
+    if (!moved) return;
+    setItems(next);
+    // Flash window: clear the trend markers after the animation has played.
+    if (trendTimer.current) clearTimeout(trendTimer.current);
+    trendTimer.current = setTimeout(() => {
+      setItems((cur) => cur.map((it) => (it.trend ? { ...it, trend: null } : it)));
+    }, 2600);
+  }, []);
+
   const value = useMemo(
-    () => ({ items, add, remove, clear, open, setOpen, mode, setMode, stake, setStake, totalOdds, potentialWin, hasOddsChange }),
-    [items, add, remove, clear, open, mode, stake, totalOdds, potentialWin, hasOddsChange]
+    () => ({ items, add, remove, clear, open, setOpen, mode, setMode, stake, setStake, totalOdds, potentialWin, hasOddsChange, syncOdds }),
+    [items, add, remove, clear, open, mode, stake, totalOdds, potentialWin, hasOddsChange, syncOdds]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

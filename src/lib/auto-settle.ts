@@ -14,7 +14,7 @@ import { ApiError } from "./api";
 
 const SYSTEM_ACTOR = { id: "system", username: "system" } as const;
 
-type Result = "WON" | "LOST" | null; // null = cannot determine → skip
+type Result = "WON" | "LOST" | "VOID" | null; // null = cannot determine → skip
 
 export async function autoSettleFinishedGames(): Promise<{ settled: string[]; skipped: string[] }> {
   const settings = await getSettings();
@@ -45,7 +45,7 @@ export async function autoSettleFinishedGames(): Promise<{ settled: string[]; sk
 
       for (const outcome of unsettled) {
         const result = resolveOutcome(game, market.key, outcome.name, outcome.label);
-        if (!result) continue;
+        if (!result) continue; // null = undecidable → leave for admin review
         try {
           await settleOutcome(SYSTEM_ACTOR, outcome.id, result);
           settled.push(`${game.homeName} vs ${game.awayName} · ${market.name} · ${outcome.name}`);
@@ -78,8 +78,17 @@ function gameResult(game: { homeScore: number; awayScore: number }): "H" | "A" |
   return h > a ? "H" : a > h ? "A" : "D";
 }
 
+type GameScores = {
+  homeScore: number;
+  awayScore: number;
+  homeName: string;
+  awayName: string;
+  halfHomeScore?: number | null;
+  halfAwayScore?: number | null;
+};
+
 function resolveOutcome(
-  game: { homeScore: number; awayScore: number; homeName: string; awayName: string },
+  game: GameScores,
   marketKey: string,
   outcomeName: string,
   outcomeLabel: string | null,
@@ -88,19 +97,29 @@ function resolveOutcome(
   if (!r) return null;
   const name = outcomeName.toLowerCase().trim();
   const label = (outcomeLabel ?? "").toLowerCase();
+  const home = Number(game.homeScore);
+  const away = Number(game.awayScore);
 
   // ── Match result family (1 / X / 2) — FULL-TIME markets only. HT_RESULT /
-  //    2H_RESULT / half-totals are intentionally NOT here: resolving a
-  //    half-time market with the full-time score would be wrong, and The
-  //    Odds API /scores does not expose half-time scores — they go to admin.
-  if (["MATCH_RESULT", "h2h", "DRAW_NO_BET"].includes(marketKey)) {
+  //    2H_RESULT are intentionally NOT here: The Odds API /scores does not
+  //    expose half-time scores — they go to admin review.
+  if (["MATCH_RESULT", "h2h"].includes(marketKey)) {
     const isHome = label === "1" || name === game.homeName.toLowerCase();
     const isAway = label === "2" || name === game.awayName.toLowerCase();
     const isDraw = label === "x" || name === "draw";
-    if (marketKey === "DRAW_NO_BET" && r === "D") return null; // DNB pushes on draw — admin/void path
     if (isHome) return r === "H" ? "WON" : "LOST";
     if (isAway) return r === "A" ? "WON" : "LOST";
     if (isDraw) return r === "D" ? "WON" : "LOST";
+    return null;
+  }
+
+  // ── Draw No Bet — a draw VOIDS the stake (balance refund path). ────
+  if (marketKey === "DRAW_NO_BET") {
+    const isHome = label === "1" || name === game.homeName.toLowerCase();
+    const isAway = label === "2" || name === game.awayName.toLowerCase();
+    if (r === "D") return "VOID";
+    if (isHome) return r === "H" ? "WON" : "LOST";
+    if (isAway) return r === "A" ? "WON" : "LOST";
     return null;
   }
 
@@ -112,19 +131,100 @@ function resolveOutcome(
     return null;
   }
 
-  // ── Over / Under totals ─────────────────────────────────────
+  // ── Over / Under totals (full-time). Quarter lines (x.25/x.75) are
+  //    Asian totals: a "half-win/half-push" result can't be expressed in
+  //    the single-outcome model → skip to admin when the split lands mixed.
   if (marketKey === "OVER_UNDER" || marketKey === "totals") {
     const line = Number(name.match(/[\d.]+/)?.[0]);
     if (!line || Number.isNaN(line)) return null;
-    const total = Number(game.homeScore) + Number(game.awayScore);
-    if (name.startsWith("over")) return total > line ? "WON" : "LOST";
-    if (name.startsWith("under")) return total < line ? "WON" : "LOST";
-    return null;
+    const total = home + away;
+    const isOver = name.startsWith("over");
+    const isUnder = name.startsWith("under");
+    if (!isOver && !isUnder) return null;
+    if (line % 1 === 0.25 || line % 1 === 0.75) return null; // asian quarter line → admin
+    if (total === line) return "VOID"; // whole-line push (e.g. Over 2 at 2-0)
+    if (isOver) return total > line ? "WON" : "LOST";
+    return total < line ? "WON" : "LOST";
+  }
+
+  // ── 1st Half totals — settles off the half-time score when the feed
+  //    populated it; never guesses from the full-time score. ──────────
+  if (["HT_TOTALS", "1H_TOTALS", "FIRST_HALF_TOTALS"].includes(marketKey) || /\b(1st|first)[ -]half\b/.test(name)) {
+    if (game.halfHomeScore == null || game.halfAwayScore == null) return null; // no HT score → admin
+    const line = Number(name.match(/[\d.]+/)?.[0]);
+    if (!line || Number.isNaN(line)) return null;
+    const htTotal = Number(game.halfHomeScore) + Number(game.halfAwayScore);
+    const isOver = name.startsWith("over");
+    const isUnder = name.startsWith("under");
+    if (!isOver && !isUnder) return null;
+    if (line % 1 === 0.25 || line % 1 === 0.75) return null;
+    if (htTotal === line) return "VOID";
+    if (isOver) return htTotal > line ? "WON" : "LOST";
+    return htTotal < line ? "WON" : "LOST";
+  }
+
+  // ── Team totals ("Arsenal Over 1.5" / "Over 1.5" + label home/away) ──
+  if (["TEAM_TOTALS", "TEAM_TOTAL", "team_totals"].includes(marketKey)) {
+    const line = Number(name.match(/[\d.]+/)?.[0]);
+    if (!line || Number.isNaN(line)) return null;
+    const homeName = game.homeName.toLowerCase();
+    const awayName = game.awayName.toLowerCase();
+    const teamScore = name.includes(homeName) || label === "home" || label === "1"
+      ? home
+      : name.includes(awayName) || label === "away" || label === "2"
+        ? away
+        : null;
+    if (teamScore == null) return null;
+    const isOver = /\bover\b/.test(name);
+    const isUnder = /\bunder\b/.test(name);
+    if (!isOver && !isUnder) return null;
+    if (teamScore === line) return "VOID";
+    if (isOver) return teamScore > line ? "WON" : "LOST";
+    return teamScore < line ? "WON" : "LOST";
+  }
+
+  // ── Asian handicap ("Home -1.5", "Away +0.5", or name + label 1/2) ──
+  //    Handicap applies to the BACKED team's score. Quarter lines (±x.25/
+  //    ±x.75) split the stake across two half handicaps; when the split
+  //    lands mixed (half-win/half-push etc.) the single-outcome model
+  //    can't express it → skip to admin. Whole/half lines resolve cleanly,
+  //    including the whole-line PUSH → VOID refund.
+  if (["ASIAN_HANDICAP", "HANDICAP", "SPREAD", "asian_handicap"].includes(marketKey)) {
+    const m = name.match(/([+-]?\d+(?:\.\d+)?)\s*$/);
+    if (!m) return null;
+    const handicap = Number(m[1]);
+    if (Number.isNaN(handicap)) return null;
+    const homeName = game.homeName.toLowerCase();
+    const awayName = game.awayName.toLowerCase();
+    const backedHome =
+      name.includes(homeName) || label === "1" || label === "home" || name.startsWith("home");
+    const backedAway =
+      name.includes(awayName) || label === "2" || label === "away" || name.startsWith("away");
+    if (!backedHome && !backedAway) return null;
+
+    const single = (h: number): Result => {
+      const adj = backedHome ? home + h : away + h;
+      const opp = backedHome ? away : home;
+      if (adj === opp) return "VOID"; // push → stake refund
+      return adj > opp ? "WON" : "LOST";
+    };
+
+    const frac = Math.abs(handicap % 1);
+    if (frac === 0.25 || frac === 0.75) {
+      // Quarter line → split into the two neighbouring half handicaps
+      const lower = handicap - Math.sign(handicap) * 0.25;
+      const upper = handicap + Math.sign(handicap) * 0.25;
+      const a = single(lower);
+      const b = single(upper);
+      if (a === b) return a; // both halves agree → clean WON / LOST / VOID
+      return null; // half-win/half-push etc. → admin settles manually
+    }
+    return single(handicap);
   }
 
   // ── Both teams to score ─────────────────────────────────────
   if (marketKey === "BTTS") {
-    const both = Number(game.homeScore) > 0 && Number(game.awayScore) > 0;
+    const both = home > 0 && away > 0;
     if (name === "yes" || name === "y") return both ? "WON" : "LOST";
     if (name === "no" || name === "n") return both ? "LOST" : "WON";
     return null;
@@ -135,7 +235,7 @@ function resolveOutcome(
     const m = name.match(/^(\d+)\s*[-:]\s*(\d+)$/);
     if (!m) return null;
     const [h, a] = [Number(m[1]), Number(m[2])];
-    if (h === Number(game.homeScore) && a === Number(game.awayScore)) return "WON";
+    if (h === home && a === away) return "WON";
     return "LOST";
   }
 

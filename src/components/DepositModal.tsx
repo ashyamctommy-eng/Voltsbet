@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { apiFetch } from "@/lib/client";
 import { useToast } from "@/components/BetSlipContext";
@@ -13,6 +13,9 @@ type PendingDeposit = {
   cryptoCurrency?: string;
   amount?: string;
 };
+
+const POLL_MS = 5000;
+const FINAL_STATUSES = ["COMPLETED", "EXPIRED", "FAILED", "CANCELLED"];
 
 /** Quick deposit modal — opened from the header wallet button. Reuses the same
  *  APIs as /account/deposit (POST /api/account + demo webhook + status poll). */
@@ -27,6 +30,43 @@ export default function DepositModal({ onClose }: { onClose: () => void }) {
 
   const amountNum = parseFloat(amount);
   const valid = amountNum > 0 && (method === "CRYPTO" || phone.trim().length >= 9);
+
+  // Real-time status polling: while a deposit is pending, poll every 5s so
+  // the moment the webhook confirms payment the modal reflects it (and the
+  // wallet credit lands) without the user closing and reopening anything.
+  useEffect(() => {
+    if (!pending || FINAL_STATUSES.includes(pending.status)) return;
+    let alive = true;
+    let stopped = false; // a terminal status arrived via a poll response
+    const tick = async () => {
+      if (stopped) return;
+      const res = await apiFetch<{ deposit: PendingDeposit }>(`/api/account/deposits/${pending.id}`);
+      if (!alive || !res.ok) return;
+      const d = res.data.deposit;
+      if (d.status === "COMPLETED") {
+        setPending(null);
+        setAmount("");
+        setPhone("");
+        push("success", "Payment confirmed! Balance credited.");
+        onClose();
+        return;
+      }
+      if (FINAL_STATUSES.includes(d.status)) {
+        stopped = true;
+        setPending(d);
+        push("error", `Deposit ${d.status.toLowerCase()} — no funds were credited.`);
+        return;
+      }
+      setPending((p) => (p ? { ...p, status: d.status } : p));
+    };
+    const t = setInterval(tick, POLL_MS);
+    void tick(); // first check immediately
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pending?.id]);
 
   async function createDeposit(e: React.FormEvent) {
     e.preventDefault();
@@ -124,6 +164,15 @@ export default function DepositModal({ onClose }: { onClose: () => void }) {
           </form>
         ) : (
           <div className="mt-4 space-y-4">
+            {/* Live status strip */}
+            <div className="flex items-center justify-center gap-2 rounded-xl border border-line bg-card2 px-3 py-2 text-xs font-semibold">
+              <span className={`live-dot ${FINAL_STATUSES.includes(pending.status) ? "!bg-amber-400" : ""}`} />
+              <span className="text-ink2">
+                {FINAL_STATUSES.includes(pending.status)
+                  ? `Deposit ${pending.status.toLowerCase()}`
+                  : `Status: ${pending.status.replace(/_/g, " ").toLowerCase()} — checking automatically…`}
+              </span>
+            </div>
             <div className="rounded-xl border border-line bg-card p-4 text-center">
               <div className="text-xs text-ink3">Send {pending.cryptoCurrency ?? "USDT"} to this address</div>
               <div className="mt-2 break-all rounded-lg bg-black/30 p-3 font-mono text-[11px] text-brand">
@@ -136,7 +185,7 @@ export default function DepositModal({ onClose }: { onClose: () => void }) {
             <button type="button" onClick={simulateConfirm} disabled={loading} className="btn btn-ghost w-full">
               {loading ? "Confirming…" : "Simulate payment (demo)"}
             </button>
-            <p className="text-center text-[11px] text-ink3">Real payments credit automatically via webhook.</p>
+            <p className="text-center text-[11px] text-ink3">Real payments credit automatically — this window updates live.</p>
           </div>
         )}
       </div>

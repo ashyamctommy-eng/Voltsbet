@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useBetSlip } from "@/components/BetSlipContext";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
@@ -237,6 +238,24 @@ export default function MatchFeed({
   }, [games, sportKey, autoFetch]);
   const feed = clientGames ?? games;
 
+  // Push the latest feed prices into any active bet slip selections — the
+  // slip flashes green/red on movement and always prices at fresh odds.
+  const { syncOdds } = useBetSlip();
+  useEffect(() => {
+    if (!feed?.length) return;
+    const prices: Record<string, number> = {};
+    for (const g of feed) {
+      for (const m of g.markets ?? []) {
+        for (const o of m.outcomes ?? []) {
+          const price = Number(o.odds);
+          if (price > 0) prices[o.id] = price;
+        }
+      }
+    }
+    syncOdds(prices);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [feed]);
+
   const { t } = useTranslation();
   // Unified sports navigation lives in the HEADER (category scrollbar).
   // The feed derives its sport scope from the route: "/sports/{slug}" on
@@ -249,25 +268,16 @@ export default function MatchFeed({
     return sports?.some((s) => s.slug === "football") ? "football" : "all";
   }, [pathname, sports]);
 
-  // Rolling 7-day date selector — default lands on "Today".
+  // Rolling 7-day date selector — default lands on "Today". URL params are
+  // hydrated post-mount (below): reading window.location in a useState
+  // initializer rendered different markup on server vs client (hydration
+  // mismatch) whenever ?date/?league/?page were present in a shared link.
   const dateOptions = useMemo(() => buildDateOptions(), []);
-  const [dateValue, setDateValue] = useState<string>(() => {
-    const fromParam = dateParamToValue(
-      typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("date"),
-    );
-    return fromParam && dateOptions.some((o) => o.value === fromParam) ? fromParam : dateOptions[0].value;
-  });
-  const [league, setLeague] = useState<string>(() =>
-    typeof window === "undefined" ? "" : (new URLSearchParams(window.location.search).get("league") ?? ""),
-  );
+  const [dateValue, setDateValue] = useState<string>(() => dateOptions[0].value);
+  const [league, setLeague] = useState<string>("");
   const [sortMode, setSortMode] = useState<SortMode>("top");
   const [marketFilter, setMarketFilter] = useState<MarketFilter>("1x2");
-  const [page, setPage] = useState<number>(() => {
-    const p = Number(
-      typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("page"),
-    );
-    return Number.isFinite(p) && p >= 1 ? Math.floor(p) : 1;
-  });
+  const [page, setPage] = useState<number>(1);
   const listRef = useRef<HTMLDivElement>(null);
   const activeDate = dateOptions.find((o) => o.value === dateValue) ?? dateOptions[0];
   /** Day labels come from buildDateOptions() as hardcoded "Today"/"Tomorrow"
@@ -287,10 +297,29 @@ export default function MatchFeed({
     setSortMode(view === "upcoming" ? "soonest" : "top");
   }
 
+  // Hydrate filters from the URL ONCE on mount. Must be declared before the
+  // URL-sync effect below, which skips writing until this has run (otherwise
+  // the default state would immediately clobber ?date/?league/?page in the
+  // address bar before they were ever read).
+  const urlHydrated = useRef(false);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const p = new URLSearchParams(window.location.search);
+      const v = dateParamToValue(p.get("date"));
+      if (v && dateOptions.some((o) => o.value === v)) setDateValue(v);
+      setLeague(p.get("league") ?? "");
+      const pg = Number(p.get("page"));
+      if (Number.isFinite(pg) && pg >= 1) setPage(Math.floor(pg));
+      urlHydrated.current = true;
+    }, 0);
+    return () => clearTimeout(t);
+  }, [dateOptions]);
+
   // Keep the URL in sync with the active filters + page (replaceState → no
   // reload, no history spam; links stay shareable and page state survives
   // reloads / back-forward).
   useEffect(() => {
+    if (!urlHydrated.current) return; // wait for the mount-time URL hydration
     const p = new URLSearchParams(window.location.search);
     const iso = valueToDateParam(dateValue);
     if (iso) p.set("date", iso);

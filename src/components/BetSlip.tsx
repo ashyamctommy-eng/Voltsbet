@@ -118,7 +118,7 @@ export default function BetSlip() {
           open && items.length > 0 ? "translate-x-0" : "translate-x-full"
         }`}
       >
-        <SlipBody {...slipBody} onClose={() => setOpen(false)} desktop />
+        <SlipBody {...slipBody} onClose={() => setOpen(false)} desktop visible={open && items.length > 0} />
       </aside>
 
       {/* ── Mobile sheet (slides up from the sticky yellow bar) ── */}
@@ -127,7 +127,7 @@ export default function BetSlip() {
           <div className="fade-in absolute inset-0 bg-black/60" onClick={() => setOpen(false)} />
           <div className="sheet-up absolute inset-x-0 bottom-0 flex max-h-[88vh] flex-col overflow-hidden rounded-t-2xl border-t border-line bg-panel-bg">
             <div className="mx-auto mt-2.5 mb-1 h-1 w-10 shrink-0 rounded-full bg-line2" />
-            <SlipBody {...slipBody} onClose={() => setOpen(false)} />
+            <SlipBody {...slipBody} onClose={() => setOpen(false)} visible />
           </div>
         </div>
       )}
@@ -189,8 +189,18 @@ function SlipBody(props: {
   account: SlipAccount | null;
   onClose: () => void;
   desktop?: boolean;
+  visible?: boolean;
 }) {
-  const { items, mode, setMode, stake, setStake, totalOdds, potentialWin, remove, clear, place, placing, stakeNum, balance, minStake, account, onClose } = props;
+  const { items, mode, setMode, stake, setStake, totalOdds, potentialWin, remove, clear, place, placing, stakeNum, balance, minStake, account, onClose, visible } = props;
+  const stakeRef = useRef<HTMLInputElement>(null);
+
+  // Auto-focus the stake input the moment the slip opens — one less tap
+  // between picking an outcome and placing the bet.
+  useEffect(() => {
+    if (!visible) return;
+    const t = setTimeout(() => stakeRef.current?.focus({ preventScroll: true }), 250);
+    return () => clearTimeout(t);
+  }, [visible]);
   const { code: activeCur, formatCurrency, convertAmount, defaultCode } = useCurrency();
   // The betslip shows EVERY figure in the global active currency (resolved
   // as: admin force-default → user preference → IP auto-detect → USD).
@@ -289,7 +299,14 @@ function SlipBody(props: {
                 </div>
                 <div className="mt-1.5 flex items-center justify-between border-t border-line pt-1.5">
                   <span className="text-xs text-ink3">{item.label ? `${item.label} · ` : ""}Odds</span>
-                  <span className="font-bold text-green-400">{fmtOdds(item.odds)}</span>
+                  <span
+                    className={`rounded px-1.5 py-0.5 font-bold text-green-400 transition-colors ${
+                      item.trend === "up" ? "odds-flash-up" : item.trend === "down" ? "odds-flash-down" : ""
+                    }`}
+                  >
+                    {item.trend === "up" ? "▲ " : item.trend === "down" ? "▼ " : ""}
+                    {fmtOdds(item.odds)}
+                  </span>
                 </div>
               </div>
             ))}
@@ -318,6 +335,7 @@ function SlipBody(props: {
               </span>
               <input
                 id="slip-stake"
+                ref={stakeRef}
                 className="input !pl-9"
                 type="number"
                 min="1"

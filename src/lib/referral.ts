@@ -1,5 +1,6 @@
 import type { Prisma, Deposit } from "@prisma/client";
 import { getSettings } from "./settings";
+import { convert } from "./currency";
 
 /**
  * Referral engine — the moment a referee's FIRST deposit completes, the
@@ -30,7 +31,10 @@ export async function awardReferralBonusIfFirstDeposit(tx: Tx, deposit: DepositW
   if (earlier) return null;
 
   const amount = Number(deposit.amount);
-  if (amount < s.referralMinDeposit) return null;
+  const depositCurrency = deposit.currencyCode;
+  // Threshold is configured in the platform default currency — compare in it.
+  const amountInDefault = await convert(amount, depositCurrency, s.currencyDefault);
+  if (amountInDefault < s.referralMinDeposit) return null;
 
   const referrer = await tx.user.findUnique({
     where: { referralCode: deposit.user.referredByCode },
@@ -38,11 +42,21 @@ export async function awardReferralBonusIfFirstDeposit(tx: Tx, deposit: DepositW
   });
   if (!referrer || referrer.id === deposit.userId || referrer.status !== "ACTIVE") return null;
 
-  const bonus = Math.min(Math.round((amount * s.referralBonusPercent) / 100 * 100) / 100, s.referralBonusCap);
-  if (bonus <= 0) return null;
-
   const wallet = referrer.wallet;
   if (!wallet) return null;
+
+  // Currency fix: the deposit amount is in the REFEREE's currency — compute
+  // the percent in that currency, then convert into the referrer's wallet
+  // currency before crediting. (Previously a 10% bonus on a 100 USD deposit
+  // credited 10 KES ≈ 100× less than intended when wallets differed.) The
+  // cap is in the platform default currency, so the converted bonus is
+  // measured against the cap via a round-trip through the default currency.
+  const rawBonus = (amount * s.referralBonusPercent) / 100;
+  const bonusInDefault = await convert(rawBonus, depositCurrency, s.currencyDefault);
+  const cappedInDefault = Math.min(bonusInDefault, s.referralBonusCap);
+  const bonus =
+    Math.round((await convert(cappedInDefault, s.currencyDefault, wallet.currencyCode)) * 100) / 100;
+  if (bonus <= 0) return null;
 
   const prev = Number(wallet.balance);
   const next = Math.round((prev + bonus) * 100) / 100;
