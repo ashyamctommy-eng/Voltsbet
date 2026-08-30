@@ -50,6 +50,17 @@ export const DELETE = handle(async (req: NextRequest) => {
   await verifyCsrf(req);
   const user = await requireUser();
 
+  // Disabling 2FA requires a valid TOTP code — a stolen session alone must
+  // not be able to silently strip the second factor.
+  if (!user.totpEnabled) throw new ApiError(400, "2FA is not enabled.", "NOT_ENABLED");
+  if (!user.totpSecret) throw new ApiError(400, "No 2FA secret on file.", "NO_SECRET");
+
+  const body = await req.json().catch(() => null);
+  const code = String(body?.code ?? "").trim();
+  if (!verifyTotp(user.totpSecret, code)) {
+    throw new ApiError(400, "Invalid code — enter a current 6-digit code from your authenticator app.", "BAD_TOTP");
+  }
+
   await prisma.user.update({
     where: { id: user.id },
     data: { totpEnabled: false, totpSecret: null },

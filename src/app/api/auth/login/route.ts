@@ -58,8 +58,20 @@ export const POST = handle(async (req: NextRequest) => {
 
   // ── 2FA (non-customer roles) ───────────────────────────────
   if (user.totpEnabled && user.totpSecret) {
-    if (!totp || !verifyTotp(user.totpSecret, totp)) {
-      throw new ApiError(400, "2FA code required or invalid — enter the 6-digit code from your authenticator app.", "TOTP_REQUIRED");
+    if (!totp) {
+      throw new ApiError(400, "Enter the 6-digit code from your authenticator app.", "TOTP_REQUIRED");
+    }
+    if (!verifyTotp(user.totpSecret, totp)) {
+      // A wrong 2FA code counts toward the same per-account lockout as a
+      // wrong password — without this, the account lockout never triggers
+      // for 2FA brute force (only the IP limiter stood in the way).
+      const failed = user.failedLogins + 1;
+      const lockedUntil = failed >= MAX_FAILED ? new Date(Date.now() + LOCK_MINUTES * 60_000) : null;
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { failedLogins: lockedUntil ? 0 : failed, ...(lockedUntil ? { lockedUntil } : {}) },
+      });
+      throw new ApiError(401, "Invalid 2FA code.", "TOTP_INVALID");
     }
   }
 

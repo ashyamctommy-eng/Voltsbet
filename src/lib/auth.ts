@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import { randomBytes } from "crypto";
+import { createHash, randomBytes } from "crypto";
 import { cookies } from "next/headers";
 import { prisma } from "./prisma";
 
@@ -7,6 +7,15 @@ export const SESSION_COOKIE = "vb_session";
 export const CSRF_COOKIE = "vb_csrf";
 const SESSION_DAYS = 7;
 const REMEMBER_DAYS = 30;
+
+/**
+ * Sessions are stored HASHED (sha256) in the DB — never the raw token — so a
+ * database leak cannot be replayed into live sessions. The raw token is only
+ * ever sent to the browser (HttpOnly cookie).
+ */
+function hashToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
 
 export async function hashPassword(pw: string) {
   return bcrypt.hash(pw, 10);
@@ -28,7 +37,7 @@ export async function createSession(
   const expiresAt = new Date(Date.now() + days * 86400_000);
 
   await prisma.session.create({
-    data: { token, userId, ip: opts.ip, userAgent: opts.userAgent, expiresAt },
+    data: { token: hashToken(token), userId, ip: opts.ip, userAgent: opts.userAgent, expiresAt },
   });
 
   const store = await cookies();
@@ -58,10 +67,24 @@ export async function getCurrentUser() {
   const store = await cookies();
   const token = store.get(SESSION_COOKIE)?.value;
   if (!token) return null;
-  const session = await prisma.session.findUnique({
-    where: { token },
+  const tokenHash = hashToken(token);
+  let session = await prisma.session.findUnique({
+    where: { token: tokenHash },
     include: { user: true },
   });
+  // Legacy plaintext sessions from before this fix — match on the raw token
+  // and migrate the row to the hashed form on first use.
+  if (!session) {
+    session = await prisma.session.findUnique({
+      where: { token },
+      include: { user: true },
+    });
+    if (session) {
+      await prisma.session
+        .update({ where: { id: session.id }, data: { token: tokenHash } })
+        .catch(() => {});
+    }
+  }
   if (!session) return null;
   if (session.expiresAt < new Date()) {
     await prisma.session.delete({ where: { id: session.id } }).catch(() => {});
@@ -75,7 +98,9 @@ export async function destroySession() {
   const store = await cookies();
   const token = store.get(SESSION_COOKIE)?.value;
   if (token) {
-    await prisma.session.deleteMany({ where: { token } });
+    await prisma.session.deleteMany({
+      where: { token: { in: [hashToken(token), token] } }, // hashed + legacy plaintext
+    });
   }
   store.delete(SESSION_COOKIE);
   store.delete(CSRF_COOKIE);

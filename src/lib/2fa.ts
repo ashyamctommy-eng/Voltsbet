@@ -16,7 +16,9 @@ export function generateTotpSecret(): string {
 export function verifyTotp(secret: string, token: string): boolean {
   if (!token || !/^\d{6}$/.test(token)) return false;
   try {
-    const res = verifySync({ strategy: "totp", secret, token });
+    // epochTolerance: 30 → accept ±1 time step (30s) to absorb clock skew
+    // between the server and the user's authenticator app.
+    const res = verifySync({ strategy: "totp", secret, token, epochTolerance: 30 });
     return res.valid === true;
   } catch {
     return false;

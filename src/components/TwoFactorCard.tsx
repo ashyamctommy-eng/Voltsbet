@@ -16,6 +16,8 @@ export default function TwoFactorCard() {
   const { push } = useToast();
   const [state, setState] = useState<TwoFaState | null>(null);
   const [code, setCode] = useState("");
+  const [disableCode, setDisableCode] = useState("");
+  const [confirmingDisable, setConfirmingDisable] = useState(false);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -33,12 +35,21 @@ export default function TwoFactorCard() {
   }
 
   async function disable() {
+    if (!confirmingDisable) {
+      setConfirmingDisable(true); // step 1: ask for a fresh TOTP code
+      return;
+    }
     setBusy(true);
-    const res = await apiFetch<{ message: string }>("/api/account/2fa", { method: "DELETE", body: {} });
+    const res = await apiFetch<{ message: string }>("/api/account/2fa", {
+      method: "DELETE",
+      body: { code: disableCode },
+    });
     setBusy(false);
     if (!res.ok) return push("error", res.error.message);
     push("success", res.data.message);
     setState({ enabled: false });
+    setConfirmingDisable(false);
+    setDisableCode("");
   }
 
   if (!state) return null;
@@ -55,9 +66,38 @@ export default function TwoFactorCard() {
           <span className="flex items-center gap-2 text-sm font-bold text-brand">
             <span className="h-2.5 w-2.5 rounded-full bg-brand" /> Enabled
           </span>
-          <button className="btn btn-danger btn-sm" disabled={busy} onClick={disable}>
-            {busy ? "Working…" : "Disable 2FA"}
-          </button>
+          {confirmingDisable ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                aria-label="Current 2FA code"
+                inputMode="numeric"
+                autoFocus
+                maxLength={6}
+                value={disableCode}
+                onChange={(e) => setDisableCode(e.target.value.replace(/\D/g, ""))}
+                placeholder="6-digit code"
+                className="input w-32 text-center font-mono"
+              />
+              <button
+                className="btn btn-danger btn-sm"
+                disabled={busy || disableCode.length !== 6}
+                onClick={disable}
+              >
+                {busy ? "Working…" : "Confirm"}
+              </button>
+              <button
+                className="btn btn-ghost btn-sm"
+                disabled={busy}
+                onClick={() => setConfirmingDisable(false)}
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button className="btn btn-danger btn-sm" disabled={busy} onClick={disable}>
+              {busy ? "Working…" : "Disable 2FA"}
+            </button>
+          )}
         </div>
       ) : (
         <div className="mt-4 grid gap-5 sm:grid-cols-[auto_1fr]">
