@@ -198,7 +198,6 @@ export const PATCH = handle(async (req: NextRequest, ctx: { params: Promise<{ id
           processedAt: new Date(),
         },
       });
-      return { prev: Number(withdrawal.user.wallet?.balance ?? 0) };
     });
     debited = true;
     void result;

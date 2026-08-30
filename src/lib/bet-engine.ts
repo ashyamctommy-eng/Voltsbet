@@ -38,10 +38,6 @@ function isUniqueViolation(e: unknown): boolean {
   return e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
 }
 
-type OutcomeWithMarket = Prisma.OutcomeGetPayload<{
-  include: { market: { include: { game: true } } };
-}>;
-
 /**
  * Server-side bet placement. Every §54 check happens here — never trust the
  * frontend. Returns the created bet with fresh odds; throws ApiError with
