@@ -188,15 +188,10 @@ export const POST = handle(async (req: NextRequest) => {
 
   // Real provider configured (NOWPayments)? Get a real payment address.
   if (settings.cryptoProvider === "NOWPAYMENTS" && settings.cryptoApiKey) {
-    const base = publicBaseUrl(settings);
-    const ipn = `${base}/api/webhooks/crypto/nowpayments`;
-    const np = await npCreatePayment({
-      priceAmount: amount,
-      priceCurrency: wallet.currencyCode,
-      payCurrency: cryptoCurrency,
-      orderId: user.id.slice(-10),
-      ipnCallbackUrl: ipn,
-    });
+    // Create the deposit row FIRST and use its id as the provider order_id.
+    // NOWPayments dedupes on order_id — before, order_id was user.id, so a
+    // user's second deposit collided with the first and the webhook could
+    // never credit it (the deposit hung in AWAITING_PAYMENT forever).
     const deposit = await prisma.deposit.create({
       data: {
         userId: user.id,
@@ -206,23 +201,44 @@ export const POST = handle(async (req: NextRequest) => {
         currencyCode: wallet.currencyCode,
         status: "AWAITING_PAYMENT",
         cryptoCurrency,
-        paymentAddress: np.pay_address,
-        expiresAt: np.expires_at ? new Date(np.expires_at) : null,
-        metadata: JSON.stringify({ providerRef: String(np.payment_id), payAmount: np.pay_amount, payCurrency: np.pay_currency }),
+        metadata: JSON.stringify({}),
       },
     });
-    return ok({
-      deposit: {
-        id: deposit.id,
-        amount,
-        cryptoCurrency,
-        paymentAddress: np.pay_address,
-        payAmount: np.pay_amount,
-        payCurrency: np.pay_currency,
-        expiresAt: np.expires_at ?? null,
-        status: deposit.status,
-      },
-    });
+
+    try {
+      const base = publicBaseUrl(settings);
+      const ipn = `${base}/api/webhooks/crypto/nowpayments`;
+      const np = await npCreatePayment({
+        priceAmount: amount,
+        priceCurrency: wallet.currencyCode,
+        payCurrency: cryptoCurrency,
+        orderId: deposit.id,
+        ipnCallbackUrl: ipn,
+      });
+      await prisma.deposit.update({
+        where: { id: deposit.id },
+        data: {
+          paymentAddress: np.pay_address,
+          expiresAt: np.expires_at ? new Date(np.expires_at) : null,
+          metadata: JSON.stringify({ providerRef: String(np.payment_id), payAmount: np.pay_amount, payCurrency: np.pay_currency }),
+        },
+      });
+      return ok({
+        deposit: {
+          id: deposit.id,
+          amount,
+          cryptoCurrency,
+          paymentAddress: np.pay_address,
+          payAmount: np.pay_amount,
+          payCurrency: np.pay_currency,
+          expiresAt: np.expires_at ?? null,
+          status: deposit.status,
+        },
+      });
+    } catch (e) {
+      await prisma.deposit.update({ where: { id: deposit.id }, data: { status: "FAILED" } }).catch(() => {});
+      throw e;
+    }
   }
 
   // Demo mode: generate a mock payment address (dev only).
