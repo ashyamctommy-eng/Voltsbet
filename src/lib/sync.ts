@@ -14,11 +14,13 @@ import { teamLogo } from "@/lib/team-logos";
 import { getSettings, setSetting } from "@/lib/settings";
 import { deriveDoubleChance, deriveDrawNoBet } from "@/lib/derived-markets";
 import { ApiFootballProvider } from "@/lib/providers/api-football";
+import { BetsApiProvider } from "@/lib/providers/betsapi";
 import { LEAGUE_TITLES } from "@/lib/feed";
 
 export const PROVIDERS: Record<string, () => OddsProvider> = {
   "the-odds-api": () => new TheOddsApi(), // primary — free 500 req/month, clean h2h/totals
   "api-football": () => new ApiFootballProvider(), // API-Football — 100 req/day, global + African leagues
+  "betsapi": () => new BetsApiProvider(), // live engine (bet365 via RapidAPI) — usable as a live source
 };
 
 /** Env var that gates each provider — checked before syncing so a missing key
@@ -63,7 +65,7 @@ const SPORT_KEY_MAP: Record<string, string> = {
   football: "football", // api-football (API-Football) sport key
   basketball_nba: "basketball",
   baseball_mlb: "baseball", icehockey_nhl: "ice-hockey",
-  "3": "basketball", "2": "tennis", "4": "ice-hockey", // betsapi sport ids
+  "1": "football", "3": "basketball", "2": "tennis", "4": "ice-hockey", // betsapi sport ids
 };
 
 /** Resolve the sync roles: pre-match source and live source. Each role falls
@@ -122,6 +124,14 @@ export async function syncGames(providerId?: string) {
     if (!sport) continue;
 
     const existing = await prisma.game.findUnique({ where: { externalId: game.externalId } });
+    // Never touch in-play / finished / cancelled games in the pre-match pass:
+    // their markets may be suspended or settled, and re-marking them SCHEDULED
+    // used to clobber live scores, resurrect settled outcomes and hide live
+    // games from isLiveStatus() surfaces. The live-score loop below owns them.
+    if (existing && ["LIVE", "HALF_TIME", "FINISHED", "CANCELLED", "POSTPONED"].includes(existing.status)) {
+      continue;
+    }
+
     const payload = await buildPayload(game, sport.id, existing ?? undefined);
 
     if (existing) {
@@ -149,15 +159,18 @@ export async function syncGames(providerId?: string) {
         ...(score.awayScore !== undefined ? { awayScore: score.awayScore } : {}),
         status: score.status === "finished" ? "FINISHED" : score.status === "live" ? "LIVE" : game.status,
         ...(score.status === "live" ? { live: true, clock: score.clock ?? null, period: score.period ?? null } : {}),
+        ...(score.status === "finished" ? { live: false } : {}), // finished is never live
       },
     });
     scoreUpdates++;
   }
 
-  // Optional settlement sweep — providers with fetchResults() (betsapi) pull
-  // finished outcomes for due games that aren't finished yet. Capped so the
-  // request budget stays sane on rate-limited plans.
-  if (provider.fetchResults && roles.prematch === "betsapi") {
+  // Optional settlement sweep — a live provider with fetchResults() (betsapi)
+  // pulls finished outcomes for due games so they can be marked FINISHED and
+  // auto-settled. Capped so the request budget stays sane on rate-limited
+  // plans. (Previously gated on the PRE-match role being betsapi, which could
+  // never happen — this branch never ran.)
+  if (roles.live === "betsapi" && liveConfigured && typeof liveSource.fetchResults === "function") {
     const due = await prisma.game.findMany({
       where: {
         source: "API",
@@ -172,7 +185,7 @@ export async function syncGames(providerId?: string) {
       const ids = due
         .map((g) => g.externalId)
         .filter((id): id is string => !!id);
-      const finished = await provider.fetchResults(ids);
+      const finished = await liveSource.fetchResults(ids);
       for (const score of finished) {
         const game = await prisma.game.findUnique({ where: { externalId: score.externalId } });
         if (!game) continue;
@@ -249,10 +262,17 @@ async function upsertMarkets(gameId: string, game: ApiGame) {
       include: { outcomes: true },
     });
     if (existing) {
-      // Update odds in place; suspend outcomes no longer in the feed
+      // Settled markets are sacred: never re-open, never re-price, never add
+      // outcomes to them.
+      if (existing.status === "SETTLED") continue;
+
+      // Update odds in place; suspend outcomes no longer in the feed.
+      const feedNames = new Set(m.outcomes.map((o) => o.name));
       for (const o of m.outcomes) {
         const outcome = existing.outcomes.find((x) => x.name === o.name);
         if (outcome) {
+          // A settled outcome must never be resurrected by a feed refresh.
+          if (outcome.settled) continue;
           await prisma.outcome.update({
             where: { id: outcome.id },
             data: { odds: o.odds.toFixed(2), status: "ACTIVE" },
@@ -261,6 +281,13 @@ async function upsertMarkets(gameId: string, game: ApiGame) {
           await prisma.outcome.create({
             data: { marketId: existing.id, name: o.name, label: o.label ?? null, odds: o.odds.toFixed(2) },
           });
+        }
+      }
+      // Outcomes the feed no longer carries are stale prices — suspend them
+      // (they stay bettable-proof without deleting history).
+      for (const o of existing.outcomes) {
+        if (!feedNames.has(o.name) && !o.settled && o.status !== "SUSPENDED") {
+          await prisma.outcome.update({ where: { id: o.id }, data: { status: "SUSPENDED" } });
         }
       }
     } else {
@@ -297,12 +324,20 @@ async function upsertDerived(
     if (!d.outcomes) continue; // not a 3-way market (e.g. NBA moneyline)
     const existing = await prisma.market.findFirst({ where: { gameId, key: d.key }, include: { outcomes: true } });
     if (existing) {
+      if (existing.status === "SETTLED") continue; // never touch settled markets
+      const feedNames = new Set(d.outcomes.map((o) => o.name));
       for (const o of d.outcomes) {
         const outcome = existing.outcomes.find((x) => x.name === o.name);
         if (outcome) {
+          if (outcome.settled) continue; // never resurrect settled outcomes
           await prisma.outcome.update({ where: { id: outcome.id }, data: { odds: o.odds, status: "ACTIVE" } });
         } else {
           await prisma.outcome.create({ data: { marketId: existing.id, name: o.name, odds: o.odds } });
+        }
+      }
+      for (const o of existing.outcomes) {
+        if (!feedNames.has(o.name) && !o.settled && o.status !== "SUSPENDED") {
+          await prisma.outcome.update({ where: { id: o.id }, data: { status: "SUSPENDED" } });
         }
       }
     } else {

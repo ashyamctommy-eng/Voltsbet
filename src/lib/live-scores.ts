@@ -44,6 +44,9 @@ export async function refreshLiveScores(): Promise<{
           ...(score.homeScore !== undefined ? { homeScore: score.homeScore } : {}),
           ...(score.awayScore !== undefined ? { awayScore: score.awayScore } : {}),
           status: score.status === "finished" ? "FINISHED" : score.status === "live" ? "LIVE" : game.status,
+          // A finished game is never live — stale live:true used to keep
+          // finished matches on the "live" surfaces (home feed, slideshow).
+          ...(score.status === "finished" ? { live: false } : {}),
           ...(score.status === "live" ? { live: true, clock: score.clock ?? null, period: score.period ?? null } : {}),
         },
       });
