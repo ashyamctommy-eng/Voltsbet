@@ -106,6 +106,14 @@ export const ODDS_MARKETS = (
     "double_chance",
     "draw_no_bet",
     "correct_score",
+    "alternate_spreads",
+    "alternate_totals",
+    "h2h_h1",
+    "totals_h1",
+    "spreads_h1",
+    "h2h_h2",
+    "totals_h2",
+    "spreads_h2",
   ]
 ) as readonly string[];
 
@@ -122,6 +130,10 @@ const MARKET_MAP: {
   { key: "totals_h1", local: "OVER_UNDER_1H", name: "1st Half - Over/Under" },
   { key: "totals_h2", local: "OVER_UNDER_2H", name: "2nd Half - Over/Under" },
   { key: "spreads", local: "SPREAD", name: "Spread" },
+  { key: "spreads_h1", local: "SPREAD_1H", name: "1st Half - Spread" },
+  { key: "spreads_h2", local: "SPREAD_2H", name: "2nd Half - Spread" },
+  { key: "alternate_spreads", local: "ALTERNATE_SPREAD", name: "Alternate Spreads" },
+  { key: "alternate_totals", local: "ALTERNATE_TOTALS", name: "Alternate Totals" },
   { key: "correct_score", local: "CORRECT_SCORE", name: "Correct Score" },
   { key: "btts", local: "BTTS", name: "Both Teams to Score" },
   { key: "double_chance", local: "DOUBLE_CHANCE", name: "Double Chance" },
@@ -332,10 +344,31 @@ export class TheOddsApi implements OddsProvider {
         data = hit.data as typeof data;
       } else {
         // NOTE: /events/{id}/odds returns ONE event object (not an array).
-        const raw = (await this.get(
-          `/sports/${encodeURIComponent(ev.sportKey)}/events/${encodeURIComponent(ev.eventId)}/odds?bookmakers=${encodeURIComponent(bookmakers)}&markets=${extended.join(",")}&oddsFormat=decimal`
-        )) as (typeof data)[number] | null | (typeof data)[number][];
-        data = raw == null ? [] : Array.isArray(raw) ? raw : [raw];
+        // Graceful market degradation: if the API rejects some configured
+        // markets (422 INVALID_MARKET — e.g. a key added to ODDS_API_MARKETS
+        // that the provider doesn't serve), drop exactly those and retry
+        // once. A bad key must never take the whole sync down.
+        let requestMarkets = extended;
+        try {
+          const raw = (await this.get(
+            `/sports/${encodeURIComponent(ev.sportKey)}/events/${encodeURIComponent(ev.eventId)}/odds?bookmakers=${encodeURIComponent(bookmakers)}&markets=${requestMarkets.join(",")}&oddsFormat=decimal`
+          )) as (typeof data)[number] | null | (typeof data)[number][];
+          data = raw == null ? [] : Array.isArray(raw) ? raw : [raw];
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : "";
+          const m = msg.match(/Invalid markets: ([^\]]+)/i);
+          if (m) {
+            const invalid = new Set(m[1].split(",").map((x) => x.trim()));
+            requestMarkets = extended.filter((k) => !invalid.has(k));
+            if (!requestMarkets.length) throw e;
+            const raw = (await this.get(
+              `/sports/${encodeURIComponent(ev.sportKey)}/events/${encodeURIComponent(ev.eventId)}/odds?bookmakers=${encodeURIComponent(bookmakers)}&markets=${requestMarkets.join(",")}&oddsFormat=decimal`
+            )) as (typeof data)[number] | null | (typeof data)[number][];
+            data = raw == null ? [] : Array.isArray(raw) ? raw : [raw];
+          } else {
+            throw e;
+          }
+        }
         oddsCache.set(cacheKey, { at: Date.now(), data });
       }
       if (!data?.length) continue; // no bookmaker served these markets → skip

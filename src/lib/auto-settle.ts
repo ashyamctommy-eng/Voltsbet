@@ -134,7 +134,7 @@ function resolveOutcome(
   // ── Over / Under totals (full-time). Quarter lines (x.25/x.75) are
   //    Asian totals: a "half-win/half-push" result can't be expressed in
   //    the single-outcome model → skip to admin when the split lands mixed.
-  if (marketKey === "OVER_UNDER" || marketKey === "totals") {
+  if (["OVER_UNDER", "totals", "ALTERNATE_TOTALS", "alternate_totals"].includes(marketKey)) {
     const line = Number(name.match(/[\d.]+/)?.[0]);
     if (!line || Number.isNaN(line)) return null;
     const total = home + away;
@@ -149,11 +149,18 @@ function resolveOutcome(
 
   // ── 1st Half totals — settles off the half-time score when the feed
   //    populated it; never guesses from the full-time score. ──────────
-  if (["HT_TOTALS", "1H_TOTALS", "FIRST_HALF_TOTALS"].includes(marketKey) || /\b(1st|first)[ -]half\b/.test(name)) {
+  if (
+    ["HT_TOTALS", "1H_TOTALS", "FIRST_HALF_TOTALS", "OVER_UNDER_1H", "OVER_UNDER_2H"].includes(marketKey) ||
+    /\b(1st|first)[ -]half\b/.test(name)
+  ) {
     if (game.halfHomeScore == null || game.halfAwayScore == null) return null; // no HT score → admin
     const line = Number(name.match(/[\d.]+/)?.[0]);
     if (!line || Number.isNaN(line)) return null;
-    const htTotal = Number(game.halfHomeScore) + Number(game.halfAwayScore);
+    // OVER_UNDER_2H: 2nd half = full-time − half-time (needs both halves)
+    const isSecondHalf = marketKey === "OVER_UNDER_2H" || /\b2nd|second[ -]half\b/.test(name);
+    const htTotal = isSecondHalf
+      ? Number(game.homeScore) + Number(game.awayScore) - Number(game.halfHomeScore) - Number(game.halfAwayScore)
+      : Number(game.halfHomeScore) + Number(game.halfAwayScore);
     const isOver = name.startsWith("over");
     const isUnder = name.startsWith("under");
     if (!isOver && !isUnder) return null;
@@ -164,7 +171,7 @@ function resolveOutcome(
   }
 
   // ── Team totals ("Arsenal Over 1.5" / "Over 1.5" + label home/away) ──
-  if (["TEAM_TOTALS", "TEAM_TOTAL", "team_totals"].includes(marketKey)) {
+  if (["TEAM_TOTALS", "TEAM_TOTAL", "team_totals", "TEAM_TOTALS_HOME", "TEAM_TOTALS_AWAY"].includes(marketKey)) {
     const line = Number(name.match(/[\d.]+/)?.[0]);
     if (!line || Number.isNaN(line)) return null;
     const homeName = game.homeName.toLowerCase();
@@ -189,7 +196,7 @@ function resolveOutcome(
   //    lands mixed (half-win/half-push etc.) the single-outcome model
   //    can't express it → skip to admin. Whole/half lines resolve cleanly,
   //    including the whole-line PUSH → VOID refund.
-  if (["ASIAN_HANDICAP", "HANDICAP", "SPREAD", "asian_handicap"].includes(marketKey)) {
+  if (["ASIAN_HANDICAP", "HANDICAP", "SPREAD", "asian_handicap", "ALTERNATE_SPREAD", "alternate_spreads"].includes(marketKey)) {
     const m = name.match(/([+-]?\d+(?:\.\d+)?)\s*$/);
     if (!m) return null;
     const handicap = Number(m[1]);
@@ -220,6 +227,14 @@ function resolveOutcome(
       return null; // half-win/half-push etc. → admin settles manually
     }
     return single(handicap);
+  }
+
+  // ── Goal parity (Even / Odd total goals) ───────────────────
+  if (["GOAL_PARITY", "goal_parity", "GOAL_ODD_EVEN"].includes(marketKey)) {
+    const total = home + away;
+    if (name === "even" || name === "e") return total % 2 === 0 ? "WON" : "LOST";
+    if (name === "odd" || name === "o") return total % 2 === 1 ? "WON" : "LOST";
+    return null;
   }
 
   // ── Both teams to score ─────────────────────────────────────

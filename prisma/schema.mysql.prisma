@@ -186,6 +186,7 @@ model Market {
   status      String  @default("OPEN") // status-engine key (type=MARKET): OPEN | SUSPENDED | CLOSED | SETTLED
   settlementMethod String?
   isManual    Boolean @default(false) // admin-created market — never overwritten by sync
+  isDerived   Boolean @default(false) // auto-generated from 1X2 math — regenerated each sync; API prices take over when present
   sortOrder   Int     @default(0)
 
   outcomes  Outcome[]

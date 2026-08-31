@@ -203,14 +203,25 @@ One provider for all sports data — **The Odds API (v4)**:
 1. **List endpoint** (`/odds`): `h2h` (1X2), `spreads`, `totals` — the only
    markets that endpoint serves.
 2. **Per-event endpoint** (`/events/{id}/odds`): **BTTS, Correct Score, Double
-   Chance, Draw No Bet** for the nearest fixtures of the configured leagues
-   (Pinnacle-confirmed; 1 credit per market per event — see
-   `ODDS_API_EVENT_MARKET_LIMIT`). Double Chance / Draw No Bet are ALSO derived
-   locally from every 3-way 1X2 at zero quota; bookmaker prices overwrite
-   derived ones where available.
+   Chance, Draw No Bet, alternate totals/spreads, half-time lines** for the
+   nearest fixtures of the configured leagues (Pinnacle-confirmed; 1 credit
+   per served market per event — see `ODDS_API_EVENT_MARKET_LIMIT`; the full
+   market set is configurable via `ODDS_API_MARKETS`, default includes
+   `alternate_spreads,alternate_totals,h2h_h1,totals_h1,spreads_h1,
+   h2h_h2,totals_h2,spreads_h2` — verified against the live API; the
+   `h2h_1st_half`-style names 422 and are dropped gracefully).
+3. **Derived-markets engine** (zero provider cost, zero manual input): every
+   priced 3-way 1X2 automatically generates a **63-outcome board** — Double
+   Chance, Draw No Bet, BTTS, Alternate Totals (O/U 0.5–5.5), Alternate
+   Spreads (AH −2.5…+2.5), Home/Away Team Totals (O/U 0.5–3.5), 1st/2nd-half
+   match results + totals, and Goal Parity (Odd/Even) — via a Poisson/Skellam
+   model fitted to the 1X2 odds (λ estimated by coordinate descent). Derived
+   odds inherit the source market's margin. **Ownership:** derived markets are
+   flagged `isDerived` and refreshed every sync; when the feed later prices the
+   same key the API takes over and the engine backs off. Admin-created and
+   settled markets are never touched. Kill-switch: `ENABLE_DERIVED_MARKETS=false`.
 
-Configure via `ODDS_API_MARKETS` (add `h2h_h1, totals_h1, h2h_h2, totals_h2`
-half-time lines when bookmaker coverage exists). Unsupported markets are dropped
+Unsupported markets are dropped
 gracefully, never breaking a league. **Live odds** for in-play games are
 refreshed on `/live` (`ODDS_API_LIVE_MARKETS`, default `h2h`). Live minutes are
 **estimated** from kickoff — The Odds API has no match clock; the `completed`

@@ -18,7 +18,7 @@ import { Prisma } from "@prisma/client";
 import { TheOddsApi, OddsProvider, ApiGame, ODDS_MARKETS, LIST_MARKETS } from "@/lib/providers/odds-api";
 import { teamLogo } from "@/lib/team-logos";
 import { setSetting } from "@/lib/settings";
-import { deriveDoubleChance, deriveDrawNoBet } from "@/lib/derived-markets";
+import { deriveMarketsFrom1x2, DERIVED_MARKET_KEYS } from "@/lib/derived-markets";
 import { LEAGUE_TITLES, FEED_MAX_LEAGUES } from "@/lib/feed";
 
 export const PROVIDERS: Record<string, () => OddsProvider> = {
@@ -426,7 +426,9 @@ async function buildPayload(
       sportId,
       // The Odds API odds payload has no per-game league name — stamp it from
       // the sport-key map so the homepage can rank by competition.
-      competitionName: game.competitionName ?? titles.get(game.sportKey) ?? LEAGUE_TITLES[game.sportKey] ?? null,
+      // Curated display names win ("England - Premier League"); the live API
+      // title ("EPL") only fills keys the static map doesn't cover yet.
+      competitionName: game.competitionName ?? LEAGUE_TITLES[game.sportKey] ?? titles.get(game.sportKey) ?? null,
       homeName: game.homeName,
       awayName: game.awayName,
       // Logo from the curated dictionary when known; otherwise keep whatever
@@ -451,7 +453,8 @@ type MarketWithOutcomes = {
   key: string;
   status: string;
   isManual: boolean;
-  outcomes: { id: string; name: string; settled: boolean; status: string; odds: unknown; isManual: boolean }[];
+  isDerived: boolean;
+  outcomes: { id: string; name: string; label: string | null; settled: boolean; status: string; odds: unknown; isManual: boolean }[];
 };
 
 /**
@@ -476,6 +479,12 @@ async function upsertMarkets(gameId: string, game: ApiGame, prefetched: MarketWi
       // Admin-created (isManual) markets are sacred too: the feed never
       // overwrites their prices, adds outcomes or suspends legs.
       if (existing.isManual) continue;
+      // API ownership: when the feed prices a key the derived engine created
+      // (e.g. Pinnacle serves double_chance), the API takes over — mark it
+      // non-derived so the engine never overwrites these prices again.
+      if (existing.isDerived) {
+        ops.push(prisma.market.update({ where: { id: existing.id }, data: { isDerived: false } }));
+      }
 
       const feedNames = new Set(m.outcomes.map((o) => o.name));
       const existingByName = new Map(existing.outcomes.map((o) => [o.name, o]));
@@ -521,7 +530,7 @@ async function upsertMarkets(gameId: string, game: ApiGame, prefetched: MarketWi
           outcomes: { create: m.outcomes.map((o, j) => ({ name: o.name, label: o.label ?? null, odds: o.odds.toFixed(2), sortOrder: j })) },
         },
       });
-      byKey.set(m.key, { id: created.id, gameId, key: m.key, status: "OPEN", isManual: false, outcomes: [] });
+      byKey.set(m.key, { id: created.id, gameId, key: m.key, status: "OPEN", isManual: false, isDerived: false, outcomes: [] });
     }
 
     // Derive extra bettable markets from any full-time 3-way h2h (Double Chance, Draw No Bet)
@@ -533,8 +542,13 @@ async function upsertMarkets(gameId: string, game: ApiGame, prefetched: MarketWi
   if (ops.length) await prisma.$transaction(ops);
 }
 
-/** Upsert a derived market (DOUBLE_CHANCE / DRAW_NO_BET) from an h2h market.
- *  Outcome writes are pushed into the game's shared `ops` batch. */async function upsertDerived(
+/** Derived-engine hook: build the 50+ line market board from a 3-way h2h
+ *  market and upsert every derived market (isDerived=true). Ownership:
+ *  - markets the API already prices (isDerived=false, not manual) → skip;
+ *  - markets the engine owns (isDerived=true) → refresh odds;
+ *  - absent markets → create flagged isDerived=true.
+ *  Outcome writes are pushed into the game's shared `ops` batch. */
+async function upsertDerived(
   gameId: string,
   source: { key: string; name: string; outcomes: { name: string; label?: string | null; odds: number }[] },
   homeName: string,
@@ -542,16 +556,17 @@ async function upsertMarkets(gameId: string, game: ApiGame, prefetched: MarketWi
   byKey: Map<string, MarketWithOutcomes>,
   ops: Prisma.PrismaPromise<unknown>[],
 ) {
-  const derived: { key: string; name: string; outcomes: { name: string; odds: string }[] | null }[] = [
-    { key: "DOUBLE_CHANCE", name: "Double Chance", outcomes: deriveDoubleChance(source.outcomes, homeName, awayName) },
-    { key: "DRAW_NO_BET", name: "Draw No Bet", outcomes: deriveDrawNoBet(source.outcomes, homeName, awayName) },
-  ];
-  for (const d of derived) {
-    if (!d.outcomes) continue; // not a 3-way market (e.g. NBA moneyline)
+  const result = deriveMarketsFrom1x2(source.outcomes, homeName, awayName);
+  if (!result) return; // not a 3-way h2h (e.g. NBA moneyline) or engine off
+  for (const d of result.markets) {
     const existing = byKey.get(d.key);
     if (existing) {
       if (existing.status === "SETTLED") continue; // never touch settled markets
       if (existing.isManual) continue; // admin-owned — derived engine stays away
+      // API-owned market (feed priced this key) — the engine never
+      // overwrites it. Legacy pre-flag derived markets (isDerived=false but
+      // key in DERIVED_MARKET_KEYS, never touched by the API) are claimed.
+      if (!existing.isDerived && !(DERIVED_MARKET_KEYS as readonly string[]).includes(existing.key)) continue;
       const feedNames = new Set(d.outcomes.map((o) => o.name));
       const existingByName = new Map(existing.outcomes.map((o) => [o.name, o]));
       for (const o of d.outcomes) {
@@ -563,7 +578,7 @@ async function upsertMarkets(gameId: string, game: ApiGame, prefetched: MarketWi
             ops.push(prisma.outcome.update({ where: { id: outcome.id }, data: { odds: o.odds, status: "ACTIVE" } }));
           }
         } else {
-          ops.push(prisma.outcome.create({ data: { marketId: existing.id, name: o.name, odds: o.odds } }));
+          ops.push(prisma.outcome.create({ data: { marketId: existing.id, name: o.name, label: o.label ?? null, odds: o.odds } }));
         }
       }
       for (const o of existing.outcomes) {
@@ -571,19 +586,24 @@ async function upsertMarkets(gameId: string, game: ApiGame, prefetched: MarketWi
           ops.push(prisma.outcome.update({ where: { id: o.id }, data: { status: "SUSPENDED" } }));
         }
       }
+      if (!existing.isDerived) {
+        // claim the legacy derived market (pre-flag installs)
+        ops.push(prisma.market.update({ where: { id: existing.id }, data: { isDerived: true } }));
+      }
     } else {
       const created = await prisma.market.create({
         data: {
           gameId,
           name: d.name,
           key: d.key,
-          sortOrder: 10,
-          outcomes: { create: d.outcomes.map((o, j) => ({ name: o.name, odds: o.odds, sortOrder: j })) },
+          sortOrder: d.sortOrder,
+          isDerived: true,
+          outcomes: { create: d.outcomes.map((o, j) => ({ name: o.name, label: o.label ?? null, odds: o.odds, sortOrder: j })) },
         },
       });
       // Keep the in-memory index honest so a second source market in the same
       // run sees the derived market instead of creating a duplicate.
-      byKey.set(d.key, { id: created.id, gameId, key: d.key, status: "OPEN", isManual: false, outcomes: [] });
+      byKey.set(d.key, { id: created.id, gameId, key: d.key, status: "OPEN", isManual: false, isDerived: true, outcomes: [] });
     }
   }
 }
