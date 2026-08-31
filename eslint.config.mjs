@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // cPanel Passenger bootstrap — intentional CommonJS
+    "start.js",
   ]),
 ]);
 

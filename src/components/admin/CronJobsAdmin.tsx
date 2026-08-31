@@ -241,7 +241,7 @@ export default function CronJobsAdmin({ baseUrl, secret, initialSchedules }: Pro
           <div className="mt-2">
             <CodeBlock value={`curl -s "${jobUrl("settle")}"`} label="Test settle endpoint" />
             <p className="mt-1 text-[11px] text-ink3">
-              Expect <code>{"{ok:true,…}"}</code> — a 401 means the secret doesn't match; 503 CRON_NOT_CONFIGURED means no
+              Expect <code>{"{ok:true,…}"}</code> — a 401 means the secret does not match; 503 CRON_NOT_CONFIGURED means no
               secret is configured. {recommended && <span className="text-ink2">After deploy, run <code>sync</code> once manually (≈44 credits) and check Admin → Games.</span>}
             </p>
           </div>
