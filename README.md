@@ -205,6 +205,7 @@ no match clock; `completed` flag and scores are authoritative.
 | `SEED_ADMIN_PASSWORD` | — | Super-admin password for the seed — **no production fallback**; skip admin if unset |
 | `SEED_DEMO_USERS` | — | `true` to seed demo users in production (default: skipped) |
 | `ENABLE_MPESA_PAYMENTS` | — | `false` hides the M-Pesa tab on Deposit & Withdraw (users fall back to crypto); `ENABLE_MPESA_WITHDRAWALS` gates payouts |
+| `PALPLUS_API_KEY` | — | Palpluss key (`pk_live_…`) — HTTP Basic auth, no token endpoint; enter in Admin → Settings (masked on read) |
 
 Full list: [`.env.production.example`](.env.production.example)
 

@@ -103,7 +103,11 @@ export const PATCH = handle(async (req: NextRequest, ctx: { params: Promise<{ id
   // ── REJECT / CANCEL — manual rejection path with exactly-once refund ────
   if (newStatus === "REJECTED" || newStatus === "CANCELLED") {
     // MPESA payouts already fired are finalized by the callback, not here.
-    if (isMpesa && withdrawal.status === "PROCESSING" && metadata.conversationId) {
+    if (
+      isMpesa &&
+      withdrawal.status === "PROCESSING" &&
+      (metadata.conversationId || metadata.transactionId)
+    ) {
       throw new ApiError(
         409,
         "An M-Pesa payout is already in flight — wait for the callback to complete or fail it.",
@@ -151,9 +155,9 @@ export const PATCH = handle(async (req: NextRequest, ctx: { params: Promise<{ id
 
     try {
       const base = publicBaseUrl(settings);
-      // Explicit admin click → fire the B2C payout. Palplus when configured
-      // (PALPLUS_API_KEY + PALPLUS_MERCHANT_ID), legacy Daraja otherwise.
-      const usePalplus = Boolean(settings.palplusApiKey && settings.palplusMerchantId);
+      // Explicit admin click → fire the B2C payout. Palpluss when configured
+      // (PALPLUS_API_KEY), legacy Daraja otherwise.
+      const usePalplus = Boolean(settings.palplusApiKey);
       const callbackUrl = usePalplus
         ? `${base}/api/webhooks/palplus`
         : `${base}/api/webhooks/mpesa/b2c?secret=${settings.mpesaCallbackSecret}`;
@@ -168,8 +172,8 @@ export const PATCH = handle(async (req: NextRequest, ctx: { params: Promise<{ id
             amount: kesAmount,
             phone: withdrawal.destination,
             reference: ref,
+            description: `VoltBet payout ${ref}`,
             callbackUrl,
-            transactionDesc: `VoltBet payout ${ref}`,
           })
         : await mpesaB2c({
             amount: kesAmount,
@@ -181,7 +185,7 @@ export const PATCH = handle(async (req: NextRequest, ctx: { params: Promise<{ id
       // Persist the provider reference immediately — the callback matches on it.
       const palplusResult = payout as Awaited<ReturnType<typeof palplusB2c>>;
       const darajaResult = payout as Awaited<ReturnType<typeof mpesaB2c>>;
-      const providerRef = usePalplus ? palplusResult.conversationId : darajaResult.ConversationID;
+      const providerRef = usePalplus ? palplusResult.transactionId : darajaResult.ConversationID;
       await prisma.withdrawal.update({
         where: { id },
         data: {
@@ -189,10 +193,9 @@ export const PATCH = handle(async (req: NextRequest, ctx: { params: Promise<{ id
           metadata: JSON.stringify({
             ...metadata,
             provider: usePalplus ? "PALPLUS" : "MPESA",
-            conversationId: providerRef,
             ...(usePalplus
-              ? { palplus: palplusResult }
-              : { originatorConversationId: darajaResult.OriginatorConversationID }),
+              ? { transactionId: providerRef, palplus: palplusResult }
+              : { conversationId: providerRef, originatorConversationId: darajaResult.OriginatorConversationID }),
             ...(withdrawal.currencyCode !== "KES" ? { kesAmount, walletAmount: amount } : {}),
           }),
         },
@@ -200,7 +203,11 @@ export const PATCH = handle(async (req: NextRequest, ctx: { params: Promise<{ id
       await auditLog({
         admin, action: "PAYOUT_INITIATED", entity: "WITHDRAWAL", entityId: id, userId: withdrawal.userId,
         prevValue: { status: withdrawal.status, reserved: true },
-        newValue: { status: "PROCESSING", provider: usePalplus ? "PALPLUS" : "MPESA", conversationId: providerRef },
+        newValue: {
+          status: "PROCESSING",
+          provider: usePalplus ? "PALPLUS" : "MPESA",
+          ...(usePalplus ? { transactionId: providerRef } : { conversationId: providerRef }),
+        },
       });
       return ok({
         withdrawal: {

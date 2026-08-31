@@ -17,6 +17,8 @@ const SECRET_SETTINGS = new Set([
   "mpesa.passkey",
   "mpesa.securityCredential",
   "mpesa.callbackSecret",
+  "palplus.apiKey",
+  "palplus.webhookSecret",
   "telegram.botToken",
   "telegram.webhookSecret",
 ]);

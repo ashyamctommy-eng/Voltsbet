@@ -199,7 +199,7 @@ export const POST = handle(async (req: NextRequest) => {
       );
     }
 
-    const usePalplus = Boolean(settings.palplusApiKey && settings.palplusMerchantId);
+    const usePalplus = Boolean(settings.palplusApiKey);
     const deposit = await prisma.deposit.create({
       data: {
         userId: user.id,
@@ -209,7 +209,7 @@ export const POST = handle(async (req: NextRequest) => {
         currencyCode: wallet.currencyCode,
         status: "AWAITING_PAYMENT",
         metadata: JSON.stringify({
-          checkoutRequestId: "",
+          transactionId: "",
           phone: normalizeMpesaPhone(phone),
           ...(wallet.currencyCode !== "KES" ? { kesAmount, walletAmount: amount } : {}),
         }),
@@ -232,14 +232,22 @@ export const POST = handle(async (req: NextRequest) => {
             callbackUrl: `${base}/api/webhooks/mpesa/stk?secret=${settings.mpesaCallbackSecret}`,
           });
       const checkoutRequestId =
-        "checkoutRequestId" in push ? push.checkoutRequestId : push.CheckoutRequestID;
-      const merchantRequestId = "merchantRequestId" in push ? push.merchantRequestId : "";
+        "transactionId" in push
+          ? push.transactionId
+          : "checkoutRequestId" in push
+            ? push.checkoutRequestId
+            : push.CheckoutRequestID;
+      const providerCheckoutId =
+        "providerCheckoutId" in push ? push.providerCheckoutId : ("CheckoutRequestID" in push ? push.CheckoutRequestID : null);
+      const providerRequestId =
+        "providerRequestId" in push ? push.providerRequestId : ("MerchantRequestID" in push ? push.MerchantRequestID : null);
       await prisma.deposit.update({
         where: { id: deposit.id },
         data: {
           metadata: JSON.stringify({
-            checkoutRequestId,
-            ...(merchantRequestId ? { merchantRequestId } : {}),
+            transactionId: checkoutRequestId,
+            ...(providerCheckoutId ? { providerCheckoutId } : {}),
+            ...(providerRequestId ? { providerRequestId } : {}),
             phone: normalizeMpesaPhone(phone),
             provider: usePalplus ? "PALPLUS" : "MPESA",
             ...(wallet.currencyCode !== "KES" ? { kesAmount, walletAmount: amount } : {}),

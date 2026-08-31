@@ -124,10 +124,10 @@ const GROUPS: { title: string; anchor: string; icon: React.ReactNode; fields: Fi
       { key: "mpesa.enabled", label: "M-Pesa payments enabled", type: "toggle", hint: "Show the M-Pesa tab on Deposit & Withdraw (env ENABLE_MPESA_PAYMENTS overrides)" },
       { key: "payments.mpesaWithdrawalsEnabled", label: "M-Pesa withdrawals enabled", type: "toggle", hint: "Offer M-Pesa as a payout method (env ENABLE_MPESA_WITHDRAWALS overrides)" },
       { key: "palplus.apiKey", label: "PALPLUS_API_KEY", type: "password", hint: "Gateway API key from the Palplus merchant dashboard" },
-      { key: "palplus.merchantId", label: "PALPLUS_MERCHANT_ID", type: "text", hint: "Your Palplus merchant ID" },
-      { key: "palplus.webhookSecret", label: "PALPLUS_WEBHOOK_SECRET", type: "password", hint: "Validates Palplus callbacks (HMAC-SHA256)" },
-      { key: "palplus.env", label: "PALPLUS_ENV", type: "select", options: ["sandbox", "production"] },
-      { key: "palplus.webhookUrl", label: "Palplus webhook URL", type: "copy", hint: "Set this as the CallBackURL in your Palplus STK/B2C requests" },
+      { key: "palplus.channelId", label: "PALPLUS_CHANNEL_ID (optional)", type: "text", hint: "Payment-channel UUID from the Palpluss console — only needed if your account has no default channel" },
+      { key: "palplus.webhookSecret", label: "PALPLUS_WEBHOOK_SECRET", type: "password", hint: "Appended to callback URLs as ?secret= — callbacks without it are rejected" },
+      { key: "palplus.env", label: "PALPLUS_ENV", type: "select", options: ["sandbox", "production"], hint: "Use sandbox until your key starts with pk_live_" },
+      { key: "palplus.webhookUrl", label: "Palpluss webhook URL", type: "copy", hint: "Callbacks are POSTed here; the ?secret= suffix is appended automatically by the app" },
     ],
   },
   {
@@ -184,6 +184,25 @@ export default function AdminSettings() {
     setLoading(false);
     if (!res.ok) return push("error", res.error.message);
     push("success", "Settings saved — the whole site updates instantly");
+  }
+
+  const [testing, setTesting] = useState(false);
+  const [palplusTest, setPalplusTest] = useState<string | null>(null);
+
+  // Read-only connectivity check against the PalPluss API (service-wallet
+  // balance) using the unsaved key from the form — no payment is initiated.
+  async function testPalplus() {
+    setTesting(true);
+    setPalplusTest(null);
+    const res = await apiFetch<{ balance: { availableBalance: number; currency: string } }>(
+      "/api/admin/payments/palplus-test",
+      { method: "POST", body: { apiKey: settings["palplus.apiKey"], env: settings["palplus.env"] } },
+    );
+    setTesting(false);
+    if (!res.ok) return setPalplusTest(`❌ ${res.error?.message ?? "Connection failed"}`);
+    setPalplusTest(
+      `✅ Connected — service wallet ${res.data.balance.availableBalance.toLocaleString()} ${res.data.balance.currency}`,
+    );
   }
 
   return (
@@ -288,6 +307,14 @@ export default function AdminSettings() {
               );
             })}
           </div>
+          {g.title.includes("Palplus") && (
+            <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-line pt-4">
+              <button type="button" className="btn btn-ghost btn-sm" disabled={testing} onClick={testPalplus}>
+                {testing ? "Testing…" : "⟳ Test Palpluss connection"}
+              </button>
+              {palplusTest && <span className="text-xs font-medium text-ink2">{palplusTest}</span>}
+            </div>
+          )}
         </div>
       ))}
 

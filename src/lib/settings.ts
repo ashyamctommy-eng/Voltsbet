@@ -53,7 +53,7 @@ export type SiteSettings = {
   mpesaCallbackSecret: string; // random string protecting webhook URLs (legacy Daraja)
   // M-Pesa via Palplus gateway (replaces Daraja for new installs)
   palplusApiKey: string;
-  palplusMerchantId: string;
+  palplusChannelId: string; // optional — only needed when the account has no default channel
   palplusWebhookSecret: string; // validates Palplus callback signatures
   palplusEnv: string; // sandbox | production
   appUrl: string; // public base URL for callback URLs
@@ -128,7 +128,7 @@ const DEFAULTS: SiteSettings = {
   mpesaSecurityCredential: "",
   mpesaCallbackSecret: "",
   palplusApiKey: "",
-  palplusMerchantId: "",
+  palplusChannelId: "",
   palplusWebhookSecret: "",
   palplusEnv: "sandbox",
   appUrl: "",
@@ -219,7 +219,8 @@ export async function getSettings(): Promise<SiteSettings> {
   s.mpesaSecurityCredential = raw["mpesa.securityCredential"] ?? s.mpesaSecurityCredential;
   s.mpesaCallbackSecret = raw["mpesa.callbackSecret"] ?? s.mpesaCallbackSecret;
   s.palplusApiKey = raw["palplus.apiKey"] ?? s.palplusApiKey;
-  s.palplusMerchantId = raw["palplus.merchantId"] ?? s.palplusMerchantId;
+  // channelId replaced the old merchantId field; fall back to the legacy key if set.
+  s.palplusChannelId = raw["palplus.channelId"] ?? raw["palplus.merchantId"] ?? s.palplusChannelId;
   s.palplusWebhookSecret = raw["palplus.webhookSecret"] ?? s.palplusWebhookSecret;
   s.palplusEnv = raw["palplus.env"] ?? s.palplusEnv;
   s.appUrl = raw["app.url"] ?? s.appUrl;
