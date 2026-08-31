@@ -191,6 +191,7 @@ export default function MatchFeed({
   sportKey = "football",
   autoFetch = true,
   sports,
+  sportHeader,
 }: {
   games: FeedGame[];
   sportKey?: string;
@@ -198,6 +199,10 @@ export default function MatchFeed({
   /** Sport pills (slug + name + icon). When provided the feed defaults to
    *  FOOTBALL and a pill row lets users switch to other sports. */
   sports?: { slug: string; name: string; icon: string | null }[];
+  /** When provided (sport pages), renders the sport header ABOVE the filter
+   *  bar with counts computed from the SAME array the feed filters — the
+   *  header number and the rendered card list can never drift apart. */
+  sportHeader?: { name: string; icon: string | null };
 }) {
   // Client-side schedule (auto-fetched + cached when no server data).
   const [clientGames, setClientGames] = useState<FeedGame[] | null>(null);
@@ -278,6 +283,9 @@ export default function MatchFeed({
   const [sortMode, setSortMode] = useState<SortMode>("top");
   const [marketFilter, setMarketFilter] = useState<MarketFilter>("1x2");
   const [page, setPage] = useState<number>(1);
+  /** True once the auto-fallback advanced the date pill (Today → earliest
+   *  day with fixtures). Cleared on any manual date choice. */
+  const [fellBack, setFellBack] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const activeDate = dateOptions.find((o) => o.value === dateValue) ?? dateOptions[0];
   /** Day labels come from buildDateOptions() as hardcoded "Today"/"Tomorrow"
@@ -310,6 +318,7 @@ export default function MatchFeed({
       setLeague(p.get("league") ?? "");
       const pg = Number(p.get("page"));
       if (Number.isFinite(pg) && pg >= 1) setPage(Math.floor(pg));
+      setFellBack(false);
       urlHydrated.current = true;
     }, 0);
     return () => clearTimeout(t);
@@ -342,6 +351,7 @@ export default function MatchFeed({
       setLeague(p.get("league") ?? "");
       const pg = Number(p.get("page"));
       if (Number.isFinite(pg) && pg >= 1) setPage(Math.floor(pg));
+      setFellBack(false);
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
@@ -391,6 +401,66 @@ export default function MatchFeed({
     });
   }, [scoped, dateValue, league, sortMode]);
 
+  const todayOption = dateOptions[0];
+  const isToday = dateValue === todayOption.value;
+
+  /** Live in-play count for the header — the feed strips live games (they
+   *  belong on /live), so this is reported separately and never counted in
+   *  the card list. */
+  const liveCount = useMemo(
+    () => scoped.filter((g) => isLiveStatus(g.status, g.live)).length,
+    [scoped],
+  );
+
+  /** Fallback pool: same live-strip + league filter as `filtered`, but no
+   *  day window — every future fixture of this sport/league counts. */
+  const fallbackScope = useMemo(
+    () =>
+      scoped.filter(
+        (g) => !isLiveStatus(g.status, g.live) && (!league || g.competitionName === league),
+      ),
+    [scoped, league],
+  );
+  /** Fixtures on LATER calendar days (strictly after the selected day's
+   *  window) — the pool the auto-fallback advances into. No clock read:
+   *  if today's window renders 0 cards, only later windows can fill it. */
+  const futureGames = useMemo(() => {
+    const { to } = dayWindow(dateValue);
+    return fallbackScope.filter((g) => new Date(g.startAt).getTime() >= to);
+  }, [fallbackScope, dateValue]);
+  const upcomingTotal = futureGames.length;
+
+  /** Earliest date option whose window contains ≥1 fallback-scope fixture —
+   *  the auto-advance target when "Today" renders nothing. */
+  const nextDateWithMatches = useMemo(() => {
+    for (const o of dateOptions) {
+      const { from, to } = dayWindow(o.value);
+      if (futureGames.some((g) => {
+        const t = new Date(g.startAt).getTime();
+        return t >= from && t < to;
+      })) return o.value;
+    }
+    return null;
+  }, [dateOptions, futureGames]);
+
+  /** Auto-fallback: "Today" selected, 0 cards, but future fixtures exist →
+   *  advance the date pill to the earliest day with matches and flip the
+   *  sort to "Upcoming". Same adjust-during-render pattern as the
+   *  view→sort sync above (lint forbids setState inside effects). */
+  if (
+    !fellBack &&
+    isToday &&
+    filtered.length === 0 &&
+    upcomingTotal > 0 &&
+    nextDateWithMatches &&
+    nextDateWithMatches !== todayOption.value
+  ) {
+    setFellBack(true);
+    setDateValue(nextDateWithMatches);
+    setSortMode("soonest");
+    setPage(1);
+  }
+
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const currentPage = Math.min(page, totalPages);
   const pageItems = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
@@ -411,6 +481,7 @@ export default function MatchFeed({
   const selectDate = (v: string) => {
     setDateValue(v);
     setPage(1);
+    setFellBack(false); // manual choice wins over the auto-fallback
   };
   const selectLeague = (v: string) => {
     setLeague(v);
@@ -427,6 +498,32 @@ export default function MatchFeed({
 
   return (
     <section className="mt-4">
+      {/* Sport header (sport pages only): icon + name + a count label derived
+          from the SAME filtered array the cards render below — plus a live
+          count reported separately (live games live on /live). When the
+          feed auto-falls-back to upcoming, the label flips to match. */}
+      {sportHeader && (
+        <div className="mb-4 flex items-center gap-3">
+          <span className="text-3xl">{sportHeader.icon}</span>
+          <div className="min-w-0">
+            <h1 className="text-2xl font-extrabold">{sportHeader.name}</h1>
+            <p className="text-sm text-ink3">
+              {fellBack
+                ? t("common.upcomingMatches", { count: filtered.length })
+                : isToday
+                  ? [
+                      liveCount > 0 ? `${liveCount} ${t("common.live")}` : null,
+                      `${filtered.length} ${t("common.today")}`,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")
+                  : t("common.matchesCount", { count: filtered.length })}
+            </p>
+            {fellBack && <p className="mt-0.5 text-xs text-ink3/80">{t("common.showingNextMatches")}</p>}
+          </div>
+        </div>
+      )}
+
       {/* Control bar: Filters | Today | Highlights | 1x2 (sport scope comes
           from the header category strip — no duplicate pills here). */}
       <div className="no-scrollbar -mx-4 flex items-center gap-1 overflow-x-auto px-4 sm:mx-0 sm:px-0">

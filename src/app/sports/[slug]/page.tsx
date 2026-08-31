@@ -12,26 +12,33 @@ export default async function SportPage({ params }: { params: Promise<{ slug: st
   if (!sport || !sport.active) notFound();
 
   const s = await getSettings();
+  // "Today" = the FULL local calendar day [00:00, next 00:00). The old
+  // `lte: new Date()` cutoff silently dropped tonight's still-upcoming
+  // kickoffs, so the header claimed "N upcoming" while the feed's Today
+  // window rendered nothing.
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date(todayStart.getFullYear(), todayStart.getMonth(), todayStart.getDate() + 1);
   const hideSeeded = s.hideSeededGames ? { source: "API" } : {};
 
-  const [sports, liveToday, upcoming] = await Promise.all([
+  const [sports, todayGames, upcoming] = await Promise.all([
     prisma.sport.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
-    // Live / kicked-off-today matches first — the "now" surface.
+    // Today's surface: in-play statuses OR any fixture kicking off within
+    // the local calendar day (morning to late-evening — never stripped by
+    // strict UTC equality).
     prisma.game.findMany({
       where: {
         sportId: sport.id,
         OR: [
           { status: { in: ["LIVE", "HALF_TIME", "IN_PLAY"] } },
-          { startAt: { gte: todayStart, lte: new Date() } },
+          { startAt: { gte: todayStart, lt: todayEnd } },
         ],
         ...hideSeeded,
       },
       include: { sport: true, markets: { include: { outcomes: true }, orderBy: { sortOrder: "asc" } } },
       orderBy: [{ status: "asc" }, { startAt: "asc" }],
     }),
-    // Upcoming fixtures — the fallback when nothing is live/today.
+    // Upcoming fixtures — the fallback pool when Today is empty.
     prisma.game.findMany({
       where: {
         sportId: sport.id,
@@ -44,10 +51,14 @@ export default async function SportPage({ params }: { params: Promise<{ slug: st
     }),
   ]);
 
-  // UX guard: a sport tab with no live/today matches falls back to upcoming
-  // fixtures instead of an empty state.
-  const games = liveToday.length > 0 ? liveToday : upcoming;
-  const mode: "live" | "upcoming" = liveToday.length > 0 ? "live" : "upcoming";
+  // Merge + dedupe (today's surface first, future fixtures after). The feed
+  // owns the day/league filters and the header counts, so it receives the
+  // full window — its auto-fallback advances the date pill when Today has
+  // no pre-match games, and the header label is derived from the exact
+  // array it renders.
+  const byId = new Map<string, MatchFeedGame>();
+  for (const g of [...todayGames, ...upcoming]) byId.set(g.id, g as MatchFeedGame);
+  const games = [...byId.values()];
 
   return (
     <div className="mx-auto max-w-[1600px] px-4">
@@ -78,19 +89,12 @@ export default async function SportPage({ params }: { params: Promise<{ slug: st
             sport via the route. Live matches stay on /live; finished on
             /results. */}
         <div className="min-w-0 flex-1 pb-8">
-          <div className="flex items-center gap-3">
-            <span className="text-3xl">{sport.icon}</span>
-            <div>
-              <h1 className="text-2xl font-extrabold">{sport.name}</h1>
-              <p className="text-sm text-ink3">
-                {mode === "live"
-                  ? `${games.length} live / today${liveToday.length === 0 ? "" : ""}`
-                  : `${games.length} upcoming matches`}
-              </p>
-            </div>
-          </div>
-
-          <MatchFeed games={games as MatchFeedGame[]} sportKey={slug} sports={sports} />
+          <MatchFeed
+            games={games}
+            sportKey={slug}
+            sports={sports}
+            sportHeader={{ name: sport.name, icon: sport.icon }}
+          />
         </div>
       </div>
     </div>
