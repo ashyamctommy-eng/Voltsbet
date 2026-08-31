@@ -5,6 +5,7 @@ import { getSettings } from "@/lib/settings";
 import { npCreatePayout } from "@/lib/providers/nowpayments";
 import { mpesaB2c, publicBaseUrl } from "@/lib/providers/mpesa";
 import { creditWallet } from "@/lib/wallet";
+import { cryptoAmountFor } from "@/lib/currency";
 import { z } from "zod";
 
 const schema = z.object({
@@ -204,11 +205,24 @@ export const PATCH = handle(async (req: NextRequest, ctx: { params: Promise<{ id
     // hasn't attested a manual transfer. Funds stay reserved either way.
     let payoutId: number | null = null;
     if (settings.cryptoPayoutApiKey && !parsed.data.payoutRef) {
+      // Currency-aware payout amount: KES wallets settle in USDT at the
+      // configured KES-per-coin rate; USD/USDT wallets get 1:1; any other
+      // wallet converts through the currency table (cryptoAmountFor).
+      const wc = withdrawal.currencyCode.toUpperCase();
+      const payoutCoin = wc === "KES" || wc === "USD" || wc === "USDT" ? "USDT" : wc;
+      const payoutAmount = await cryptoAmountFor(amount, wc, payoutCoin, settings.cryptoRates);
+      if (payoutAmount == null) {
+        throw new ApiError(
+          502,
+          `Crypto payout not initiated — no exchange rate for ${wc} → ${payoutCoin}. Check Admin → Website Settings → Crypto rates / currencies.`,
+          "PAYOUT_RATE_MISSING"
+        );
+      }
       try {
         const payout = await npCreatePayout({
           address: withdrawal.destination,
-          currency: withdrawal.currencyCode === "KES" ? "USDT" : withdrawal.currencyCode, // wallets hold KES → settle in USDT
-          amount: amount / (settings.cryptoRates["USDT"] ?? 129),
+          currency: payoutCoin,
+          amount: payoutAmount,
         });
         payoutId = payout.withdrawals?.[0]?.id ?? null;
       } catch (e) {

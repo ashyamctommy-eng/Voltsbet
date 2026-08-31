@@ -71,6 +71,11 @@ export const GET = handle(async () => {
       depositMax: settings.cryptoMaxDeposit,
       cryptoCurrencies: settings.cryptoCurrencies,
       cryptoRates: settings.cryptoRates,
+      // KES per 1 unit of each active currency — lets the client compute
+      // crypto estimates for non-KES wallets (mirrors cryptoAmountFor()).
+      currencyRates: Object.fromEntries(
+        Object.entries(await currencyMap()).map(([code, c]) => [code, c.rate])
+      ),
       depositMethods: [
         "CRYPTO",
         ...(settings.mpesaEnabled ? ["MPESA" as const] : []),

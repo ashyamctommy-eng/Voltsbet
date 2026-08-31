@@ -11,6 +11,8 @@ type AccountData = {
   limits: {
     depositMin: number; depositMax: number;
     cryptoCurrencies: string[]; cryptoRates: Record<string, number>;
+    /** KES per 1 unit of each active fiat currency (for non-KES wallets). */
+    currencyRates: Record<string, number>;
     depositMethods: string[];
   };
   recentDeposits: {
@@ -72,10 +74,21 @@ export default function DepositPage() {
   const rate = limits?.cryptoRates?.[crypto];
   const amountNum = parseFloat(amount) || 0;
 
+  // Currency-aware estimate: cryptoRates are KES per 1 coin, so they only
+  // apply directly to KES wallets. USD-pegged wallets get 1:1 for
+  // USDT/USDC; other wallets convert through their KES rate. Mirrors the
+  // server-side cryptoAmountFor() helper.
   const cryptoAmount = useMemo(() => {
     if (!amountNum || !rate || rate <= 0) return null;
-    return amountNum / rate;
-  }, [amountNum, rate]);
+    const walletCur = (account?.user.currencyCode ?? "KES").toUpperCase();
+    const coin = crypto.toUpperCase();
+    const usdPegged = (c: string) => c === "USD" || c === "USDT" || c === "USDC";
+    if (usdPegged(walletCur) && usdPegged(coin)) return amountNum; // $1 = 1 USDT
+    if (walletCur === "KES") return amountNum / rate;
+    const kesPerWallet = limits?.currencyRates?.[walletCur];
+    if (!kesPerWallet || kesPerWallet <= 0) return null;
+    return amountNum / (rate / kesPerWallet);
+  }, [amountNum, rate, crypto, account?.user.currencyCode, limits?.currencyRates]);
 
   const valid =
     amountNum >= (limits?.depositMin ?? 0) &&

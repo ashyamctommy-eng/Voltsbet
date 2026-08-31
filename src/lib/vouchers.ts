@@ -3,7 +3,8 @@ import { prisma } from "./prisma";
 import { ApiError } from "./api";
 import { getSettings } from "./settings";
 import { isUserActionAllowed } from "./statuses";
-import { creditWallet } from "./wallet";
+import { creditWallet, toCents } from "./wallet";
+import { currencyMap, convert } from "./currency";
 import type { User } from "@prisma/client";
 
 /**
@@ -54,10 +55,12 @@ function randomGroup(): string {
   return out;
 }
 
-/** Full code: PREFIX-XXXX-XXXX-XXXX (~56 bits of entropy). */
+/** Full code: PREFIX-XXXX-XXXX-XXXX (~56 bits of entropy). The prefix is
+ *  normalized (uppercase alphanumeric) so displayed and hashed forms are
+ *  always consistent. */
 export function generateVoucherCode(prefix: string): string {
   const groups = Array.from({ length: CODE_GROUPS }, randomGroup);
-  return `${prefix}-${groups.join("-")}`;
+  return `${normalizeVoucherCode(prefix) || DEFAULT_PREFIX}-${groups.join("-")}`;
 }
 
 /** Masked display form: PREFIX-****-****-ABCD (last group kept for reference). */
@@ -143,7 +146,10 @@ export async function generateVouchers(input: GenerateVouchersInput): Promise<Ge
     try {
       await prisma.voucher.createMany({
         data: codes.map((code) => ({
-          codeHash: hashVoucherCode(code),
+          // Hash the NORMALIZED code (no separators, uppercase) — redemption
+          // and admin search both hash the normalized form, so a code is
+          // found no matter how the holder types it (dashes/spaces/case).
+          codeHash: hashVoucherCode(normalizeVoucherCode(code)),
           codeLast4: code.slice(-4),
           displayCode: maskVoucherCode(code),
           value: value.toFixed(2),
@@ -217,14 +223,24 @@ export async function redeemVoucher(
     throw new ApiError(400, "The voucher code is invalid. Please check the code and try again.", "INVALID_VOUCHER");
   }
 
-  // Wallet currency gate: a voucher is only valid in the currency the
-  // account's wallet actually holds (no frontend conversion, ever).
+  // Multi-currency redemption: a voucher issued in a different currency is
+  // converted to the wallet's currency at the system exchange rates before
+  // crediting. The voucher is refused ONLY when no usable rate exists
+  // (unknown/inactive currency) — we never guess a conversion.
   const wallet = await prisma.wallet.findUnique({ where: { userId: user.id } });
-  if (wallet && wallet.currencyCode !== voucher.currency) {
-    throw new ApiError(400, "This voucher is not valid for your account's currency.", "CURRENCY_MISMATCH");
+  const walletCurrency = wallet?.currencyCode ?? user.currencyCode;
+  let amount = toCents(Number(voucher.value));
+  let creditCurrency = voucher.currency;
+  if (walletCurrency !== voucher.currency) {
+    const map = await currencyMap();
+    if (!map[voucher.currency] || !map[walletCurrency]) {
+      throw new ApiError(400, "This voucher is not valid for your account's currency.", "CURRENCY_MISMATCH");
+    }
+    amount = toCents(await convert(amount, voucher.currency, walletCurrency));
+    creditCurrency = walletCurrency;
   }
-  // Deposit cap: a voucher must respect the platform's max deposit rule.
-  if (settings.cryptoMaxDeposit > 0 && Number(voucher.value) > settings.cryptoMaxDeposit) {
+  // Deposit cap: check the amount actually credited (post-conversion).
+  if (settings.cryptoMaxDeposit > 0 && amount > settings.cryptoMaxDeposit) {
     throw new ApiError(400, "This voucher exceeds the maximum deposit allowed on your account.", "MAX_DEPOSIT");
   }
 
@@ -260,13 +276,13 @@ export async function redeemVoucher(
       throw new ApiError(409, voucherMessageFor(fresh?.status), "ALREADY_REDEEMED");
     }
 
-    const amount = Number(voucher.value);
     const ref = depositReference();
     const { next } = await creditWallet(tx, user.id, amount, {
       type: "DEPOSIT",
       method: "VOUCHER",
-      reason: "Voucher deposit",
+      reason: `Voucher deposit${creditCurrency !== voucher.currency ? ` (${voucher.currency} → ${creditCurrency})` : ""}`,
       reference: ref,
+      currencyCode: creditCurrency,
     });
 
     const redemption = await tx.voucherRedemption.create({
@@ -274,7 +290,7 @@ export async function redeemVoucher(
         voucherId: voucher.id,
         userId: user.id,
         amount: amount.toFixed(2),
-        currency: voucher.currency,
+        currency: creditCurrency,
         ipAddress: meta.ip ?? null,
         deviceInfo: meta.deviceInfo ?? null,
       },
@@ -285,7 +301,7 @@ export async function redeemVoucher(
         userId: user.id,
         type: "DEPOSIT",
         title: "Voucher Deposit Successful ✅",
-        message: `${amount} ${voucher.currency} has been added to your wallet.\nTransaction: ${ref}\nNew balance: ${next} ${voucher.currency}`,
+        message: `${amount} ${creditCurrency} has been added to your wallet.\nTransaction: ${ref}\nNew balance: ${next} ${creditCurrency}`,
       },
     });
 
@@ -300,7 +316,15 @@ export async function redeemVoucher(
         userId: user.id,
         ip: meta.ip ?? null,
         prevValue: JSON.stringify({ status: "UNUSED", codeLast4: voucher.codeLast4 }),
-        newValue: JSON.stringify({ status: "REDEEMED", amount, currency: voucher.currency, reference: ref }),
+        newValue: JSON.stringify({
+          status: "REDEEMED",
+          amount,
+          currency: creditCurrency,
+          ...(creditCurrency !== voucher.currency
+            ? { originalCurrency: voucher.currency, originalAmount: Number(voucher.value) }
+            : {}),
+          reference: ref,
+        }),
       },
     });
 
@@ -308,8 +332,8 @@ export async function redeemVoucher(
   });
 
   return {
-    amount: Number(voucher.value),
-    currency: voucher.currency,
+    amount,
+    currency: creditCurrency,
     transactionId: result.ref,
     newBalance: result.next,
   };
