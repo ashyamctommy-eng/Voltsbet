@@ -7,6 +7,7 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
+    "check:schemas": "bash scripts/check-schema-sync.sh",
     "postinstall": "prisma generate"
   },
   "dependencies": {

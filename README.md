@@ -108,11 +108,15 @@ pnpm dev                      # http://localhost:3000
 > change `provider` in `prisma/schema.prisma` to `sqlite` and use
 > `DATABASE_URL="file:./dev.db"`.
 
-### Demo accounts (seeded)
+### Demo accounts (seeded — local dev only)
+
+> In production the seed creates **no demo accounts** and the super admin comes
+> from `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` (no known-password fallback;
+> set `SEED_DEMO_USERS=true` to force demo users).
 
 | Role | Login | Password | Notes |
 |---|---|---|---|
-| Super Admin | `admin@voltbet.test` | `Admin123!` | `/admin` — rotate before go-live |
+| Super Admin | `admin@voltbet.test` | `Admin123!` | `/admin` — dev only |
 | Customer | `demo@voltbet.test` | `Demo123!` | Wallet KSh 24,800 |
 | Customer | `pending@voltbet.test` | `Demo123!` | Pending verification |
 | Customer | `suspended@voltbet.test` | `Demo123!` | Fully locked |
@@ -177,6 +181,9 @@ match clock; `completed` flag and scores are authoritative.
 | `ODDS_API_RATE_LIMIT_MS` | — | default `1100` (free tier = 1 req/sec) |
 | `PURGE_MAX_AGE_HOURS` | — | default `2` |
 | `SHOW_SEEDED_GAMES` | — | **Leave unset in production** |
+| `SEED_ADMIN_EMAIL` | — | Super-admin email for the seed (default `admin@voltbet.test`) |
+| `SEED_ADMIN_PASSWORD` | — | Super-admin password for the seed — **no production fallback**; skip admin if unset |
+| `SEED_DEMO_USERS` | — | `true` to seed demo users in production (default: skipped) |
 
 Full list: [`.env.production.example`](.env.production.example)
 
@@ -217,6 +224,8 @@ schedule (set `CRON_SECRET` + `APP_URL` repo secrets).
    ```bash
    npx prisma migrate deploy && npx prisma db seed && next start
    ```
+   The seed needs `SEED_ADMIN_EMAIL` + `SEED_ADMIN_PASSWORD` set (Step 2) to
+   create your admin — demo accounts are skipped in production.
 4. Post-deploy: hit `/api/cron/sync?secret=…` once, verify Admin → Games, enable
    cron jobs.
 
@@ -293,7 +302,7 @@ at install time.
 ## Pre-launch checklist
 
 - [ ] Rotate all API keys shared during development
-- [ ] Change seeded admin password
+- [ ] Set `SEED_ADMIN_PASSWORD` / run `deploy/post-install.mjs` — no seeded admin default reaches production
 - [ ] Remove test routes if still present (`/api/test/*`, test preview pages)
 - [ ] Paid Odds API plan → `ODDS_API_REGIONS=us,eu`, sync 3–4×/day
 - [ ] Wire the 4 cron jobs (Admin → Cronjobs)

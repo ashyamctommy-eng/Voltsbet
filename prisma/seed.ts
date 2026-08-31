@@ -1,7 +1,15 @@
 /**
  * VoltBet seed script — run with: pnpm prisma db seed
- * Creates demo admin + customers, full sports catalogue, games, markets,
+ * Creates admin + demo customers, full sports catalogue, games, markets,
  * status engine, currencies, languages, content and settings.
+ *
+ * Production safety:
+ * - The super admin is created ONLY from SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD
+ *   (default email admin@voltbet.test). In production a missing password
+ *   SKIPS admin creation with a warning — the well-known dev password is
+ *   never a production fallback (use deploy/post-install.mjs instead).
+ * - Demo users, demo betting history and demo notifications are skipped in
+ *   production unless SEED_DEMO_USERS=true.
  */
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
@@ -10,6 +18,13 @@ import { randomBytes } from "crypto";
 import { teamLogo } from "../src/lib/team-logos";
 
 const prisma = new PrismaClient();
+
+// ── Seed configuration ──────────────────────────────────────────────────
+const IS_PROD = process.env.NODE_ENV === "production";
+const SEED_ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL || "admin@voltbet.test";
+const SEED_ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD || null; // null → dev-only fallback
+const SEED_DEMO_USERS = !IS_PROD || process.env.SEED_DEMO_USERS === "true";
+const BCRYPT_ROUNDS = 12; // matches login hardening (post-install.mjs)
 
 const D = (n: number) => new Date(Date.now() + n * 86400_000);
 const H = (n: number) => new Date(Date.now() + n * 3600_000);
@@ -263,56 +278,75 @@ async function main() {
   }
 
   // ── Users + wallets ─────────────────────────────────────────
-  const admin = await prisma.user.upsert({
-    where: { email: "admin@voltbet.test" },
-    update: {},
-    create: {
-      fullName: "VoltBet Admin", username: "admin", email: "admin@voltbet.test",
-      phone: "+254700000001", passwordHash: await bcrypt.hash("Admin123!", 10),
-      role: "SUPER_ADMIN", status: "ACTIVE", verified: true, country: "KE",
-      referralCode: "VOLT-ADMIN",
-    },
-  });
-  const demo = await prisma.user.upsert({
-    where: { email: "demo@voltbet.test" },
-    update: {},
-    create: {
-      fullName: "Demo Player", username: "demo", email: "demo@voltbet.test",
-      phone: "+254700000002", passwordHash: await bcrypt.hash("Demo123!", 10),
-      role: "CUSTOMER", status: "ACTIVE", verified: true, country: "KE",
-      currencyCode: "KES", referralCode: "VOLT-DEMO",
-    },
-  });
-  const pending = await prisma.user.upsert({
-    where: { email: "pending@voltbet.test" },
-    update: {},
-    create: {
-      fullName: "Pending User", username: "pendinguser", email: "pending@voltbet.test",
-      phone: "+254700000003", passwordHash: await bcrypt.hash("Demo123!", 10),
-      role: "CUSTOMER", status: "PENDING_VERIFICATION", verified: false, country: "KE",
-      currencyCode: "KES",
-    },
-  });
-  const suspended = await prisma.user.upsert({
-    where: { email: "suspended@voltbet.test" },
-    update: {},
-    create: {
-      fullName: "Suspended User", username: "suspendeduser", email: "suspended@voltbet.test",
-      phone: "+254700000004", passwordHash: await bcrypt.hash("Demo123!", 10),
-      role: "CUSTOMER", status: "SUSPENDED", verified: true, country: "KE",
-      currencyCode: "KES",
-    },
-  });
+  // Production: create the super admin ONLY from SEED_ADMIN_EMAIL /
+  // SEED_ADMIN_PASSWORD — never fall back to the known dev password
+  // (deploy/post-install.mjs is the supported alternative that also
+  // rotates an existing admin's credentials).
+  const seedAdminPassword = IS_PROD ? SEED_ADMIN_PASSWORD : SEED_ADMIN_PASSWORD || "Admin123!";
+  const admin = seedAdminPassword
+    ? await prisma.user.upsert({
+        where: { email: SEED_ADMIN_EMAIL },
+        update: {},
+        create: {
+          fullName: "VoltBet Admin", username: SEED_ADMIN_EMAIL.split("@")[0],
+          email: SEED_ADMIN_EMAIL, phone: "+254700000001",
+          passwordHash: await bcrypt.hash(seedAdminPassword, BCRYPT_ROUNDS),
+          role: "SUPER_ADMIN", status: "ACTIVE", verified: true, country: "KE",
+          referralCode: "VOLT-ADMIN",
+        },
+      })
+    : null;
+  if (!admin) {
+    console.warn("⚠️  Production: SEED_ADMIN_PASSWORD not set — skipped admin creation. Set SEED_ADMIN_EMAIL + SEED_ADMIN_PASSWORD, or run deploy/post-install.mjs.");
+  }
 
-  await prisma.wallet.upsert({
+  // Demo accounts — local dev only (skipped in production unless SEED_DEMO_USERS=true).
+  const demo = SEED_DEMO_USERS
+    ? await prisma.user.upsert({
+        where: { email: "demo@voltbet.test" },
+        update: {},
+        create: {
+          fullName: "Demo Player", username: "demo", email: "demo@voltbet.test",
+          phone: "+254700000002", passwordHash: await bcrypt.hash("Demo123!", BCRYPT_ROUNDS),
+          role: "CUSTOMER", status: "ACTIVE", verified: true, country: "KE",
+          currencyCode: "KES", referralCode: "VOLT-DEMO",
+        },
+      })
+    : null;
+  const pending = SEED_DEMO_USERS
+    ? await prisma.user.upsert({
+        where: { email: "pending@voltbet.test" },
+        update: {},
+        create: {
+          fullName: "Pending User", username: "pendinguser", email: "pending@voltbet.test",
+          phone: "+254700000003", passwordHash: await bcrypt.hash("Demo123!", BCRYPT_ROUNDS),
+          role: "CUSTOMER", status: "PENDING_VERIFICATION", verified: false, country: "KE",
+          currencyCode: "KES",
+        },
+      })
+    : null;
+  const suspended = SEED_DEMO_USERS
+    ? await prisma.user.upsert({
+        where: { email: "suspended@voltbet.test" },
+        update: {},
+        create: {
+          fullName: "Suspended User", username: "suspendeduser", email: "suspended@voltbet.test",
+          phone: "+254700000004", passwordHash: await bcrypt.hash("Demo123!", BCRYPT_ROUNDS),
+          role: "CUSTOMER", status: "SUSPENDED", verified: true, country: "KE",
+          currencyCode: "KES",
+        },
+      })
+    : null;
+
+  if (demo) await prisma.wallet.upsert({
     where: { userId: demo.id }, update: {},
     create: { userId: demo.id, balance: dec("24800"), currencyCode: "KES" },
   });
-  await prisma.wallet.upsert({
+  if (pending) await prisma.wallet.upsert({
     where: { userId: pending.id }, update: {},
     create: { userId: pending.id, balance: dec("0"), currencyCode: "KES" },
   });
-  await prisma.wallet.upsert({
+  if (suspended) await prisma.wallet.upsert({
     where: { userId: suspended.id }, update: {},
     create: { userId: suspended.id, balance: dec("5000"), currencyCode: "KES" },
   });
@@ -571,100 +605,102 @@ async function main() {
   }
 
   // ── Demo user betting history ───────────────────────────────
-  // History: deposit +25000 → 25000; won single (MR Home @2.10, stake 1000) → 24000 → +2100 = 26100;
-  // lost single (BTTS Yes @1.75, stake 500) → 25600; open multiple (stake 800, odds 4.25) → 24800.
-  const mr = finished.markets.find((m) => m.key === "MATCH_RESULT")!;
-  const homeOutcome = mr.outcomes.find((o) => o.label === "1")!;
-  const btts = finished.markets.find((m) => m.key === "BTTS")!;
-  const bttsYes = btts.outcomes.find((o) => o.label === "Yes")!;
+  if (SEED_DEMO_USERS && demo && pending) {
+    // History: deposit +25000 → 25000; won single (MR Home @2.10, stake 1000) → 24000 → +2100 = 26100;
+    // lost single (BTTS Yes @1.75, stake 500) → 25600; open multiple (stake 800, odds 4.25) → 24800.
+    const mr = finished.markets.find((m) => m.key === "MATCH_RESULT")!;
+    const homeOutcome = mr.outcomes.find((o) => o.label === "1")!;
+    const btts = finished.markets.find((m) => m.key === "BTTS")!;
+    const bttsYes = btts.outcomes.find((o) => o.label === "Yes")!;
 
-  const wonBet = await prisma.bet.create({
-    data: {
-      code: "VB-DEMO1", userId: demo.id, type: "SINGLE", stake: dec("1000"),
-      totalOdds: dec("2.10"), potentialWin: dec("2100"), status: "WON", settledAt: H(-26),
-      selections: {
-        create: [{
-          gameId: g7.id, marketId: mr.id, outcomeId: homeOutcome.id,
-          marketName: mr.name, outcomeName: homeOutcome.name, label: "1",
-          oddsAtPlacement: dec("2.10"), result: "WON", settled: true,
-        }],
-      },
-    },
-  });
-  const lostBet = await prisma.bet.create({
-    data: {
-      code: "VB-DEMO2", userId: demo.id, type: "SINGLE", stake: dec("500"),
-      totalOdds: dec("1.75"), potentialWin: dec("875"), status: "LOST", settledAt: H(-26),
-      selections: {
-        create: [{
-          gameId: g7.id, marketId: btts.id, outcomeId: bttsYes.id,
-          marketName: btts.name, outcomeName: bttsYes.name, label: "Yes",
-          oddsAtPlacement: dec("1.75"), result: "LOST", settled: true,
-        }],
-      },
-    },
-  });
-  const openBet = await prisma.bet.create({
-    data: {
-      code: "VB-DEMO3", userId: demo.id, type: "MULTIPLE", stake: dec("800"),
-      totalOdds: dec("4.25"), potentialWin: dec("3400"), status: "OPEN",
-    },
-  });
-  await prisma.betSelection.createMany({
-    data: [
-      {
-        betId: openBet.id, gameId: g2.id, marketId: (await prisma.market.findFirstOrThrow({ where: { gameId: g2.id, key: "MATCH_RESULT" } })).id,
-        outcomeId: (await prisma.outcome.findFirstOrThrow({ where: { market: { gameId: g2.id, key: "MATCH_RESULT" }, label: "1" } })).id,
-        marketName: "Match Result", outcomeName: "Arsenal", label: "1", oddsAtPlacement: dec("2.10"),
-      },
-      {
-        betId: openBet.id, gameId: g8.id, marketId: (await prisma.market.findFirstOrThrow({ where: { gameId: g8.id, key: "MATCH_RESULT" } })).id,
-        outcomeId: (await prisma.outcome.findFirstOrThrow({ where: { market: { gameId: g8.id, key: "MATCH_RESULT" }, label: "1" } })).id,
-        marketName: "Match Winner", outcomeName: "LA Lakers", label: "1", oddsAtPlacement: dec("1.90"),
-      },
-    ],
-  });
-
-  // Transactions matching the history
-  const txns: [string, string, string, string, string][] = [
-    ["DEPOSIT", "25000", "0", "25000", "Crypto deposit USDT (manual seed)"],
-    ["BET_STAKE", "-1000", "25000", "24000", `Bet stake ${wonBet.code}`],
-    ["BET_WIN", "2100", "24000", "26100", `Bet won ${wonBet.code}`],
-    ["BET_STAKE", "-500", "26100", "25600", `Bet stake ${lostBet.code}`],
-    ["BET_STAKE", "-800", "25600", "24800", `Bet stake ${openBet.code}`],
-  ];
-  for (const [type, amount, prev, next, reason] of txns) {
-    await prisma.transaction.create({
+    const wonBet = await prisma.bet.create({
       data: {
-        userId: demo.id, type, amount: dec(amount), currencyCode: "KES",
-        prevBalance: dec(prev), newBalance: dec(next), reason,
-        reference: type === "DEPOSIT" ? "SEED-DEP-1" : undefined,
+        code: "VB-DEMO1", userId: demo.id, type: "SINGLE", stake: dec("1000"),
+        totalOdds: dec("2.10"), potentialWin: dec("2100"), status: "WON", settledAt: H(-26),
+        selections: {
+          create: [{
+            gameId: g7.id, marketId: mr.id, outcomeId: homeOutcome.id,
+            marketName: mr.name, outcomeName: homeOutcome.name, label: "1",
+            oddsAtPlacement: dec("2.10"), result: "WON", settled: true,
+          }],
+        },
+      },
+    });
+    const lostBet = await prisma.bet.create({
+      data: {
+        code: "VB-DEMO2", userId: demo.id, type: "SINGLE", stake: dec("500"),
+        totalOdds: dec("1.75"), potentialWin: dec("875"), status: "LOST", settledAt: H(-26),
+        selections: {
+          create: [{
+            gameId: g7.id, marketId: btts.id, outcomeId: bttsYes.id,
+            marketName: btts.name, outcomeName: bttsYes.name, label: "Yes",
+            oddsAtPlacement: dec("1.75"), result: "LOST", settled: true,
+          }],
+        },
+      },
+    });
+    const openBet = await prisma.bet.create({
+      data: {
+        code: "VB-DEMO3", userId: demo.id, type: "MULTIPLE", stake: dec("800"),
+        totalOdds: dec("4.25"), potentialWin: dec("3400"), status: "OPEN",
+      },
+    });
+    await prisma.betSelection.createMany({
+      data: [
+        {
+          betId: openBet.id, gameId: g2.id, marketId: (await prisma.market.findFirstOrThrow({ where: { gameId: g2.id, key: "MATCH_RESULT" } })).id,
+          outcomeId: (await prisma.outcome.findFirstOrThrow({ where: { market: { gameId: g2.id, key: "MATCH_RESULT" }, label: "1" } })).id,
+          marketName: "Match Result", outcomeName: "Arsenal", label: "1", oddsAtPlacement: dec("2.10"),
+        },
+        {
+          betId: openBet.id, gameId: g8.id, marketId: (await prisma.market.findFirstOrThrow({ where: { gameId: g8.id, key: "MATCH_RESULT" } })).id,
+          outcomeId: (await prisma.outcome.findFirstOrThrow({ where: { market: { gameId: g8.id, key: "MATCH_RESULT" }, label: "1" } })).id,
+          marketName: "Match Winner", outcomeName: "LA Lakers", label: "1", oddsAtPlacement: dec("1.90"),
+        },
+      ],
+    });
+
+    // Transactions matching the history
+    const txns: [string, string, string, string, string][] = [
+      ["DEPOSIT", "25000", "0", "25000", "Crypto deposit USDT (manual seed)"],
+      ["BET_STAKE", "-1000", "25000", "24000", `Bet stake ${wonBet.code}`],
+      ["BET_WIN", "2100", "24000", "26100", `Bet won ${wonBet.code}`],
+      ["BET_STAKE", "-500", "26100", "25600", `Bet stake ${lostBet.code}`],
+      ["BET_STAKE", "-800", "25600", "24800", `Bet stake ${openBet.code}`],
+    ];
+    for (const [type, amount, prev, next, reason] of txns) {
+      await prisma.transaction.create({
+        data: {
+          userId: demo.id, type, amount: dec(amount), currencyCode: "KES",
+          prevBalance: dec(prev), newBalance: dec(next), reason,
+          reference: type === "DEPOSIT" ? "SEED-DEP-1" : undefined,
+        },
+      });
+    }
+
+    // ── Deposits / withdrawals for finance demo ─────────────────
+    await prisma.deposit.create({
+      data: {
+        userId: demo.id, provider: "NOWPAYMENTS", method: "CRYPTO", amount: dec("5000"),
+        currencyCode: "KES", status: "COMPLETED", cryptoCurrency: "USDT", network: "TRC20",
+        paymentAddress: "TSeededDemoAddress123", txHash: "0xseed0001", fiatValue: dec("5000"),
+        exchangeRate: dec("129"), confirmedAt: H(-30),
+      },
+    });
+    await prisma.deposit.create({
+      data: {
+        userId: pending.id, provider: "NOWPAYMENTS", method: "CRYPTO", amount: dec("2000"),
+        currencyCode: "KES", status: "AWAITING_PAYMENT", cryptoCurrency: "BTC", network: "Bitcoin",
+        paymentAddress: "bc1qseededaddress", expiresAt: H(0.4),
+      },
+    });
+    await prisma.withdrawal.create({
+      data: {
+        userId: demo.id, amount: dec("2000"), currencyCode: "KES", method: "CRYPTO",
+        destination: "TSeededDemoAddress123", status: "PENDING",
       },
     });
   }
-
-  // ── Deposits / withdrawals for finance demo ─────────────────
-  await prisma.deposit.create({
-    data: {
-      userId: demo.id, provider: "NOWPAYMENTS", method: "CRYPTO", amount: dec("5000"),
-      currencyCode: "KES", status: "COMPLETED", cryptoCurrency: "USDT", network: "TRC20",
-      paymentAddress: "TSeededDemoAddress123", txHash: "0xseed0001", fiatValue: dec("5000"),
-      exchangeRate: dec("129"), confirmedAt: H(-30),
-    },
-  });
-  await prisma.deposit.create({
-    data: {
-      userId: pending.id, provider: "NOWPAYMENTS", method: "CRYPTO", amount: dec("2000"),
-      currencyCode: "KES", status: "AWAITING_PAYMENT", cryptoCurrency: "BTC", network: "Bitcoin",
-      paymentAddress: "bc1qseededaddress", expiresAt: H(0.4),
-    },
-  });
-  await prisma.withdrawal.create({
-    data: {
-      userId: demo.id, amount: dec("2000"), currencyCode: "KES", method: "CRYPTO",
-      destination: "TSeededDemoAddress123", status: "PENDING",
-    },
-  });
 
   // ── Content ─────────────────────────────────────────────────
   const banners = [
@@ -695,9 +731,11 @@ async function main() {
   // ── Notifications ───────────────────────────────────────────
   await prisma.notification.createMany({
     data: [
-      { userId: demo.id, title: "Welcome to VoltBet! 🎉", message: "Thanks for joining. Claim your 100% welcome bonus today.", type: "GENERAL" },
-      { userId: demo.id, title: "Bet Won 🏆", message: "Your single on Manchester City to win (1-0) returned KSh 2,100.", type: "BET_RESULT" },
-      { userId: demo.id, title: "Deposit Confirmed", message: "Your USDT deposit of KSh 5,000 was confirmed.", type: "DEPOSIT" },
+      ...(SEED_DEMO_USERS && demo ? [
+        { userId: demo.id, title: "Welcome to VoltBet! 🎉", message: "Thanks for joining. Claim your 100% welcome bonus today.", type: "GENERAL" },
+        { userId: demo.id, title: "Bet Won 🏆", message: "Your single on Manchester City to win (1-0) returned KSh 2,100.", type: "BET_RESULT" },
+        { userId: demo.id, title: "Deposit Confirmed", message: "Your USDT deposit of KSh 5,000 was confirmed.", type: "DEPOSIT" },
+      ] : []),
       { userId: null, title: "Maintenance Notice", message: "Scheduled maintenance Sunday 04:00–05:00 EAT. Betting will pause briefly.", type: "ANNOUNCEMENT" },
     ],
   });
@@ -705,7 +743,7 @@ async function main() {
   // ── Audit log sample ────────────────────────────────────────
   await prisma.auditLog.create({
     data: {
-      adminId: admin.id, adminName: "VoltBet Admin", action: "SEED",
+      adminId: admin?.id ?? null, adminName: admin?.fullName ?? "VoltBet Admin", action: "SEED",
       entity: "SYSTEM", newValue: JSON.stringify({ note: "Initial database seed" }),
     },
   });
@@ -720,9 +758,13 @@ async function main() {
   }
 
   console.log("Seed complete ✅");
-  console.log("  Admin login:  admin@voltbet.test / Admin123!");
-  console.log("  Demo login:   demo@voltbet.test / Demo123!");
-  console.log("  Pending user: pending@voltbet.test / Demo123! (betting locked)");
+  if (IS_PROD) {
+    console.log(`  Super admin:  ${admin ? admin.email : "skipped — set SEED_ADMIN_PASSWORD or run deploy/post-install.mjs"}`);
+  } else {
+    console.log(`  Admin login:  ${admin?.email ?? SEED_ADMIN_EMAIL} / ${seedAdminPassword ?? "(not created)"}`);
+    console.log("  Demo login:   demo@voltbet.test / Demo123!");
+    console.log("  Pending user: pending@voltbet.test / Demo123! (betting locked)");
+  }
 }
 
 main()

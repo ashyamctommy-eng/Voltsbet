@@ -10,8 +10,8 @@ against the NOWPayments and M-Pesa **sandboxes**.
 
 ## Step 1 — Push the code to GitHub
 
-> ✅ **Already done** (2026-08-16): repo `baristamcdough-hash/voltbet` (private),
-> branch **`master`**. If you ever clone it fresh: `git clone https://github.com/baristamcdough-hash/voltbet.git`
+> ✅ Repo: **`ashyamctommy-eng/Voltsbet`** — branches `master` and `main` are
+> kept in sync. Clone: `git clone https://github.com/ashyamctommy-eng/Voltsbet.git`
 > `.gitignore` excludes `node_modules`, `.next`, `prisma/dev.db` — never commit
 > the dev database or any keys.
 
@@ -33,9 +33,15 @@ against the NOWPayments and M-Pesa **sandboxes**.
    | `NODE_ENV` | `production` |
    | `APP_URL` | `https://<your-service>.up.railway.app` (the Railway URL from the Settings tab) |
    | `ODDS_API_KEY` | *(optional)* your The Odds API key |
+   | `SEED_ADMIN_EMAIL` | *(recommended)* super-admin email — defaults to `admin@voltbet.test` |
+   | `SEED_ADMIN_PASSWORD` | *(recommended)* super-admin password — **required in production**; the seed never falls back to the dev password |
 2. **Add a PostgreSQL plugin**: New → Database → PostgreSQL. Copy its
    `DATABASE_URL` internal connection string into the variable above
    (use the *internal* one so the app and DB talk over Railway's network).
+
+> The seed creates demo users/bets/notifications **only** outside production
+> (or when `SEED_DEMO_USERS=true`) — a fresh Railway deploy gets your admin
+> account and no demo accounts by default.
 
 ## Step 4 — Set the start command
 
@@ -46,14 +52,15 @@ against the NOWPayments and M-Pesa **sandboxes**.
    > `prisma migrate deploy` runs the Postgres init migration (idempotent —
    > safe to keep on every deploy, the seed is idempotent too).
 2. Deploy. When it finishes, open the service URL → you should see VoltBet.
-   - First deploy only: tables are created + demo data seeded.
+   - First deploy only: tables are created + initial data seeded (no demo accounts in production).
    - You can remove `&& npx prisma db seed` later (the seed is idempotent anyway).
 
 ## Step 5 — Log in and verify
 
-- Site: `/login` → `demo@voltbet.test` / `Demo123!`
-- Admin: `/admin` → `admin@voltbet.test` / `Admin123!`
-- Place a bet, deposit in demo mode, settle a game. The whole loop should work.
+- Site: `/login` — register a fresh customer account (no seeded demo users in production).
+- Admin: `/admin` → `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` (the vars you set in Step 3).
+- Place a bet, deposit in demo payment mode, settle a game. The whole loop should work.
+- Local dev only: seeded demo accounts are `demo@voltbet.test` / `Demo123!` (see README).
 
 ---
 
