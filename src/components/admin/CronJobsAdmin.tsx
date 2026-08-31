@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import { apiFetch } from "@/lib/client";
 import { CRON_JOBS, type CronJobDef, type CronJobId } from "@/lib/cron-jobs";
 import { IconCheck, IconClock, IconCopy } from "@/components/icons";
@@ -65,7 +65,10 @@ export default function CronJobsAdmin({ baseUrl, secret, initialSchedules }: Pro
   const base = baseUrl.replace(/\/+$/, "");
   const hasConfig = !!base && !!secret;
 
-  const jobUrl = (id: CronJobId) => `${base}/api/cron/${id}?secret=${secret}`;
+  const jobUrl = useCallback(
+    (id: CronJobId) => `${base}/api/cron/${id}?secret=${secret}`,
+    [base, secret],
+  );
 
   const saveSchedule = async (job: CronJobDef) => {
     setSaving(job.id);
@@ -90,7 +93,7 @@ export default function CronJobsAdmin({ baseUrl, secret, initialSchedules }: Pro
     setResults((r) => ({ ...r, [job.id]: JSON.stringify(res.ok ? res.data : { error: res.error }, null, 2) }));
   };
 
-  const recommended = useMemo(() => jobUrl("settle"), [base, secret]);
+  const recommended = jobUrl("settle");
 
   return (
     <div className="space-y-5">

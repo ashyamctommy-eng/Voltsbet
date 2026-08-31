@@ -59,14 +59,15 @@ function forwardedIp(req: NextRequest): string | null {
   return req.headers.get("x-real-ip");
 }
 
-async function fetchJson(url: string, timeoutMs: number): Promise<any | null> {
+async function fetchJson(url: string, timeoutMs: number): Promise<Record<string, unknown> | null> {
   try {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), timeoutMs);
     const res = await fetch(url, { signal: ctrl.signal });
     clearTimeout(t);
     if (!res.ok) return null;
-    return await res.json();
+    const data: unknown = await res.json();
+    return data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : null;
   } catch {
     return null;
   }

@@ -64,7 +64,11 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
         const raw = localStorage.getItem(LS_KEY);
         if (raw) {
           const parsed = JSON.parse(raw) as SlipItem[];
-          if (Array.isArray(parsed)) setItems(parsed);
+          if (Array.isArray(parsed)) {
+            setItems(parsed);
+            if (parsed.length >= 2) setMode("MULTIPLE");
+            prevCountRef.current = parsed.length;
+          }
         }
       } catch {}
       loaded.current = true;
@@ -101,17 +105,7 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
   // Default the betslip to Accumulator when a 2nd leg is added (one-way: a
   // manual "Singles" tap afterwards is respected; empty slip resets to
   // Singles). This is what makes multi-pick slips show ALL legs on mobile
-  // instead of the first pick only.
-  useEffect(() => {
-    if (items.length === 0) {
-      setMode("SINGLE");
-      prevCountRef.current = 0;
-      return;
-    }
-    if (items.length >= 2 && prevCountRef.current < 2) setMode("MULTIPLE");
-    prevCountRef.current = items.length;
-  }, [items.length]);
-
+  // instead of the first pick only — handled in add/remove/clear, not an effect.
   const add = useCallback((item: SlipItem) => {
     const prev = itemsRef.current;
     const exists = prev.find((p) => p.outcomeId === item.outcomeId);
@@ -128,7 +122,10 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
     // from a game that already has a selection REPLACES the existing leg —
     // never stacks an impossible accumulator (the server would reject it).
     const previous = prev.find((p) => p.gameId === item.gameId);
-    setItems((cur) => [...cur.filter((p) => p.gameId !== item.gameId), item]);
+    const next = [...prev.filter((p) => p.gameId !== item.gameId), item];
+    if (next.length >= 2 && prev.length < 2) setMode("MULTIPLE");
+    prevCountRef.current = next.length;
+    setItems(next);
     setHasOddsChange(false);
     if (previous) {
       push(
@@ -139,13 +136,23 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
   }, [push]);
 
   const remove = useCallback((outcomeId: string) => {
-    setItems((prev) => prev.filter((p) => p.outcomeId !== outcomeId));
+    const prev = itemsRef.current;
+    const next = prev.filter((p) => p.outcomeId !== outcomeId);
+    if (next.length === 0) {
+      setMode("SINGLE");
+      prevCountRef.current = 0;
+    } else {
+      prevCountRef.current = next.length;
+    }
+    setItems(next);
   }, []);
 
   const clear = useCallback(() => {
     setItems([]);
     setStake("");
     setHasOddsChange(false);
+    setMode("SINGLE");
+    prevCountRef.current = 0;
   }, []);
 
   const totalOdds = useMemo(() => {
