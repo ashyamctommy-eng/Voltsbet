@@ -349,7 +349,7 @@ const EVENT_MARKET_LEAGUES = (
 );
 /** Max events per league per sync for the per-event extended markets
  *  (quota: 1 credit per market per event — keep this small; 0 disables). */
-const EVENT_MARKET_LIMIT = Math.max(0, Number(process.env.ODDS_API_EVENT_MARKET_LIMIT ?? 3)) || 0;
+const EVENT_MARKET_LIMIT = Math.max(0, Number(process.env.ODDS_API_EVENT_MARKET_LIMIT ?? 4)) || 0;
 
 /**
  * Fetch + upsert the extended markets (everything in ODDS_MARKETS beyond the

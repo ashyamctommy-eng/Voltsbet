@@ -157,7 +157,7 @@ build — the compile itself still succeeds.
 | `ODDS_API_FEED_MAX_LEAGUES` | — | `60` | Max leagues per feed refresh when no override above (1 request each) |
 | `ODDS_API_EVENT_BOOKMAKERS` | — | `pinnacle` | Bookmaker for per-event markets (`/events/{id}/odds`) — Pinnacle confirmed |
 | `ODDS_API_EVENT_MARKET_LEAGUES` | — | top-6 soccer (EPL, UCL, Serie A, La Liga, Bundesliga, Ligue 1) | Leagues that get per-event extended markets |
-| `ODDS_API_EVENT_MARKET_LIMIT` | — | `3` | Max events per league for per-event markets (1 credit per market per event; `0` disables) |
+| `ODDS_API_EVENT_MARKET_LIMIT` | — | `4` | Max fixtures per league for the deep event pass (1 credit per served market per event; `0` disables) |
 | `ODDS_API_LIVE_MARKETS` | — | `h2h` | In-play odds markets refreshed on `/live` |
 | `LIVE_ODDS_THROTTLE_SECONDS` | — | `900` | Min seconds between in-play odds refreshes |
 | `LIVE_SCORES_THROTTLE_SECONDS` | — | `300` | Min seconds between live-score sweeps (per active league) |
