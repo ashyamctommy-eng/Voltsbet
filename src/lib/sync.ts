@@ -15,7 +15,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
-import { TheOddsApi, OddsProvider, ApiGame } from "@/lib/providers/odds-api";
+import { TheOddsApi, OddsProvider, ApiGame, ODDS_MARKETS, LIST_MARKETS } from "@/lib/providers/odds-api";
 import { teamLogo } from "@/lib/team-logos";
 import { setSetting } from "@/lib/settings";
 import { deriveDoubleChance, deriveDrawNoBet } from "@/lib/derived-markets";
@@ -191,6 +191,10 @@ export async function syncGames(providerId?: string) {
     oddsUpdated = (await upsertInPlayOdds(inPlayBatch)).updated;
   }
 
+  // Per-event extended markets (btts, correct_score, …) for the top leagues —
+  // fetched from /events/{id}/odds for the nearest upcoming fixtures.
+  const eventMarkets = await syncEventMarkets(priced.filter((g) => !g.inPlay));
+
   // Auto-hide seed/manual games once the provider feed is live — the site then
   // shows only synced (API) games. Auto-enables on any successful sync that
   // found feed games, but ONLY while the admin has never touched the toggle:
@@ -206,9 +210,91 @@ export async function syncGames(providerId?: string) {
     created,
     updated,
     oddsUpdated,
+    eventMarkets,
     gamesSynced: games.length,
     provider: providerId_,
   };
+}
+
+/** Leagues that get per-event extended markets (btts, correct_score, …).
+ *  Override via ODDS_API_EVENT_MARKET_LEAGUES (comma-separated sport keys).
+ *  Empty string disables the per-event pass entirely. */
+const EVENT_MARKET_LEAGUES = (
+  process.env.ODDS_API_EVENT_MARKET_LEAGUES?.split(",").map((s) => s.trim()).filter(Boolean) ?? [
+    "soccer_epl",
+    "soccer_uefa_champs_league",
+    "soccer_italy_serie_a",
+    "soccer_spain_la_liga",
+    "soccer_germany_bundesliga",
+    "soccer_france_ligue_one",
+  ]
+);
+/** Max events per league per sync for the per-event extended markets
+ *  (quota: 1 credit per market per event — keep this small; 0 disables). */
+const EVENT_MARKET_LIMIT = Math.max(0, Number(process.env.ODDS_API_EVENT_MARKET_LIMIT ?? 3)) || 0;
+
+/**
+ * Fetch + upsert the extended markets (everything in ODDS_MARKETS beyond the
+ * list-supported h2h/spreads/totals) for the nearest upcoming fixtures of the
+ * configured leagues. The /odds list endpoint cannot serve them — they live
+ * on /events/{id}/odds for a limited set of bookmakers (see
+ * ODDS_API_EVENT_BOOKMAKERS, default pinnacle). Events with no data are
+ * skipped; DOUBLE_CHANCE / DRAW_NO_BET merge into the derived markets of the
+ * same key (bookmaker prices overwrite derived ones), BTTS / CORRECT_SCORE
+ * are created fresh. Settled markets are never touched (upsertMarkets).
+ */
+export async function syncEventMarkets(
+  preMatchGames: ApiGame[],
+): Promise<{ events: number; markets: number }> {
+  const extended = ODDS_MARKETS.filter((m) => !(LIST_MARKETS as readonly string[]).includes(m));
+  if (!extended.length || EVENT_MARKET_LEAGUES.length === 0) return { events: 0, markets: 0 };
+
+  // Nearest LIMIT upcoming fixtures per configured league (cheapest first).
+  const perLeague = new Map<string, ApiGame[]>();
+  const sorted = [...preMatchGames].sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
+  for (const g of sorted) {
+    if (!EVENT_MARKET_LEAGUES.includes(g.sportKey)) continue;
+    const list = perLeague.get(g.sportKey) ?? [];
+    if (list.length >= EVENT_MARKET_LIMIT) continue;
+    list.push(g);
+    perLeague.set(g.sportKey, list);
+  }
+  const selected = [...perLeague.values()].flat();
+  if (!selected.length) return { events: 0, markets: 0 };
+
+  const provider = new TheOddsApi();
+  const apiGames = await provider.fetchEventMarkets(
+    selected.map((g) => ({ sportKey: g.sportKey, eventId: g.externalId, homeName: g.homeName, awayName: g.awayName })),
+    extended,
+  );
+  if (!apiGames.length) return { events: 0, markets: 0 };
+
+  const existing = await prisma.game.findMany({
+    where: { externalId: { in: apiGames.map((g) => g.externalId) } },
+    select: { id: true, externalId: true, status: true, homeLogo: true, awayLogo: true },
+  });
+  const byExternalId = new Map(existing.map((g) => [g.externalId, g.id]));
+  const targets = apiGames.filter((g) => byExternalId.has(g.externalId));
+  if (!targets.length) return { events: 0, markets: 0 };
+
+  const marketRows = await prisma.market.findMany({
+    where: { gameId: { in: targets.map((t) => byExternalId.get(t.externalId)!) } },
+    include: { outcomes: true },
+  });
+  const marketsByGame = new Map<string, typeof marketRows>();
+  for (const m of marketRows) {
+    const list = marketsByGame.get(m.gameId) ?? [];
+    list.push(m);
+    marketsByGame.set(m.gameId, list);
+  }
+
+  let marketCount = 0;
+  for (const g of targets) {
+    const gameId = byExternalId.get(g.externalId)!;
+    await upsertMarkets(gameId, g, marketsByGame.get(gameId) ?? []);
+    marketCount += g.markets.length;
+  }
+  return { events: targets.length, markets: marketCount };
 }
 
 async function buildPayload(

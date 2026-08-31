@@ -21,7 +21,7 @@ API-Football were fully removed).
 | `GET /v4/sports/{sport}/odds?regions=…&markets=h2h,spreads,totals` | pre-match fixtures + odds + **in-play odds** (`/api/cron/sync`, `/live`) | 1/league/market |
 | `GET /v4/sports/{sport}/events` | free 7-day calendar (`/api/cron/schedule`) | **0** |
 | `GET /v4/sports/{sport}/scores?daysFrom=1` | live scores + finished results (live pipeline + settlement) | 2/league/sweep |
-| `GET /v4/sports/{sport}/events/{eventId}/odds` | single-event extended markets (btts, correct_score, halfs, props) — **not used by default** | 1/market/event |
+| `GET /v4/sports/{sport}/events/{eventId}/odds?bookmakers=…` | single-event extended markets (btts, correct_score, double_chance, draw_no_bet, halfs) — auto-fetched for the nearest fixtures of `ODDS_API_EVENT_MARKET_LEAGUES` | 1/market/event |
 
 ### Market set — what the list endpoint actually serves
 
@@ -39,22 +39,36 @@ subset, so a league never breaks because of a market The Odds API won't serve.
 
 Derived locally from every 3-way `h2h` at **zero extra quota**:
 `DOUBLE_CHANCE` (1X/12/X2) and `DRAW_NO_BET` (1/2), with the app's margin
-applied — always priced, even when bookmakers don't list them.
+applied — always priced, even when bookmakers don't list them. Where a
+bookmaker does serve them (per-event), their prices overwrite the derived
+ones.
 
-**Extended markets** (`btts`, `correct_score`, `h2h_h1`/`totals_h1`,
-`h2h_h2`/`totals_h2`, player props, alternate lines…) exist only on the
-per-event endpoint at 1 credit per market per event, with coverage currently
-limited to selected bookmakers. **They are not fetched by default.** To enable
-them when your plan + bookmaker coverage supports it, extend
-`ODDS_API_MARKETS` — the sync requests them per league and automatically
-falls back to the supported subset where the API rejects them. Budget
-accordingly: e.g. 20 events × 3 extra markets = 60 credits per sync run.
+**Extended markets** (`btts`, `correct_score`, `double_chance`,
+`draw_no_bet`, half-time lines…) are served **only** by the per-event
+endpoint `/events/{id}/odds`, and only by a limited set of bookmakers —
+`regions=` alone returns nothing for them; explicit `bookmakers=` works
+(**Pinnacle** confirmed for soccer, 2026-08-31). Cost: 1 credit per market
+per event.
 
-Config: `ODDS_API_MARKETS` (list request), `ODDS_API_LIVE_MARKETS` +
-`LIVE_ODDS_THROTTLE_SECONDS` (in-play refresh on `/live`).
+By default the sync fetches `btts, double_chance, draw_no_bet,
+correct_score` for the **nearest 3 fixtures** of the top 6 leagues
+(`ODDS_API_EVENT_MARKET_LIMIT`, `ODDS_API_EVENT_MARKET_LEAGUES`,
+`ODDS_API_EVENT_BOOKMAKERS`). Events where the chosen books return no data
+are skipped (no error, no partial markets). Add half-time lines
+(`h2h_h1, totals_h1, h2h_h2, totals_h2`) to `ODDS_API_MARKETS` when
+coverage exists. Correct-score outcome names are normalized to the local
+`0-1` convention and double-chance to `1X/X2/12`, so the settlement engine
+resolves them automatically; half-time lines stay admin-settled (the
+`scores` feed exposes no half-time scores).
 
-Half-time / correct-score markets are **never auto-settled** (the `/scores`
-endpoint exposes only full-time scores) — they go to admin when enabled.
+Config: `ODDS_API_MARKETS` (list + extended set), `ODDS_API_EVENT_*`
+(per-event pass), `ODDS_API_LIVE_MARKETS` + `LIVE_ODDS_THROTTLE_SECONDS`
+(in-play refresh on `/live`).
+
+Half-time markets are **never auto-settled** (the `/scores` endpoint exposes
+only full-time scores) — they go to admin review when enabled. Correct-score,
+BTTS, double-chance, draw-no-bet, totals and handicap markets resolve
+automatically from the final score.
 
 ## How it fits the codebase
 

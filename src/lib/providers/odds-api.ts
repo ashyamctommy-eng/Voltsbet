@@ -71,34 +71,47 @@ const oddsCache = new Map<string, { at: number; data: unknown }>();
 const ODDS_CACHE_TTL_MS = (Number(process.env.ODDS_API_CACHE_TTL_SECONDS) || 30 * 60) * 1000;
 
 /**
+ * Markets the /odds LIST endpoint can serve. Everything else in
+ * ODDS_API_MARKETS is routed to the per-event endpoint
+ * (/events/{id}/odds, via ODDS_API_EVENT_BOOKMAKERS) — verified 2026-08-31
+ * that Pinnacle serves btts, double_chance, draw_no_bet and correct_score
+ * that way (the list endpoint 422s on them).
+ */
+export const LIST_MARKETS = ["h2h", "spreads", "totals"] as const;
+
+/**
  * Market set for the /odds LIST endpoint — per The Odds API v4 docs the list
  * endpoint only serves the featured markets (`h2h`, `spreads`, `totals`,
  * `outrights`; betting exchanges additionally return `h2h_lay`). Requesting
  * anything else (e.g. `correct_score`, `h2h_h1`) 422s the whole call.
  *
- * The extended markets (btts, double_chance, draw_no_bet, correct_score,
- * half/period markets, player props) are ONLY served by the per-event
- * endpoint `/sports/{sport}/events/{eventId}/odds` at 1 credit per market
- * per event, and current coverage is limited to selected bookmakers. The
- * sync degrades gracefully: if ODDS_API_MARKETS asks for a market the API
- * rejects, it retries once with the supported subset (see
- * `requestOdds()`), so a partial market set never breaks a league.
+ * Markets beyond the list-supported three are fetched per event via
+ * `/events/{id}/odds` (see `fetchEventMarkets`) — that is where btts,
+ * double_chance, draw_no_bet and correct_score actually live, served by a
+ * limited set of bookmakers (Pinnacle confirmed). The sync degrades
+ * gracefully: unsupported markets are dropped with a one-retry fallback,
+ * and events where the chosen bookmakers return no data are skipped, so a
+ * partial market set never breaks a league.
  *
- * Override via ODDS_API_MARKETS (comma-separated, e.g.
- * "h2h,spreads,totals,correct_score") when your plan + bookmaker coverage
- * supports more — the UI renders any market key that comes back.
+ * Override via ODDS_API_MARKETS (comma-separated) — e.g. add `h2h_h1,
+ * totals_h1, h2h_h2, totals_h2` for half-time markets when bookmaker
+ * coverage exists — the UI renders any market key that comes back.
  */
 export const ODDS_MARKETS = (
   process.env.ODDS_API_MARKETS?.split(",").map((s) => s.trim()).filter(Boolean) ?? [
     "h2h",
     "spreads",
     "totals",
+    "btts",
+    "double_chance",
+    "draw_no_bet",
+    "correct_score",
   ]
 ) as readonly string[];
 
 /** Market key → local key + display name (derive totals line from outcomes). */
 const MARKET_MAP: {
-  key: (typeof ODDS_MARKETS)[number];
+  key: string;
   local: string;
   name: string;
 }[] = [
@@ -110,7 +123,49 @@ const MARKET_MAP: {
   { key: "totals_h2", local: "OVER_UNDER_2H", name: "2nd Half - Over/Under" },
   { key: "spreads", local: "SPREAD", name: "Spread" },
   { key: "correct_score", local: "CORRECT_SCORE", name: "Correct Score" },
+  { key: "btts", local: "BTTS", name: "Both Teams to Score" },
+  { key: "double_chance", local: "DOUBLE_CHANCE", name: "Double Chance" },
+  { key: "draw_no_bet", local: "DRAW_NO_BET", name: "Draw No Bet" },
 ];
+
+/**
+ * Normalize provider outcome names to the local market conventions the
+ * settlement engine + bet slip expect:
+ *   correct_score "Aston Villa:0|Arsenal:1" → "0-1" (home-away)
+ *   double_chance "Arsenal or Draw"        → "1X" / "X2" / "12"
+ *   draw_no_bet   team names stay, label becomes "1"/"2"
+ *   btts "Yes"/"No" and totals/HT names pass through.
+ */
+function normalizeOutcomeName(
+  localKey: string,
+  name: string,
+  homeName: string,
+  awayName: string,
+): { name: string; label?: string } {
+  if (localKey === "CORRECT_SCORE") {
+    // "Home:2|Away:1" → "2-1" (home score first, regardless of team names)
+    const m = name.match(/:(\d+)\|.*:(\d+)/);
+    if (m) return { name: `${m[1]}-${m[2]}` };
+    return { name };
+  }
+  if (localKey === "DOUBLE_CHANCE") {
+    const n = name.toLowerCase();
+    const home = homeName.toLowerCase();
+    const away = awayName.toLowerCase();
+    if (n.includes(`${home} or draw`) || n.includes(`${away} or draw`)) {
+      return { name: n.includes(`${home} or draw`) ? "1X" : "X2" };
+    }
+    if (n.includes(`${home} or ${away}`) || n.includes(`${away} or ${home}`)) return { name: "12" };
+    return { name };
+  }
+  if (localKey === "DRAW_NO_BET") {
+    const n = name.toLowerCase();
+    if (n === homeName.toLowerCase()) return { name, label: "1" };
+    if (n === awayName.toLowerCase()) return { name, label: "2" };
+    return { name };
+  }
+  return { name };
+}
 
 /** Derive a totals-style display name from the outcomes (e.g. "Over/Under 2.5"). */
 function totalsName(outcomes: { name: string; price: number }[], fallback: string): string {
@@ -191,8 +246,12 @@ export class TheOddsApi implements OddsProvider {
     // Free tier serves US-region bookmakers only (regions=us); paid plans add
     // eu/uk/au. Configure via ODDS_API_REGIONS. Odds come as decimals either way.
     const regions = process.env.ODDS_API_REGIONS ?? "us";
+    // The list endpoint 422s on anything beyond the featured markets — the
+    // extended set (btts, correct_score, …) is fetched per event instead.
+    const listMarkets = markets.filter((m) => (LIST_MARKETS as readonly string[]).includes(m));
+    if (!listMarkets.length) return games;
     for (const sportKey of sportKeys) {
-      const cacheKey = `${sportKey}:${regions}:${markets.join(",")}`;
+      const cacheKey = `${sportKey}:${regions}:${listMarkets.join(",")}`;
       const hit = oddsCache.get(cacheKey);
       let data: {
         id: string; commence_time: string; home_team: string; away_team: string;
@@ -201,7 +260,7 @@ export class TheOddsApi implements OddsProvider {
       if (hit && Date.now() - hit.at < ODDS_CACHE_TTL_MS) {
         data = hit.data as typeof data; // served from cache — 0 API cost
       } else {
-        data = await this.requestOdds(sportKey, regions, markets);
+        data = await this.requestOdds(sportKey, regions, listMarkets);
         oddsCache.set(cacheKey, { at: Date.now(), data });
       }
       const now = Date.now();
@@ -244,6 +303,79 @@ export class TheOddsApi implements OddsProvider {
       }
     }
     return games;
+  }
+
+  /**
+   * Fetch extended markets per event via `/events/{id}/odds` (the ONLY place
+   * btts / double_chance / draw_no_bet / correct_score / half-time lines are
+   * served). Requires explicit `bookmakers` (regions alone returns nothing —
+   * verified 2026-08-31; Pinnacle confirmed for soccer). 1 credit per market
+   * per event. Events with no data are skipped silently; an empty markets
+   * list returns [] without calling the API.
+   */
+  async fetchEventMarkets(
+    events: { sportKey: string; eventId: string; homeName: string; awayName: string }[],
+    markets: readonly string[],
+  ): Promise<ApiGame[]> {
+    const extended = markets.filter((m) => !(LIST_MARKETS as readonly string[]).includes(m));
+    if (!extended.length || !events.length) return [];
+    const bookmakers = process.env.ODDS_API_EVENT_BOOKMAKERS ?? "pinnacle";
+    const out: ApiGame[] = [];
+    for (const ev of events) {
+      const cacheKey = `ev:${ev.eventId}:${bookmakers}:${extended.join(",")}`;
+      const hit = oddsCache.get(cacheKey);
+      let data: {
+        id: string; sport_key: string; commence_time: string; home_team: string; away_team: string;
+        bookmakers: { key: string; markets: { key: string; outcomes: { name: string; price: number }[] }[] }[];
+      }[];
+      if (hit && Date.now() - hit.at < ODDS_CACHE_TTL_MS) {
+        data = hit.data as typeof data;
+      } else {
+        // NOTE: /events/{id}/odds returns ONE event object (not an array).
+        const raw = (await this.get(
+          `/sports/${encodeURIComponent(ev.sportKey)}/events/${encodeURIComponent(ev.eventId)}/odds?bookmakers=${encodeURIComponent(bookmakers)}&markets=${extended.join(",")}&oddsFormat=decimal`
+        )) as (typeof data)[number] | null | (typeof data)[number][];
+        data = raw == null ? [] : Array.isArray(raw) ? raw : [raw];
+        oddsCache.set(cacheKey, { at: Date.now(), data });
+      }
+      if (!data?.length) continue; // no bookmaker served these markets → skip
+
+      const marketsOut: ApiGame["markets"] = [];
+      for (const spec of MARKET_MAP) {
+        if (!extended.includes(spec.key)) continue;
+        const book = data[0].bookmakers.find((b) => b.markets.some((m) => m.key === spec.key));
+        const m = book?.markets.find((m) => m.key === spec.key);
+        if (!m?.outcomes?.length) continue;
+        const name =
+          spec.local.startsWith("OVER_UNDER")
+            ? totalsName(m.outcomes, spec.name)
+            : spec.name;
+        // Margin first (names survive unchanged), then normalize names/labels
+        // to the local conventions the settlement engine expects.
+        const priced = applyMarginGrid(
+          m.outcomes.map((o) => ({ name: o.name, odds: o.price })),
+          (await getSettings()).oddsMarginPercent,
+        );
+        marketsOut.push({
+          key: spec.local,
+          name,
+          outcomes: priced.map((o) => {
+            const norm = normalizeOutcomeName(spec.local, o.name, ev.homeName, ev.awayName);
+            return { name: norm.name, label: norm.label, odds: o.odds };
+          }),
+        });
+      }
+      if (!marketsOut.length) continue;
+      out.push({
+        externalId: ev.eventId,
+        sportKey: ev.sportKey,
+        homeName: ev.homeName,
+        awayName: ev.awayName,
+        startAt: new Date(data[0].commence_time),
+        markets: marketsOut,
+      });
+    }
+    return out;
   }
 
   async fetchLiveScores(sportKeys: string[]) {

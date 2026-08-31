@@ -152,16 +152,22 @@ One provider for all sports data — **The Odds API (v4)**:
 | Live scores / status | `/api/cron/sync` + `/live` | `ODDS_API_KEY` |
 | Settlement inputs | `/api/cron/settle` | derived from `/scores` |
 
-Markets fetched: `h2h` (1X2), `spreads`, `totals` — the market set the /odds
-list endpoint serves; override via `ODDS_API_MARKETS` when your plan +
-bookmaker coverage supports more (extended markets such as `btts`,
-`correct_score` and half-time lines are per-event-endpoint only with limited
-coverage — unsupported ones are dropped gracefully, never breaking a league).
-Derived markets are added locally for free: **Double Chance** and **Draw No
-Bet** from every 3-way 1X2. **Live odds** for in-play games are refreshed from
-the same endpoint on `/live` (`ODDS_API_LIVE_MARKETS`, default `h2h`). Live
-minutes are **estimated** from kickoff — The Odds API has no match clock;
-`completed` flag and scores are authoritative.
+Markets fetched — two layers:
+1. **List endpoint** (`/odds`): `h2h` (1X2), `spreads`, `totals` — the only
+   markets that endpoint serves.
+2. **Per-event endpoint** (`/events/{id}/odds`): **BTTS, Correct Score,
+   Double Chance, Draw No Bet** for the nearest fixtures of the top leagues
+   (Pinnacle-confirmed; 1 credit per market per event — see
+   `ODDS_API_EVENT_MARKET_LIMIT`). Double Chance / Draw No Bet are ALSO
+   derived locally from every 3-way 1X2 at zero quota, so they exist on every
+   game; bookmaker prices overwrite derived ones where available.
+
+Everything is configurable via `ODDS_API_MARKETS` (add `h2h_h1, totals_h1,
+h2h_h2, totals_h2` half-time lines when bookmaker coverage exists) and
+unsupported markets are dropped gracefully, never breaking a league. **Live
+odds** for in-play games are refreshed on `/live` (`ODDS_API_LIVE_MARKETS`,
+default `h2h`). Live minutes are **estimated** from kickoff — The Odds API has
+no match clock; `completed` flag and scores are authoritative.
 
 **Currency resolution** (public `/api/public/currency-resolution`):
 
@@ -186,7 +192,10 @@ minutes are **estimated** from kickoff — The Odds API has no match clock;
 | `CRON_SECRET` | ✅ | Guards `/api/cron/*` (`?secret=` or `x-cron-secret`) |
 | `SYNC_THROTTLE_MINUTES` | — | default `60` |
 | `ODDS_API_RATE_LIMIT_MS` | — | default `1100` (free tier = 1 req/sec) |
-| `ODDS_API_MARKETS` | — | /odds list markets (default `h2h,spreads,totals`; unsupported ones auto-dropped) |
+| `ODDS_API_MARKETS` | — | Market set — list markets + per-event extended (default `h2h,spreads,totals,btts,double_chance,draw_no_bet,correct_score`; unsupported ones auto-dropped) |
+| `ODDS_API_EVENT_BOOKMAKERS` | — | Books serving per-event markets (default `pinnacle`) |
+| `ODDS_API_EVENT_MARKET_LEAGUES` | — | Leagues that get per-event markets (default: EPL, UCL, Serie A, La Liga, Bundesliga, Ligue 1) |
+| `ODDS_API_EVENT_MARKET_LIMIT` | — | Max events/league for per-event markets (default `3`; `0` disables) |
 | `ODDS_API_LIVE_MARKETS` | — | in-play odds markets on `/live` (default `h2h`) |
 | `LIVE_ODDS_THROTTLE_SECONDS` | — | min seconds between live-odds refreshes (default `900`) |
 | `PURGE_MAX_AGE_HOURS` | — | default `2` |
