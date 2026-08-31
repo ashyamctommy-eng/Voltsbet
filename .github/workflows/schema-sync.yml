@@ -1,0 +1,12 @@
+name: schema-sync
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare Prisma schemas (Postgres vs MySQL variant)
+        run: bash scripts/check-schema-sync.sh
