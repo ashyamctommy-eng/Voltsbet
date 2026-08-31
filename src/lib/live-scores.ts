@@ -31,11 +31,31 @@
 import { prisma } from "./prisma";
 import { getSettings } from "./settings";
 import { TheOddsApi } from "./providers/odds-api";
-import { SPORT_KEY_MAP, upsertInPlayOdds } from "./sync";
+import { resolveSportSlug, upsertInPlayOdds } from "./sync";
 import { LEAGUE_TITLES } from "./feed";
 
 let lastRefresh = 0;
 let lastOddsRefresh = 0;
+
+/** League display-title → sport key reverse map, enriched from the live
+ *  sports list (covers leagues added after the static LEAGUE_TITLES). The
+ *  /sports list endpoint is quota-free. */
+let titleMapCache: { at: number; map: Map<string, string> } | null = null;
+async function leagueTitleToKey(): Promise<Map<string, string>> {
+  const ttl = 60 * 60_000;
+  if (titleMapCache && Date.now() - titleMapCache.at < ttl) return titleMapCache.map;
+  const map = new Map(Object.entries(LEAGUE_TITLES).map(([k, v]) => [v, k]));
+  try {
+    const provider = new TheOddsApi();
+    for (const sp of await provider.fetchSports()) {
+      if (!map.has(sp.name)) map.set(sp.name, sp.key);
+    }
+  } catch {
+    /* static map suffices on failure */
+  }
+  titleMapCache = { at: Date.now(), map };
+  return map;
+}
 
 const LIVE_LOOKBACK_HOURS = Number(process.env.LIVE_SCORES_LOOKBACK_HOURS ?? 4) || 4;
 /** Min seconds between provider sweeps (independent of the UI poll interval). */
@@ -85,8 +105,9 @@ export async function refreshLiveScores(): Promise<{
       select: { competitionName: true },
     });
 
-    // 2) Map candidates → Odds API sport keys (reverse of LEAGUE_TITLES).
-    const titleToKey = new Map(Object.entries(LEAGUE_TITLES).map(([k, v]) => [v, k]));
+    // 2) Map candidates → Odds API sport keys (reverse of LEAGUE_TITLES,
+    //    enriched with the live sports list for auto-mapped leagues).
+    const titleToKey = await leagueTitleToKey();
     const leagueKeys = new Set<string>();
     for (const g of candidates) {
       const key = g.competitionName ? titleToKey.get(g.competitionName) : undefined;
@@ -101,7 +122,7 @@ export async function refreshLiveScores(): Promise<{
     let updated = 0;
     let created = 0;
     for (const score of scores) {
-      const sportSlug = score.sportKey ? SPORT_KEY_MAP[score.sportKey] : "football";
+      const sportSlug = score.sportKey ? resolveSportSlug(score.sportKey) : "football";
       const sport = await prisma.sport.findUnique({ where: { slug: sportSlug } });
       if (!sport) continue;
 

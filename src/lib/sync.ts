@@ -19,7 +19,7 @@ import { TheOddsApi, OddsProvider, ApiGame, ODDS_MARKETS, LIST_MARKETS } from "@
 import { teamLogo } from "@/lib/team-logos";
 import { setSetting } from "@/lib/settings";
 import { deriveDoubleChance, deriveDrawNoBet } from "@/lib/derived-markets";
-import { LEAGUE_TITLES } from "@/lib/feed";
+import { LEAGUE_TITLES, FEED_MAX_LEAGUES } from "@/lib/feed";
 
 export const PROVIDERS: Record<string, () => OddsProvider> = {
   "the-odds-api": () => new TheOddsApi(), // the ONLY provider
@@ -104,22 +104,92 @@ const SPORT_FALLBACK: Record<string, { name: string; icon: string }> = {
   basketball: { name: "Basketball", icon: "🏀" },
   tennis: { name: "Tennis", icon: "🎾" },
   baseball: { name: "Baseball", icon: "⚾" },
+  "american-football": { name: "American Football", icon: "🏈" },
   "ice-hockey": { name: "Ice Hockey", icon: "🏒" },
+  "australian-rules": { name: "Australian Rules", icon: "🏉" },
   rugby: { name: "Rugby", icon: "🏉" },
+  cricket: { name: "Cricket", icon: "🏏" },
+  boxing: { name: "Boxing", icon: "🥊" },
+  mma: { name: "MMA", icon: "🥊" },
+  golf: { name: "Golf", icon: "⛳" },
   handball: { name: "Handball", icon: "🤾" },
+  volleyball: { name: "Volleyball", icon: "🏐" },
+  "table-tennis": { name: "Table Tennis", icon: "🏓" },
+  badminton: { name: "Badminton", icon: "🏸" },
+  snooker: { name: "Snooker", icon: "🎱" },
+  darts: { name: "Darts", icon: "🎯" },
+  lacrosse: { name: "Lacrosse", icon: "🥍" },
   esports: { name: "Esports", icon: "🎮" },
 };
 
-/** Upsert Sport rows for every slug SPORT_KEY_MAP can produce. Idempotent;
- *  lets existing installs pick up new sports (e.g. Esports) without a
- *  reseed. */
-async function ensureMappedSports(): Promise<void> {
-  const slugs = [...new Set(Object.values(SPORT_KEY_MAP))];
-  const existing = await prisma.sport.findMany({ where: { slug: { in: slugs } }, select: { slug: true } });
+/** Curated category for known sport prefixes — auto-maps ANY league the API
+ *  lists that isn't explicitly curated above, so no league is ever dropped
+ *  from the catalog because its key wasn't in SPORT_KEY_MAP. */
+const SPORT_PREFIX_MAP: Record<string, string> = {
+  soccer: "football",
+  basketball: "basketball",
+  tennis: "tennis",
+  baseball: "baseball",
+  americanfootball: "american-football",
+  icehockey: "ice-hockey",
+  aussierules: "australian-rules",
+  rugbyleague: "rugby",
+  rugbyunion: "rugby",
+  cricket: "cricket",
+  boxing: "boxing",
+  mma: "mma",
+  golf: "golf",
+  handball: "handball",
+  volleyball: "volleyball",
+  tabletennis: "table-tennis",
+  badminton: "badminton",
+  snooker: "snooker",
+  darts: "darts",
+  lacrosse: "lacrosse",
+  esports: "esports",
+};
+
+/** Futures/outrights keys (no upcoming games) — skipped by the odds pass and
+ *  by Sport-row creation so the catalog stays clean. */
+const NON_BETTABLE_RE = /_(winner|championship_winner|preseason|all_stars|summer_league)$/;
+
+/** Curated map first, then prefix fallback, then the raw key sanitized —
+ *  every sport key the API serves resolves to a Sport slug. */
+export function resolveSportSlug(key: string): string {
+  const curated = SPORT_KEY_MAP[key];
+  if (curated) return curated;
+  const prefix = key.split("_")[0];
+  if (SPORT_PREFIX_MAP[prefix]) return SPORT_PREFIX_MAP[prefix];
+  return key.replace(/_/g, "-");
+}
+
+/** True when the key represents games we can price (not an outright/futures
+ *  market that /odds and /scores never serve games for). */
+export function isBettableSportKey(key: string): boolean {
+  return !NON_BETTABLE_RE.test(key);
+}
+
+function prettifySlug(slug: string): string {
+  return slug
+    .split("-")
+    .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(" ");
+}
+
+/** Upsert Sport rows for every slug the catalog can produce: curated values
+ *  PLUS every bettable league the API currently lists (auto-mapped via
+ *  resolveSportSlug). Idempotent — existing installs pick up new sports
+ *  without a reseed, and nothing the API serves is ever dropped. */
+async function ensureMappedSports(apiSports: { key: string; name: string }[] = []): Promise<void> {
+  const slugs = new Set<string>(Object.values(SPORT_KEY_MAP));
+  for (const sp of apiSports) {
+    if (isBettableSportKey(sp.key)) slugs.add(resolveSportSlug(sp.key));
+  }
+  const existing = await prisma.sport.findMany({ where: { slug: { in: [...slugs] } }, select: { slug: true } });
   const have = new Set(existing.map((s) => s.slug));
   for (const slug of slugs) {
     if (have.has(slug)) continue;
-    const meta = SPORT_FALLBACK[slug] ?? { name: slug, icon: "🏆" };
+    const meta = SPORT_FALLBACK[slug] ?? { name: prettifySlug(slug), icon: "🏆" };
     await prisma.sport.create({
       data: { name: meta.name, slug, icon: meta.icon, sortOrder: 99, active: true, isPopular: false },
     });
@@ -138,12 +208,17 @@ export async function syncGames(providerId?: string) {
   }
 
   const sports = await provider.fetchSports();
-  const wanted = sports.filter((s) => SPORT_KEY_MAP[s.key]);
-  const sportKeys = wanted.map((s) => s.key);
+  // FULL mapping: every bettable league the API lists is synced — curated
+  // SPORT_KEY_MAP first, auto-mapped via resolveSportSlug() for everything
+  // else (NFL, NHL, boxing, cricket, K-League, …). The odds pass is capped
+  // by ODDS_API_FEED_MAX_LEAGUES (1 request per league; raise on paid plans).
+  const bettable = sports.filter((s) => isBettableSportKey(s.key));
+  const sportKeys = bettable.map((s) => s.key).slice(0, FEED_MAX_LEAGUES);
+  const liveTitles = new Map(bettable.map((s) => [s.key, s.name]));
 
   // Make sure every mapped sport has a Sport row (new installs get them from
   // the seed; existing installs get them here) before the N+1 batch lookup.
-  await ensureMappedSports();
+  await ensureMappedSports(bettable);
 
   const games = await provider.fetchUpcomingGames(sportKeys);
 
@@ -153,7 +228,7 @@ export async function syncGames(providerId?: string) {
   // After: sports, games, markets and outcomes are pulled in 4 flat queries
   // up front; only actual row changes hit the DB inside the loop.
   const priced = games.filter((g) => g.markets?.length);
-  const neededSlugs = [...new Set(priced.map((g) => SPORT_KEY_MAP[g.sportKey]).filter(Boolean))];
+  const neededSlugs = [...new Set(priced.map((g) => resolveSportSlug(g.sportKey)))];
   const [sportRows, existingGames] = await Promise.all([
     prisma.sport.findMany({ where: { slug: { in: neededSlugs } } }),
     prisma.game.findMany({
@@ -172,7 +247,7 @@ export async function syncGames(providerId?: string) {
   }[] = [];
   const inPlayBatch: ApiGame[] = [];
   for (const game of priced) {
-    const sport = sportsBySlug.get(SPORT_KEY_MAP[game.sportKey]);
+    const sport = sportsBySlug.get(resolveSportSlug(game.sportKey));
     if (!sport) continue;
     const existing = gamesByExternalId.get(game.externalId);
     // In-play events: the /odds endpoint carries live prices for them, so
@@ -210,7 +285,7 @@ export async function syncGames(providerId?: string) {
 
   let created = 0, updated = 0;
   for (const { game, sportId, existing } of plan) {
-    const payload = await buildPayload(game, sportId, existing ?? undefined);
+    const payload = await buildPayload(game, sportId, liveTitles, existing ?? undefined);
 
     let gameId: string;
     if (existing) {
@@ -343,6 +418,7 @@ export async function syncEventMarkets(
 async function buildPayload(
   game: ApiGame,
   sportId: string,
+  titles: Map<string, string>,
   existing?: { homeLogo: string | null; awayLogo: string | null },
 ) {
   return {
@@ -350,7 +426,7 @@ async function buildPayload(
       sportId,
       // The Odds API odds payload has no per-game league name — stamp it from
       // the sport-key map so the homepage can rank by competition.
-      competitionName: game.competitionName ?? LEAGUE_TITLES[game.sportKey] ?? null,
+      competitionName: game.competitionName ?? titles.get(game.sportKey) ?? LEAGUE_TITLES[game.sportKey] ?? null,
       homeName: game.homeName,
       awayName: game.awayName,
       // Logo from the curated dictionary when known; otherwise keep whatever

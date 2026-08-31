@@ -227,8 +227,18 @@ Winston-Salem, esports majors) activate automatically when the API lists them;
 out-of-season sports simply show no fixtures. `ensureMappedSports()` auto-creates
 missing `Sport` rows during sync, so existing installs don't need reseeding.
 
+**Full auto-mapping — nothing is dropped:** the sync ingests *every*
+bettable league the API lists, not just the curated map. Curated categories
+(football, basketball, tennis, esports, …) come first; unknown keys resolve
+via sport-prefix fallback (NFL → American Football, NHL → Ice Hockey, boxing,
+MMA, cricket, K-League, …) or a sanitized key. Sport rows are auto-created at
+sync time, and league names come from the API. Futures/outrights keys
+(`*_winner`, `*_preseason`, …) are excluded from the catalog. The odds pass
+is capped by `ODDS_API_FEED_MAX_LEAGUES` (default `120`; free tier: lower it).
+
 Sport pages query **live/today matches first and fall back to upcoming
-fixtures** when a tab has none — no empty-tab UX dead-ends.
+fixtures** when a tab has none — no empty-tab UX dead-ends. The home hero
+slideshow and `/live` fall back to the next kickoffs the same way.
 
 ---
 

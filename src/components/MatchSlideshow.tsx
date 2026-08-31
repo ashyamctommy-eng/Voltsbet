@@ -7,6 +7,7 @@ import TeamLogo from "@/components/TeamLogo";
 import { IconGift, IconClock } from "@/components/icons";
 import { formatKickoff, liveContext } from "@/lib/kickoff";
 import { leagueRank } from "@/lib/league-rank";
+import { apiMatchToFeedGame, type FeedMatchView } from "@/lib/match-view";
 
 type SlideGame = {
   id: string;
@@ -32,14 +33,48 @@ type SlideGame = {
   }[];
 };
 
+/** Module-level cache: the empty-DB fallback fetch runs once per sport. */
+const slideCache = new Map<string, SlideGame[]>();
+
 const INTERVAL_MS = 5000;
 
-/** Hero carousel: cashback promo slide + auto-rotating live/upcoming matches. */
+/** Hero carousel: cashback promo slide + auto-rotating live/upcoming matches.
+ *  Falls back like the feed: when the server passed no matches (fresh deploy
+ *  before the first sync, or a dead slot), the client pulls /api/feed/matches
+ *  once and rotates those instead — the hero is never a dead gap. */
 export default function MatchSlideshow({ games }: { games: SlideGame[] }) {
+  const [clientGames, setClientGames] = useState<SlideGame[] | null>(null);
+  useEffect(() => {
+    if (games.length > 0) return;
+    let alive = true;
+    const load = async () => {
+      const cached = slideCache.get("home");
+      if (cached) {
+        if (alive) setClientGames(cached);
+        return;
+      }
+      try {
+        const res = await fetch("/api/feed/matches");
+        if (!res.ok) return;
+        const data: { matches?: FeedMatchView[] } = await res.json();
+        const mapped: SlideGame[] = (data.matches ?? []).map((m) => apiMatchToFeedGame(m) as unknown as SlideGame);
+        slideCache.set("home", mapped);
+        if (alive) setClientGames(mapped);
+      } catch {
+        /* server data stands */
+      }
+    };
+    void load();
+    return () => {
+      alive = false;
+    };
+  }, [games]);
+
+  const slides = clientGames ?? games;
   const matchSlides = useMemo(() => {
     const now = new Date();
-    const live = games.filter((g) => g.live || g.status === "LIVE");
-    const upcoming = games
+    const live = slides.filter((g) => g.live || g.status === "LIVE");
+    const upcoming = slides
       .filter((g) => !g.live && g.status !== "LIVE" && new Date(g.startAt) > now)
       .sort(
         (a, b) =>
@@ -47,7 +82,7 @@ export default function MatchSlideshow({ games }: { games: SlideGame[] }) {
           new Date(a.startAt).getTime() - new Date(b.startAt).getTime(),
       );
     return [...live, ...upcoming].slice(0, 7); // +1 promo slide
-  }, [games]);
+  }, [slides]);
 
   const total = matchSlides.length + 1; // promo is always slide 1
   const [idx, setIdx] = useState(0);
@@ -62,7 +97,15 @@ export default function MatchSlideshow({ games }: { games: SlideGame[] }) {
   // shrinks between syncs without a state-reset effect.
   const current = idx % total;
 
-  if (matchSlides.length === 0) return null;
+  // No match slides → still render the hero (promo only) so the home page
+  // never collapses into a dead gap while waiting for the next sync.
+  if (matchSlides.length === 0) {
+    return (
+      <section className="mt-4" aria-label="Featured">
+        <PromoSlide />
+      </section>
+    );
+  }
 
   return (
     <section className="mt-4" aria-label="Featured">
