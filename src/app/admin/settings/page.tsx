@@ -126,7 +126,7 @@ const GROUPS: { title: string; anchor: string; icon: React.ReactNode; fields: Fi
       { key: "palplus.apiKey", label: "PALPLUS_API_KEY", type: "password", hint: "Gateway API key from the Palplus merchant dashboard" },
       { key: "palplus.channelId", label: "PALPLUS_CHANNEL_ID (optional)", type: "text", hint: "Payment-channel UUID from the Palpluss console — only needed if your account has no default channel" },
       { key: "palplus.webhookSecret", label: "PALPLUS_WEBHOOK_SECRET", type: "password", hint: "Appended to callback URLs as ?secret= — callbacks without it are rejected" },
-      { key: "palplus.env", label: "PALPLUS_ENV", type: "select", options: ["sandbox", "production"], hint: "Use sandbox until your key starts with pk_live_" },
+      { key: "palplus.env", label: "PALPLUS_ENV", type: "select", options: ["sandbox", "production"], hint: "Keys start with pp_live_ (production) / pp_test_ (test) — check the console" },
       { key: "palplus.webhookUrl", label: "Palpluss webhook URL", type: "copy", hint: "Callbacks are POSTed here; the ?secret= suffix is appended automatically by the app" },
     ],
   },

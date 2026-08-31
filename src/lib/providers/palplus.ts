@@ -7,7 +7,8 @@
  *          https://sandbox.palpluss.com/v1  (test)
  *   Auth   HTTP Basic — the API key IS the credential. Send the key as the
  *          username with an EMPTY password: `Authorization: Basic <key:>`
- *          (base64 of "key:"). Keys start with pk_live_ / pk_test_
+ *          (base64 of "key:"). Keys start with pp_live_ / pp_test_ (observed
+ *          2026-08-31; their docs say pk_* but the console issues pp_*).
  *          (console.palpluss.com → Settings → API Keys). There is NO token
  *          endpoint and no OAuth — every request authenticates directly.
  *   STK    POST /payments/stk
