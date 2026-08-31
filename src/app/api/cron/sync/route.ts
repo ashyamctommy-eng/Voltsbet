@@ -21,9 +21,10 @@ import { clearPrematchFeedCache } from "@/lib/feed";
  *  - The provider's in-memory odds cache (30 min TTL) means repeated admin
  *    syncs / cold bootstraps within the window cost 0 additional requests.
  *
- * Budget: a full sync is ~1 request per league per market (≈ 44 credits for
- * the ~22 in-season leagues). Paid plans handle 3–4×/day; on the free 500/mo
- * tier schedule every-other-day or rely on ?force sparingly.
+ * Budget: a full sync is 1 request per league per market (default
+ * h2h+spreads+totals → 3 credits/league; ~90 credits for the ~30 mapped
+ * leagues). Paid plans handle 3–4×/day; on the free 500/mo tier schedule
+ * every-other-day or rely on ?force sparingly.
  *
  * Protect with the cron secret (Admin → Website Settings → Automation, or
  * CRON_SECRET env). Call from any scheduler, e.g.:

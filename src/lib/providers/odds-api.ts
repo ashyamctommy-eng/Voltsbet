@@ -19,6 +19,10 @@ export type ApiGame = {
   homeName: string;
   awayName: string;
   startAt: Date;
+  /** True when the event already kicked off — the /odds endpoint returns
+   *  in-play events with live-updating prices, and the sync layer refreshes
+   *  existing live games' market odds from them (never creates rows). */
+  inPlay?: boolean;
   markets: {
     key: string; // h2h | spreads | totals | correct_score | h2h_h1 …
     name: string;
@@ -67,26 +71,30 @@ const oddsCache = new Map<string, { at: number; data: unknown }>();
 const ODDS_CACHE_TTL_MS = (Number(process.env.ODDS_API_CACHE_TTL_SECONDS) || 30 * 60) * 1000;
 
 /**
- * Expanded market set — requested for every league on every pre-match call:
- *   h2h          1X2 (full time)
- *   h2h_h1/h2    first/second half 1X2
- *   totals        over/under (full time)
- *   totals_h1/h2  first/second half over/under
- *   spreads        handicap spreads (US sports; soccer often omits)
- *   correct_score correct score
- * The Odds API omits markets it has no prices for — the UI tabs render only
- * what comes back.
+ * Market set for the /odds LIST endpoint — per The Odds API v4 docs the list
+ * endpoint only serves the featured markets (`h2h`, `spreads`, `totals`,
+ * `outrights`; betting exchanges additionally return `h2h_lay`). Requesting
+ * anything else (e.g. `correct_score`, `h2h_h1`) 422s the whole call.
+ *
+ * The extended markets (btts, double_chance, draw_no_bet, correct_score,
+ * half/period markets, player props) are ONLY served by the per-event
+ * endpoint `/sports/{sport}/events/{eventId}/odds` at 1 credit per market
+ * per event, and current coverage is limited to selected bookmakers. The
+ * sync degrades gracefully: if ODDS_API_MARKETS asks for a market the API
+ * rejects, it retries once with the supported subset (see
+ * `requestOdds()`), so a partial market set never breaks a league.
+ *
+ * Override via ODDS_API_MARKETS (comma-separated, e.g.
+ * "h2h,spreads,totals,correct_score") when your plan + bookmaker coverage
+ * supports more — the UI renders any market key that comes back.
  */
-export const ODDS_MARKETS = [
-  "h2h",
-  "spreads",
-  "totals",
-  "h2h_h1",
-  "totals_h1",
-  "h2h_h2",
-  "totals_h2",
-  "correct_score",
-] as const;
+export const ODDS_MARKETS = (
+  process.env.ODDS_API_MARKETS?.split(",").map((s) => s.trim()).filter(Boolean) ?? [
+    "h2h",
+    "spreads",
+    "totals",
+  ]
+) as readonly string[];
 
 /** Market key → local key + display name (derive totals line from outcomes). */
 const MARKET_MAP: {
@@ -146,13 +154,45 @@ export class TheOddsApi implements OddsProvider {
     return data.filter((s) => s.active).map((s) => ({ key: s.key, name: s.title }));
   }
 
-  async fetchUpcomingGames(sportKeys: string[]) {
+  /**
+   * Fetch odds for a league, degrading gracefully when the API rejects a
+   * requested market. The /odds list endpoint only supports the featured
+   * markets; if ODDS_API_MARKETS includes an unsupported one the API answers
+   * 422 with the offenders in the message — retry once with them removed so
+   * a partial market set never breaks a league. (Error responses cost 0.)
+   */
+  private async requestOdds(sportKey: string, regions: string, markets: readonly string[]) {
+    const attempt = async (ms: readonly string[]) =>
+      (await this.get(
+        `/sports/${encodeURIComponent(sportKey)}/odds?regions=${regions}&markets=${ms.join(",")}&oddsFormat=decimal`
+      )) as {
+        id: string; commence_time: string; home_team: string; away_team: string;
+        bookmakers: { markets: { key: string; outcomes: { name: string; price: number }[] }[] }[];
+      }[];
+
+    try {
+      return await attempt(markets);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "";
+      // e.g. "The Odds API 422: Markets not supported by this endpoint: correct_score, h2h_h1"
+      // or   "The Odds API 422: Invalid markets: team_total_goals"
+      const m = msg.match(/422:.*?(?:Markets not supported by this endpoint|Invalid markets):\s*([a-z0-9_,\s]+)/i);
+      if (!m || !m[1]) throw e; // not a market-validation error — rethrow
+      const unsupported = m[1].split(",").map((s) => s.trim()).filter(Boolean);
+      const supported = markets.filter((k) => !unsupported.includes(k));
+      if (!supported.length || supported.length === markets.length) throw e;
+      console.warn(`[odds-api] ${sportKey}: dropping unsupported markets (${unsupported.join(", ")}) and retrying with [${supported.join(", ")}]`);
+      return await attempt(supported);
+    }
+  }
+
+  async fetchUpcomingGames(sportKeys: string[], markets: readonly string[] = ODDS_MARKETS) {
     const games: ApiGame[] = [];
     // Free tier serves US-region bookmakers only (regions=us); paid plans add
     // eu/uk/au. Configure via ODDS_API_REGIONS. Odds come as decimals either way.
     const regions = process.env.ODDS_API_REGIONS ?? "us";
     for (const sportKey of sportKeys) {
-      const cacheKey = `${sportKey}:${regions}:${ODDS_MARKETS.join(",")}`;
+      const cacheKey = `${sportKey}:${regions}:${markets.join(",")}`;
       const hit = oddsCache.get(cacheKey);
       let data: {
         id: string; commence_time: string; home_team: string; away_team: string;
@@ -161,19 +201,17 @@ export class TheOddsApi implements OddsProvider {
       if (hit && Date.now() - hit.at < ODDS_CACHE_TTL_MS) {
         data = hit.data as typeof data; // served from cache — 0 API cost
       } else {
-        data = (await this.get(
-          `/sports/${encodeURIComponent(sportKey)}/odds?regions=${regions}&markets=${ODDS_MARKETS.join(",")}&oddsFormat=decimal`
-        )) as typeof data;
+        data = await this.requestOdds(sportKey, regions, markets);
         oddsCache.set(cacheKey, { at: Date.now(), data });
       }
       const now = Date.now();
       for (const ev of data) {
-        // Past-match filter (spec): a fixture that already kicked off is NOT
-        // pre-match — it belongs on /live (the /scores pipeline owns started
-        // games, creating rows from the scores feed when needed).
-        if (new Date(ev.commence_time).getTime() <= now) continue;
         if (!ev.bookmakers?.length) continue; // unpriced league → no empty cards
-        const markets: ApiGame["markets"] = [];
+        const inPlay = new Date(ev.commence_time).getTime() <= now;
+        // Past-completed events are never returned by /odds; in-play events
+        // carry live prices and are passed through so the sync layer can
+        // refresh existing live games' odds (it never creates rows for them).
+        const markets_: ApiGame["markets"] = [];
         // Aggregate across bookmakers: for each requested market take the FIRST
         // book that offers it (bookmakers[0] alone silently drops markets).
         for (const spec of MARKET_MAP) {
@@ -184,7 +222,7 @@ export class TheOddsApi implements OddsProvider {
             spec.local.startsWith("OVER_UNDER")
               ? totalsName(m.outcomes, spec.name)
               : spec.name;
-          markets.push({
+          markets_.push({
             key: spec.local,
             name,
             outcomes: applyMarginGrid(
@@ -193,14 +231,15 @@ export class TheOddsApi implements OddsProvider {
             ),
           });
         }
-        if (!markets.length) continue; // books exist but no requested prices → skip
+        if (!markets_.length) continue; // books exist but no requested prices → skip
         games.push({
           externalId: ev.id,
           sportKey,
+          inPlay,
           homeName: ev.home_team,
           awayName: ev.away_team,
           startAt: new Date(ev.commence_time),
-          markets,
+          markets: markets_,
         });
       }
     }

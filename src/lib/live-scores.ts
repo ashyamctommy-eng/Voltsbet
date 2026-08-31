@@ -20,31 +20,49 @@
  *      commence_time; the `completed` flag + scores are authoritative).
  *   5. Finished events are marked FINISHED with live:false, ready for the
  *      auto-settle cron.
+ *   6. In-play ODDS refresh (separate throttle, `LIVE_ODDS_THROTTLE_SECONDS`,
+ *      markets `ODDS_API_LIVE_MARKETS`): /odds returns live events with
+ *      moving prices — upsertInPlayOdds() refreshes existing live games'
+ *      market odds (never scores/status; settled markets stay untouched).
  *
- * Quota: ~1 request per active league per sweep. Default sweep window 300s.
+ * Quota: ~1 request per active league per sweep (+1 per live-odds refresh
+ * per market). Default sweep window 300s; live-odds window 900s.
  */
 import { prisma } from "./prisma";
 import { getSettings } from "./settings";
 import { TheOddsApi } from "./providers/odds-api";
-import { SPORT_KEY_MAP } from "./sync";
+import { SPORT_KEY_MAP, upsertInPlayOdds } from "./sync";
 import { LEAGUE_TITLES } from "./feed";
 
 let lastRefresh = 0;
+let lastOddsRefresh = 0;
 
 const LIVE_LOOKBACK_HOURS = Number(process.env.LIVE_SCORES_LOOKBACK_HOURS ?? 4) || 4;
 /** Min seconds between provider sweeps (independent of the UI poll interval). */
 const THROTTLE_SECONDS = Number(process.env.LIVE_SCORES_THROTTLE_SECONDS ?? 300) || 300;
+/** Min seconds between in-play ODDS refreshes (separate from the scores
+ *  throttle — odds cost 1 credit per market per league per call).
+ *  Default 900s (15 min) at the default 1 market (h2h) keeps a paid 20K plan
+ *  comfortable: ~4 sweeps/hr × active leagues. */
+const LIVE_ODDS_THROTTLE_SECONDS = Number(process.env.LIVE_ODDS_THROTTLE_SECONDS ?? 900) || 900;
+/** Markets for the live-odds refresh (h2h only by default — cheapest and the
+ *  one in-play price every bookmaker serves; enrich via
+ *  "h2h,spreads,totals" if quota allows). */
+const LIVE_ODDS_MARKETS = (
+  process.env.ODDS_API_LIVE_MARKETS?.split(",").map((s) => s.trim()).filter(Boolean) ?? ["h2h"]
+) as readonly string[];
 
 export async function refreshLiveScores(): Promise<{
   updated: number;
   created: number;
+  oddsUpdated: number;
   skipped: boolean;
   leagues: string[];
 }> {
   const s = await getSettings();
   const windowMs = Math.max(10, THROTTLE_SECONDS * 1000);
   const now = Date.now();
-  if (now - lastRefresh < windowMs) return { updated: 0, created: 0, skipped: true, leagues: [] };
+  if (now - lastRefresh < windowMs) return { updated: 0, created: 0, oddsUpdated: 0, skipped: true, leagues: [] };
 
   // Record the attempt even on failure — acts as a backoff so a quota window
   // doesn't get re-hit on every poll.
@@ -74,7 +92,7 @@ export async function refreshLiveScores(): Promise<{
       const key = g.competitionName ? titleToKey.get(g.competitionName) : undefined;
       if (key) leagueKeys.add(key);
     }
-    if (leagueKeys.size === 0) return { updated: 0, created: 0, skipped: false, leagues: [] };
+    if (leagueKeys.size === 0) return { updated: 0, created: 0, oddsUpdated: 0, skipped: false, leagues: [] };
 
     // 3) Fetch scores for the active leagues only.
     const scores = await provider.fetchLiveScores([...leagueKeys]);
@@ -126,9 +144,24 @@ export async function refreshLiveScores(): Promise<{
       }
     }
 
-    return { updated, created, skipped: false, leagues: [...leagueKeys] };
+    // 5) In-play ODDS refresh (separate throttle + market set): /odds returns
+    //    live events with moving prices — refresh them so live betting odds
+    //    track the market. Strictly odds-only via upsertInPlayOdds.
+    let oddsUpdated = 0;
+    const oddsWindowMs = Math.max(10, LIVE_ODDS_THROTTLE_SECONDS * 1000);
+    if (Date.now() - lastOddsRefresh >= oddsWindowMs) {
+      lastOddsRefresh = Date.now(); // backoff even on failure (quota-safe)
+      try {
+        const liveOdds = await provider.fetchUpcomingGames([...leagueKeys], LIVE_ODDS_MARKETS);
+        oddsUpdated = (await upsertInPlayOdds(liveOdds)).updated;
+      } catch (e) {
+        console.error("[live-scores] in-play odds refresh failed:", e instanceof Error ? e.message : e);
+      }
+    }
+
+    return { updated, created, oddsUpdated, skipped: false, leagues: [...leagueKeys] };
   } catch (e) {
     console.error("[live-scores] sweep failed:", e instanceof Error ? e.message : e);
-    return { updated: 0, created: 0, skipped: false, leagues: [] };
+    return { updated: 0, created: 0, oddsUpdated: 0, skipped: false, leagues: [] };
   }
 }

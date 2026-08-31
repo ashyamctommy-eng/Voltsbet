@@ -18,28 +18,43 @@ API-Football were fully removed).
 | Endpoint | Job | Quota |
 |---|---|---|
 | `GET /v4/sports` | sport list (league discovery) | **0** (quota-free) |
-| `GET /v4/sports/{sport}/odds?regions=…&markets=h2h,spreads,totals,h2h_h1,totals_h1,h2h_h2,totals_h2,correct_score` | pre-match fixtures + expanded odds (`/api/cron/sync`) | 1/league |
+| `GET /v4/sports/{sport}/odds?regions=…&markets=h2h,spreads,totals` | pre-match fixtures + odds + **in-play odds** (`/api/cron/sync`, `/live`) | 1/league/market |
 | `GET /v4/sports/{sport}/events` | free 7-day calendar (`/api/cron/schedule`) | **0** |
-| `GET /v4/sports/{sport}/scores?daysFrom=1` | live scores + finished results (live pipeline + settlement) | 1/league/sweep |
+| `GET /v4/sports/{sport}/scores?daysFrom=1` | live scores + finished results (live pipeline + settlement) | 2/league/sweep |
+| `GET /v4/sports/{sport}/events/{eventId}/odds` | single-event extended markets (btts, correct_score, halfs, props) — **not used by default** | 1/market/event |
 
-### Expanded market set
+### Market set — what the list endpoint actually serves
 
-Every pre-match fetch requests the full set — The Odds API omits markets it has
-no prices for, so the UI tabs render only what exists:
+The `/odds` **list** endpoint only serves the featured markets. Anything else
+in the `markets` parameter is rejected with `422 INVALID_MARKET` — the sync
+detects that, drops the unsupported keys and retries with the supported
+subset, so a league never breaks because of a market The Odds API won't serve.
 
-| API market | Local key | UI tab |
-|---|---|---|
-| `h2h` | `MATCH_RESULT` | Main |
-| `spreads` | `SPREAD` | Main |
-| `totals` | `OVER_UNDER` | Totals |
-| `h2h_h1` | `HT_RESULT` | 1st Half |
-| `totals_h1` | `OVER_UNDER_1H` | 1st Half |
-| `h2h_h2` | `2H_RESULT` | 2nd Half |
-| `totals_h2` | `OVER_UNDER_2H` | 2nd Half |
-| `correct_score` | `CORRECT_SCORE` | Correct Score |
+| API market | Local key | UI tab | Notes |
+|---|---|---|---|
+| `h2h` | `MATCH_RESULT` | Main | Always served where prices exist |
+| `spreads` | `SPREAD` | Main | Mainly US sports/books; soccer often omits |
+| `totals` | `OVER_UNDER` | Totals | Served for soccer + US sports |
+| `h2h_lay` | — | — | Exchange lay prices; returned with `h2h` when Betfair/Matchbook are in the region (not bettable in this build) |
 
-Half-time markets are **never auto-settled** (the `/scores` endpoint exposes
-only full-time scores) — they go to admin, same as correct score.
+Derived locally from every 3-way `h2h` at **zero extra quota**:
+`DOUBLE_CHANCE` (1X/12/X2) and `DRAW_NO_BET` (1/2), with the app's margin
+applied — always priced, even when bookmakers don't list them.
+
+**Extended markets** (`btts`, `correct_score`, `h2h_h1`/`totals_h1`,
+`h2h_h2`/`totals_h2`, player props, alternate lines…) exist only on the
+per-event endpoint at 1 credit per market per event, with coverage currently
+limited to selected bookmakers. **They are not fetched by default.** To enable
+them when your plan + bookmaker coverage supports it, extend
+`ODDS_API_MARKETS` — the sync requests them per league and automatically
+falls back to the supported subset where the API rejects them. Budget
+accordingly: e.g. 20 events × 3 extra markets = 60 credits per sync run.
+
+Config: `ODDS_API_MARKETS` (list request), `ODDS_API_LIVE_MARKETS` +
+`LIVE_ODDS_THROTTLE_SECONDS` (in-play refresh on `/live`).
+
+Half-time / correct-score markets are **never auto-settled** (the `/scores`
+endpoint exposes only full-time scores) — they go to admin when enabled.
 
 ## How it fits the codebase
 
@@ -62,6 +77,12 @@ src/app/api/admin/sync/route.ts manual trigger (admin button on Games page)
   Events are upserted by `externalId` — rows for started games the pre-match
   sync never ingested are **created here**. Finished events are marked
   `FINISHED` + `live:false` for the auto-settle cron.
+- **Live odds**: the `/odds` endpoint returns in-play events with moving
+  prices. `syncGames()` refreshes their market odds as a byproduct of the
+  regular sync (zero extra requests), and `/live` additionally refreshes them
+  on its own throttle (`LIVE_ODDS_THROTTLE_SECONDS`, markets
+  `ODDS_API_LIVE_MARKETS`) — odds-only, never touching scores/status, settled
+  markets stay frozen.
 - **Match minutes are ESTIMATED** from kickoff time (The Odds API exposes no
   match clock). The `completed` flag and scores are authoritative.
 
@@ -80,8 +101,9 @@ src/app/api/admin/sync/route.ts manual trigger (admin button on Games page)
 - Existing markets get odds updated in place; new outcomes added; outcomes
   dropped from the feed are **suspended** (stale prices never stay bettable).
 - **Settled markets/outcomes are never touched** by sync (no resurrection).
-- In-play/finished games are skipped by the pre-match pass (the live pipeline
-  owns them).
+- In-play/finished games are skipped by the pre-match **create/update** pass —
+  their **odds** are refreshed separately (odds-only), and rows are never
+  created for in-play events (the live pipeline owns them).
 - API games carry `source: "API"` and are visually distinguished from manual games.
 - Manual games (admin-created) are never touched by sync or the calendar merge.
 
@@ -94,18 +116,21 @@ tapping and placing (spec §17).
 
 ## Rate budget
 
-One request = one sport + one market set per endpoint. Realistic budgets:
-- **Free (500/mo):** ~20 soccer leagues × 1 odds request × 3×/day ≈ 60/day is
-  too much. Sync ~6–8 leagues every 6h (≈ 30/day ≈ 900/mo — still over).
-  Use the free tier for ~4–6 leagues every 8h, and lean on the **0-quota**
-  `/events` calendar + DB-first rendering (0 requests per page load).
-- **Paid (~$30/mo, 20K):** 20 leagues × 1 × 4×/day = 80/day ≈ 2,400/mo —
-  comfortable, with room for live sweeps (≈ 288 × active-leagues/day worst
-  case at the 5-min default sweep window; raise `LIVE_SCORES_THROTTLE_SECONDS`
-  to cut that).
-
-> TL;DR: the free tier fits a light soccer-only book on an 8h cadence; the paid
-> tier removes all pressure. The architecture doesn't care — only the quota does.
+One request = one sport + one market set per endpoint (list endpoint:
+1 credit per market per league; scores: 2 per league with `daysFrom`).
+Realistic budgets:
+- **Free (500/mo):** 3 markets × ~20 leagues × 3×/day ≈ 180/day — far too
+  much. Sync ~4–6 leagues every 8h (≈ 3 × 5 × 3 ≈ 45/day ≈ 1,350/mo — still
+  over; lean on the **0-quota** `/events` calendar + DB-first rendering, and
+  keep the league map small).
+- **Paid (~$30/mo, 20K):** 3 markets × ~40 leagues × 3×/day = 360/day ≈
+  10,800/mo — comfortable, with room for live sweeps. In-play odds at the
+  default 1 market (h2h) every 15 min per active league ≈ 1 × 8 × 4/hr ≈
+  32/hr during live windows — raise `LIVE_ODDS_THROTTLE_SECONDS` or narrow
+  `ODDS_API_LIVE_MARKETS` to cut it.
+- TL;DR: the free tier fits a light soccer-only book on an 8h cadence; the
+  paid tier removes all pressure. The architecture doesn't care — only the
+  quota does.
 
 ## Live in-play data (/live)
 

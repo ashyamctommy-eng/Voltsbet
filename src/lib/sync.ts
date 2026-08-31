@@ -63,8 +63,28 @@ export const SPORT_KEY_MAP: Record<string, string> = {
   soccer_brazil_campeonato: "football",
   soccer_usa_mls: "football",
   soccer_turkey_super_league: "football",
+  // Paid-plan additions — verified in-season on the 20K plan (2026-08-31)
+  soccer_argentina_primera_division: "football",
+  soccer_austria_bundesliga: "football",
+  soccer_belgium_first_div: "football",
+  soccer_brazil_serie_b: "football",
+  soccer_chile_campeonato: "football",
+  soccer_china_superleague: "football",
+  soccer_concacaf_leagues_cup: "football",
+  soccer_conmebol_copa_libertadores: "football",
+  soccer_conmebol_copa_sudamericana: "football",
+  soccer_denmark_superliga: "football",
+  soccer_finland_veikkausliiga: "football",
+  soccer_greece_super_league: "football",
+  soccer_japan_j_league: "football",
+  soccer_league_of_ireland: "football",
+  soccer_norway_eliteserien: "football",
+  soccer_sweden_allsvenskan: "football",
+  soccer_sweden_superettan: "football",
   basketball_nba: "basketball",
+  basketball_euroleague: "basketball",
   baseball_mlb: "baseball", icehockey_nhl: "ice-hockey",
+  rugbyleague_nrl: "rugby", handball_germany_bundesliga: "handball",
 };
 
 export async function syncGames(providerId?: string) {
@@ -107,10 +127,22 @@ export async function syncGames(providerId?: string) {
     sportId: string;
     existing?: { id: string; homeLogo: string | null; awayLogo: string | null };
   }[] = [];
+  const inPlayBatch: ApiGame[] = [];
   for (const game of priced) {
     const sport = sportsBySlug.get(SPORT_KEY_MAP[game.sportKey]);
     if (!sport) continue;
     const existing = gamesByExternalId.get(game.externalId);
+    // In-play events: the /odds endpoint carries live prices for them, so
+    // refresh the markets of games the DB already knows — odds only. Never
+    // create rows (the /scores pipeline owns in-play creation) and never
+    // touch status/scores here. Finished/cancelled games are skipped (their
+    // markets are settling).
+    if (game.inPlay) {
+      if (existing && !["FINISHED", "CANCELLED", "POSTPONED"].includes(existing.status)) {
+        inPlayBatch.push(game);
+      }
+      continue;
+    }
     // Never touch in-play / finished / cancelled games in the pre-match pass:
     // their markets may be suspended or settled, and re-marking them SCHEDULED
     // used to clobber live scores, resurrect settled outcomes and hide live
@@ -152,6 +184,13 @@ export async function syncGames(providerId?: string) {
     await upsertMarkets(gameId, game, marketsByGame.get(gameId) ?? []);
   }
 
+  // Live-odds refresh for in-play events (same /odds payload, zero extra
+  // requests): update market prices of games already known as live.
+  let oddsUpdated = 0;
+  if (inPlayBatch.length) {
+    oddsUpdated = (await upsertInPlayOdds(inPlayBatch)).updated;
+  }
+
   // Auto-hide seed/manual games once the provider feed is live — the site then
   // shows only synced (API) games. Auto-enables on any successful sync that
   // found feed games, but ONLY while the admin has never touched the toggle:
@@ -166,6 +205,7 @@ export async function syncGames(providerId?: string) {
   return {
     created,
     updated,
+    oddsUpdated,
     gamesSynced: games.length,
     provider: providerId_,
   };
@@ -284,8 +324,7 @@ async function upsertMarkets(gameId: string, game: ApiGame, prefetched: MarketWi
 }
 
 /** Upsert a derived market (DOUBLE_CHANCE / DRAW_NO_BET) from an h2h market.
- *  Outcome writes are pushed into the game's shared `ops` batch. */
-async function upsertDerived(
+ *  Outcome writes are pushed into the game's shared `ops` batch. */async function upsertDerived(
   gameId: string,
   source: { key: string; name: string; outcomes: { name: string; label?: string | null; odds: number }[] },
   homeName: string,
@@ -335,4 +374,52 @@ async function upsertDerived(
       byKey.set(d.key, { id: created.id, gameId, key: d.key, status: "OPEN", outcomes: [] });
     }
   }
+}
+
+/**
+ * Refresh market odds for in-play games from live /odds payloads.
+ *
+ * Used by the pre-match sync (which receives in-play events in the same
+ * response, zero extra requests) and by the live-score pipeline (which
+ * fetches /odds for active leagues on its own throttle). Strictly odds-only:
+ * game rows are looked up by externalId and must already exist with a
+ * live-ish status — nothing is created, and scores/status/flags are never
+ * touched here (the /scores pipeline owns those). `upsertMarkets` keeps its
+ * usual guarantees: settled markets/outcomes are never re-priced or
+ * resurrected, stale feed outcomes get suspended.
+ */
+export async function upsertInPlayOdds(apiGames: ApiGame[]): Promise<{ updated: number }> {
+  const priced = apiGames.filter((g) => g.inPlay && g.markets?.length);
+  if (!priced.length) return { updated: 0 };
+
+  const existingGames = await prisma.game.findMany({
+    where: {
+      externalId: { in: priced.map((g) => g.externalId) },
+      // Live-ish rows only — SCHEDULED rows whose kickoff passed are in-play
+      // but not yet flipped by the scores pipeline; refreshing their odds is
+      // safe (upsertMarkets never writes status).
+      status: { in: ["LIVE", "HALF_TIME", "IN_PLAY", "SCHEDULED"] },
+    },
+    select: { id: true, externalId: true, status: true, homeLogo: true, awayLogo: true },
+  });
+  const byExternalId = new Map(existingGames.map((g) => [g.externalId, g]));
+  const targets = priced.filter((g) => byExternalId.has(g.externalId));
+  if (!targets.length) return { updated: 0 };
+
+  const marketRows = await prisma.market.findMany({
+    where: { gameId: { in: targets.map((t) => byExternalId.get(t.externalId)!.id) } },
+    include: { outcomes: true },
+  });
+  const marketsByGame = new Map<string, typeof marketRows>();
+  for (const m of marketRows) {
+    const list = marketsByGame.get(m.gameId) ?? [];
+    list.push(m);
+    marketsByGame.set(m.gameId, list);
+  }
+
+  for (const game of targets) {
+    const existing = byExternalId.get(game.externalId)!;
+    await upsertMarkets(existing.id, game, marketsByGame.get(existing.id) ?? []);
+  }
+  return { updated: targets.length };
 }
