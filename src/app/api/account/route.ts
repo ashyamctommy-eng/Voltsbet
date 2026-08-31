@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { isUserActionAllowed, userBlockReason } from "@/lib/statuses";
 import { currencyMap, convert, formatMoney } from "@/lib/currency";
+import { toCents } from "@/lib/wallet";
 import { npCreatePayment } from "@/lib/providers/nowpayments";
 import { mpesaStkPush, normalizeMpesaPhone, publicBaseUrl } from "@/lib/providers/mpesa";
 import { z } from "zod";
@@ -175,6 +176,28 @@ export const POST = handle(async (req: NextRequest) => {
   if (method === "MPESA") {
     if (!settings.mpesaEnabled) throw new ApiError(503, "M-Pesa deposits are not enabled yet.", "MPESA_DISABLED");
 
+    // M-Pesa charges in KES only. Non-KES wallets are charged the converted
+    // KES amount via STK but CREDITED in their own currency (deposit.amount
+    // stays wallet-currency; the KES charge is kept in metadata for
+    // reconciliation). Refuse when no conversion rate is available — never
+    // guess.
+    let kesAmount = amount;
+    if (wallet.currencyCode !== "KES") {
+      const map = await currencyMap();
+      if (!map[wallet.currencyCode] || !map["KES"]) {
+        throw new ApiError(400, "Currency conversion is unavailable for M-Pesa deposits right now.", "RATE_UNAVAILABLE");
+      }
+      kesAmount = toCents(await convert(amount, wallet.currencyCode, "KES"));
+    }
+    // Safaricom STK transaction cap — reject before the push, not after.
+    if (kesAmount > 150_000) {
+      throw new ApiError(
+        400,
+        "M-Pesa deposits are limited to KSh 150,000 per transaction — deposit a smaller amount.",
+        "MPESA_LIMIT"
+      );
+    }
+
     const deposit = await prisma.deposit.create({
       data: {
         userId: user.id,
@@ -183,7 +206,11 @@ export const POST = handle(async (req: NextRequest) => {
         amount: amount.toFixed(2),
         currencyCode: wallet.currencyCode,
         status: "AWAITING_PAYMENT",
-        metadata: JSON.stringify({ checkoutRequestId: "", phone: normalizeMpesaPhone(phone) }),
+        metadata: JSON.stringify({
+          checkoutRequestId: "",
+          phone: normalizeMpesaPhone(phone),
+          ...(wallet.currencyCode !== "KES" ? { kesAmount, walletAmount: amount } : {}),
+        }),
       },
     });
 
@@ -191,14 +218,20 @@ export const POST = handle(async (req: NextRequest) => {
       const base = publicBaseUrl(settings);
       const callback = `${base}/api/webhooks/mpesa/stk?secret=${settings.mpesaCallbackSecret}`;
       const push = await mpesaStkPush({
-        amount,
+        amount: kesAmount,
         phone,
         accountReference: `VB-${user.id.slice(-6)}`,
         callbackUrl: callback,
       });
       await prisma.deposit.update({
         where: { id: deposit.id },
-        data: { metadata: JSON.stringify({ checkoutRequestId: push.CheckoutRequestID, phone: normalizeMpesaPhone(phone) }) },
+        data: {
+          metadata: JSON.stringify({
+            checkoutRequestId: push.CheckoutRequestID,
+            phone: normalizeMpesaPhone(phone),
+            ...(wallet.currencyCode !== "KES" ? { kesAmount, walletAmount: amount } : {}),
+          }),
+        },
       });
       return ok({
         deposit: {

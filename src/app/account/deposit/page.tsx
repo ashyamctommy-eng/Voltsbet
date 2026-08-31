@@ -284,6 +284,20 @@ export default function DepositPage() {
                   </span>
                 </div>
               )}
+              {method === "MPESA" && amountNum > 0 && (() => {
+                // M-Pesa charges in KES — show what a non-KES wallet user
+                // will actually be charged (KES per wallet unit).
+                const walletCur = (account?.user.currencyCode ?? "KES").toUpperCase();
+                const kesPerWallet = limits?.currencyRates?.[walletCur];
+                if (walletCur === "KES" || !kesPerWallet || kesPerWallet <= 0) return null;
+                const kesCharge = Math.round(amountNum * kesPerWallet * 100) / 100;
+                return (
+                  <div className="mt-2 flex items-center justify-between rounded-lg bg-brand/5 px-3 py-2 text-sm">
+                    <span className="text-ink2">You&apos;ll be charged</span>
+                    <span className="font-bold text-brand">≈ KSh {kesCharge.toLocaleString("en-US", { maximumFractionDigits: 2 })}</span>
+                  </div>
+                );
+              })()}
               <div className="mt-3 flex gap-2">
                 {[5000, 10000, 25000].map((q) => (
                   <button

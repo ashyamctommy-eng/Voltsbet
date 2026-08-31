@@ -198,6 +198,7 @@ no match clock; `completed` flag and scores are authoritative.
 | `ODDS_API_EVENT_MARKET_LIMIT` | — | Max events/league for per-event markets (default `3`; `0` disables) |
 | `ODDS_API_LIVE_MARKETS` | — | in-play odds markets on `/live` (default `h2h`) |
 | `LIVE_ODDS_THROTTLE_SECONDS` | — | min seconds between live-odds refreshes (default `900`) |
+| `RATES_SYNC_THROTTLE_MINUTES` | — | min minutes between `/api/cron/rates` runs (default `60`) |
 | `PURGE_MAX_AGE_HOURS` | — | default `2` |
 | `SHOW_SEEDED_GAMES` | — | **Leave unset in production** |
 | `SEED_ADMIN_EMAIL` | — | Super-admin email for the seed (default `admin@voltbet.test`) |
@@ -223,6 +224,7 @@ All endpoints: `GET /api/cron/<job>?secret=<CRON_SECRET>`
 | `/api/cron/schedule` | 7-day calendar | `0 5 * * *` | 0 |
 | `/api/cron/settle` | Auto-settle | `*/12 * * * *` | 0 |
 | `/api/cron/purge` | Expired calendar rows | `0 0 * * *` | 0 |
+| `/api/cron/rates` | **Market FX + crypto rates** | `17 * * * *` (or daily) | 0 |
 
 **Admin → Cronjobs** generates copy-paste configs (URL, curl, wget, cron-job.org,
 UptimeRobot) with editable schedules and **Run now** per job.
@@ -232,6 +234,25 @@ rate-limited internally; allow ≥60s request timeout on schedulers.
 
 GitHub Actions workflows in `.github/workflows/` also run the cron endpoints on
 schedule (set `CRON_SECRET` + `APP_URL` repo secrets).
+
+---
+
+## Multi-currency & automated rates
+
+- **Registration** picks the wallet currency (`Preferred currency` — DB-driven
+  dropdown, platform default preselected). The wallet is created in that
+  currency; balances always display in it.
+- **Deposits convert automatically** into the wallet currency:
+  - **Crypto** — NOWPayments prices the payment in the wallet currency.
+  - **M-Pesa** — KES-only rail: the STK push charges the converted KES amount
+    (shown to the user upfront), the wallet is credited in its own currency.
+    Capped at the Safaricom KSh 150,000/transaction limit.
+  - **Vouchers** — redeemable across currencies at system rates.
+- **Rates are automated, not manual:** `/api/cron/rates` (or the **⟳ Sync
+  market rates** button on Admin → Currencies) pulls live rates from free,
+  keyless sources (open.er-api.com base KES + CoinGecko) into the `Currency`
+  table and `crypto.rates`. Admin edits are still possible but the next sync
+  overwrites them. `RATES_SYNC_THROTTLE_MINUTES` controls the cadence.
 
 ---
 

@@ -15,8 +15,23 @@ export default function RegisterPage() {
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  /** Active currencies from the DB (data-driven dropdown) + platform default. */
+  const [currencies, setCurrencies] = useState<{ code: string; name: string; symbol: string }[] | null>(null);
 
   const set = (k: string, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }));
+
+  // Load the DB currency list; pre-select the platform's default currency.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      void apiFetch<{ currencies: { code: string; name: string; symbol: string }[]; defaultCode: string }>("/api/public/currencies")
+        .then((r) => {
+          if (!r.ok || !r.data.currencies.length) return;
+          setCurrencies(r.data.currencies);
+          if (r.data.defaultCode) set("currency", r.data.defaultCode);
+        });
+    }, 0);
+    return () => clearTimeout(t);
+  }, []);
 
   // Prefill referral code from ?ref=VOLT-XXXX (share links from the account page).
   useEffect(() => {
@@ -103,15 +118,19 @@ export default function RegisterPage() {
           <div>
             <label className="label" htmlFor="currency">Preferred currency</label>
             <select id="currency" className={input} value={form.currency} onChange={(e) => set("currency", e.target.value)}>
-              <option value="KES">KES — Kenyan Shilling</option>
-              <option value="USD">USD — US Dollar</option>
-              <option value="EUR">EUR — Euro</option>
-              <option value="GBP">GBP — British Pound</option>
-              <option value="UGX">UGX — Ugandan Shilling</option>
-              <option value="TZS">TZS — Tanzanian Shilling</option>
-              <option value="NGN">NGN — Nigerian Naira</option>
-              <option value="GHS">GHS — Ghanaian Cedi</option>
-              <option value="ZAR">ZAR — South African Rand</option>
+              {(currencies ?? [
+                { code: "KES", name: "Kenyan Shilling", symbol: "KSh" },
+                { code: "USD", name: "US Dollar", symbol: "$" },
+                { code: "EUR", name: "Euro", symbol: "€" },
+                { code: "GBP", name: "British Pound", symbol: "£" },
+                { code: "UGX", name: "Ugandan Shilling", symbol: "USh" },
+                { code: "TZS", name: "Tanzanian Shilling", symbol: "TSh" },
+                { code: "NGN", name: "Nigerian Naira", symbol: "₦" },
+                { code: "GHS", name: "Ghanaian Cedi", symbol: "GH₵" },
+                { code: "ZAR", name: "South African Rand", symbol: "R" },
+              ]).map((c) => (
+                <option key={c.code} value={c.code}>{c.code} — {c.name}</option>
+              ))}
             </select>
           </div>
 

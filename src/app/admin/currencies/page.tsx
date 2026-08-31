@@ -37,9 +37,24 @@ export default function AdminCurrencies() {
     load();
   }
 
+  const [syncing, setSyncing] = useState(false);
+  async function syncRates() {
+    setSyncing(true);
+    const res = await apiFetch<{ fxUpdated: number; cryptoRates: Record<string, number> | null }>("/api/admin/currencies/sync", { method: "POST" });
+    setSyncing(false);
+    if (!res.ok) return push("error", res.error.message);
+    push("success", `Rates synced — ${res.data.fxUpdated} fiat rate(s) updated${res.data.cryptoRates ? " + crypto" : ""}`);
+    load();
+  }
+
   return (
     <div className="space-y-5">
-      <h2 className="text-lg font-bold">Currencies</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-bold">Currencies</h2>
+        <button className="btn btn-ghost btn-sm" onClick={syncRates} disabled={syncing}>
+          {syncing ? "Syncing…" : "⟳ Sync market rates"}
+        </button>
+      </div>
 
       <form onSubmit={create} className="card grid gap-3 p-5 sm:grid-cols-6">
         <div><label className="label">Code</label><input className="input" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} placeholder="KES" required /></div>
@@ -71,7 +86,7 @@ export default function AdminCurrencies() {
           </div>
         ))}
       </div>
-      <p className="text-xs text-ink3">Rate = base-currency units per 1 unit of this currency (e.g. 1 USD = 129 KES → rate 129). The default currency has rate 1.</p>
+      <p className="text-xs text-ink3">Rate = base-currency units per 1 unit of this currency (e.g. 1 USD = 129 KES → rate 129). The default currency has rate 1. Rates auto-sync from the market (cron /api/cron/rates or this button) — manual edits are overwritten by the next sync.</p>
     </div>
   );
 }
