@@ -185,6 +185,7 @@ model Market {
   description String?
   status      String  @default("OPEN") // status-engine key (type=MARKET): OPEN | SUSPENDED | CLOSED | SETTLED
   settlementMethod String?
+  isManual    Boolean @default(false) // admin-created market — never overwritten by sync
   sortOrder   Int     @default(0)
 
   outcomes  Outcome[]
@@ -203,6 +204,7 @@ model Outcome {
   status    String  @default("ACTIVE") // ACTIVE | SUSPENDED
   settled   Boolean @default(false)
   result    String? // WON | LOST | VOID | null
+  isManual  Boolean @default(false) // admin-created outcome — never overwritten by sync
   sortOrder Int     @default(0)
 
   selections BetSelection[]

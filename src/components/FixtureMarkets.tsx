@@ -20,6 +20,7 @@ type FixtureMarket = {
   name: string;
   key: string;
   status: string;
+  isManual?: boolean;
   outcomes: FixtureOutcome[];
 };
 
@@ -218,6 +219,9 @@ export default function FixtureMarkets({ game, markets }: { game: FixtureCtx; ma
                   <IconStar className={`h-4 w-4 ${starred ? "fill-current" : ""}`} />
                 </span>
                 <span className="truncate font-bold">{tMarket(m.name)}</span>
+                {m.isManual && (
+                  <span className="shrink-0 rounded-full bg-purple-500/15 px-2 py-0.5 text-[10px] font-bold uppercase text-purple-400">Manual</span>
+                )}
                 {!hasPriced && (
                   <span className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-400">
                     {t("common.suspended")}

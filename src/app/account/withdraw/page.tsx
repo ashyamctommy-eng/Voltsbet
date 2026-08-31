@@ -24,6 +24,9 @@ export default function WithdrawPage() {
   }, []);
 
   const methods = profile?.limits?.withdrawalMethods ?? ["CRYPTO"];
+
+  // Fallback guard (render-time, no effects): M-Pesa toggled off → crypto.
+  const effectiveMethod = (methods.includes(method) ? method : methods[0]) as "CRYPTO" | "MPESA" ?? "CRYPTO";
   const max = profile?.wallet?.balance ?? 0;
 
   async function submit(e: React.FormEvent) {
@@ -34,7 +37,7 @@ export default function WithdrawPage() {
     setLoading(true);
     const res = await apiFetch<{ withdrawal: { trackingId?: string } }>("/api/account/withdraw", {
       method: "POST",
-      body: { amount: amt, method, destination },
+      body: { amount: amt, method: effectiveMethod, destination },
     });
     setLoading(false);
     if (!res.ok) return push("error", res.error.message);
@@ -62,12 +65,12 @@ export default function WithdrawPage() {
             type="button"
             onClick={() => setMethod("CRYPTO")}
             className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-all ${
-              method === "CRYPTO" ? "border-brand bg-brand/10" : "border-line2 hover:border-ink3"
+              effectiveMethod === "CRYPTO" ? "border-brand bg-brand/10" : "border-line2 hover:border-ink3"
             }`}
           >
-            <span className={`flex h-9 w-9 items-center justify-center rounded-full text-base font-black ${method === "CRYPTO" ? "bg-brand text-[#052e16]" : "bg-card2 text-ink2"}`}>₿</span>
+            <span className={`flex h-9 w-9 items-center justify-center rounded-full text-base font-black ${effectiveMethod === "CRYPTO" ? "bg-brand text-[#052e16]" : "bg-card2 text-ink2"}`}>₿</span>
             <span>
-              <span className={`block text-sm font-bold ${method === "CRYPTO" ? "text-brand" : "text-ink"}`}>Crypto</span>
+              <span className={`block text-sm font-bold ${effectiveMethod === "CRYPTO" ? "text-brand" : "text-ink"}`}>Crypto</span>
               <span className="block text-[11px] text-ink3">BTC · ETH · USDT</span>
             </span>
           </button>
@@ -77,12 +80,12 @@ export default function WithdrawPage() {
             type="button"
             onClick={() => setMethod("MPESA")}
             className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-all ${
-              method === "MPESA" ? "border-brand bg-brand/10" : "border-line2 hover:border-ink3"
+              effectiveMethod === "MPESA" ? "border-brand bg-brand/10" : "border-line2 hover:border-ink3"
             }`}
           >
-            <span className={`flex h-9 w-9 items-center justify-center rounded-full text-base font-black ${method === "MPESA" ? "bg-brand text-[#052e16]" : "bg-card2 text-ink2"}`}>📱</span>
+            <span className={`flex h-9 w-9 items-center justify-center rounded-full text-base font-black ${effectiveMethod === "MPESA" ? "bg-brand text-[#052e16]" : "bg-card2 text-ink2"}`}>📱</span>
             <span>
-              <span className={`block text-sm font-bold ${method === "MPESA" ? "text-brand" : "text-ink"}`}>M-Pesa</span>
+              <span className={`block text-sm font-bold ${effectiveMethod === "MPESA" ? "text-brand" : "text-ink"}`}>M-Pesa</span>
               <span className="block text-[11px] text-ink3">Instant to your number</span>
             </span>
           </button>
@@ -99,19 +102,19 @@ export default function WithdrawPage() {
         </div>
         <div>
           <label className="label" htmlFor="w-dest">
-            {method === "MPESA" ? "M-Pesa number" : "Crypto destination address"}
+            {effectiveMethod === "MPESA" ? "M-Pesa number" : "Crypto destination address"}
           </label>
           <input
             id="w-dest"
             className="input font-mono"
-            inputMode={method === "MPESA" ? "tel" : "text"}
-            placeholder={method === "MPESA" ? "0712 345 678" : "0x… / bc1q… / TRC20…"}
+            inputMode={effectiveMethod === "MPESA" ? "tel" : "text"}
+            placeholder={effectiveMethod === "MPESA" ? "0712 345 678" : "0x… / bc1q… / TRC20…"}
             value={destination}
             onChange={(e) => setDestination(e.target.value)}
             required
-            minLength={method === "MPESA" ? 9 : 8}
+            minLength={effectiveMethod === "MPESA" ? 9 : 8}
           />
-          {method === "MPESA" && (
+          {effectiveMethod === "MPESA" && (
             <p className="mt-1.5 text-xs text-ink3">Payouts are sent from our Paybill via B2C. You may be required to verify identity first.</p>
           )}
         </div>

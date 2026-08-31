@@ -5,7 +5,7 @@ import { apiFetch } from "@/lib/client";
 import { useToast } from "@/components/BetSlipContext";
 import { IconWhatsApp, IconTelegram, IconCoins, IconSmartphone, IconGear, IconGlobe, IconGift2, IconPencil, IconTv } from "@/components/icons";
 
-type FieldType = "text" | "password" | "number" | "toggle" | "select";
+type FieldType = "text" | "password" | "number" | "toggle" | "select" | "copy";
 type Field = {
   key: string;
   label: string;
@@ -117,20 +117,17 @@ const GROUPS: { title: string; anchor: string; icon: React.ReactNode; fields: Fi
     ],
   },
   {
-    title: "M-Pesa (Daraja)",
+    title: "M-Pesa (Palplus)",
     anchor: "mpesa",
     icon: <IconSmartphone className="h-4 w-4" />,
     fields: [
-      { key: "mpesa.enabled", label: "M-Pesa enabled", type: "toggle" },
-      { key: "mpesa.env", label: "Environment", type: "select", options: ["sandbox", "production"] },
-      { key: "mpesa.consumerKey", label: "Consumer key", type: "password" },
-      { key: "mpesa.consumerSecret", label: "Consumer secret", type: "password" },
-      { key: "mpesa.passkey", label: "Lipa na M-Pesa passkey", type: "password" },
-      { key: "mpesa.shortcode", label: "Paybill shortcode", type: "text", hint: "Sandbox: 174379" },
-      { key: "mpesa.initiatorName", label: "B2C initiator name", type: "text", hint: "Sandbox default: testapi" },
-      { key: "mpesa.securityCredential", label: "B2C security credential", type: "password", hint: "Generate via scripts/gen-mpesa-credential.ts" },
-      { key: "mpesa.callbackSecret", label: "Webhook URL secret", type: "password", hint: "Keep random; don't rotate mid-test" },
+      { key: "mpesa.enabled", label: "M-Pesa payments enabled", type: "toggle", hint: "Show the M-Pesa tab on Deposit & Withdraw (env ENABLE_MPESA_PAYMENTS overrides)" },
       { key: "payments.mpesaWithdrawalsEnabled", label: "M-Pesa withdrawals enabled", type: "toggle", hint: "Offer M-Pesa as a payout method (env ENABLE_MPESA_WITHDRAWALS overrides)" },
+      { key: "palplus.apiKey", label: "PALPLUS_API_KEY", type: "password", hint: "Gateway API key from the Palplus merchant dashboard" },
+      { key: "palplus.merchantId", label: "PALPLUS_MERCHANT_ID", type: "text", hint: "Your Palplus merchant ID" },
+      { key: "palplus.webhookSecret", label: "PALPLUS_WEBHOOK_SECRET", type: "password", hint: "Validates Palplus callbacks (HMAC-SHA256)" },
+      { key: "palplus.env", label: "PALPLUS_ENV", type: "select", options: ["sandbox", "production"] },
+      { key: "palplus.webhookUrl", label: "Palplus webhook URL", type: "copy", hint: "Set this as the CallBackURL in your Palplus STK/B2C requests" },
     ],
   },
   {
@@ -209,7 +206,7 @@ export default function AdminSettings() {
               className="flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold text-ink2 transition-colors hover:bg-hover-tint hover:text-ink"
             >
               <span className="text-brand">{g.icon}</span>
-              {g.title.replace(" (NOWPayments)", "").replace(" (Daraja)", "")}
+              {g.title.replace(" (NOWPayments)", "").replace(" (Palplus)", "")}
             </button>
           ))}
         </div>
@@ -250,6 +247,30 @@ export default function AdminSettings() {
                         <option key={o} value={o}>{o === "" ? (f.emptyLabel ?? "— none —") : o}</option>
                       ))}
                     </select>
+                  </div>
+                );
+              }
+              if (f.type === "copy") {
+                const appUrl = settings["app.url"]?.replace(/\/$/, "") ?? "";
+                const url = appUrl ? `${appUrl}/api/webhooks/palplus` : "";
+                return (
+                  <div key={f.key} className="sm:col-span-2">
+                    <label className="label">{f.label}</label>
+                    <div className="flex gap-2">
+                      <input className="input flex-1 font-mono text-xs" readOnly value={url} placeholder="Set App & Homepage → Public app URL first" />
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm shrink-0"
+                        disabled={!url}
+                        onClick={() => {
+                          void navigator.clipboard.writeText(url);
+                          push("success", "Webhook URL copied");
+                        }}
+                      >
+                        Copy
+                      </button>
+                    </div>
+                    {f.hint && <p className="mt-1 text-xs text-ink3">{f.hint}</p>}
                   </div>
                 );
               }

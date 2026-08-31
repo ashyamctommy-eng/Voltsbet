@@ -4,8 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { npCreatePayout } from "@/lib/providers/nowpayments";
 import { mpesaB2c, publicBaseUrl } from "@/lib/providers/mpesa";
-import { creditWallet } from "@/lib/wallet";
-import { cryptoAmountFor } from "@/lib/currency";
+import { palplusB2c } from "@/lib/providers/palplus";
+import { creditWallet, toCents } from "@/lib/wallet";
+import { cryptoAmountFor, convert } from "@/lib/currency";
 import { z } from "zod";
 
 const schema = z.object({
@@ -150,33 +151,63 @@ export const PATCH = handle(async (req: NextRequest, ctx: { params: Promise<{ id
 
     try {
       const base = publicBaseUrl(settings);
-      const secret = settings.mpesaCallbackSecret;
-      const resultUrl = `${base}/api/webhooks/mpesa/b2c?secret=${secret}`;
-      const payout = await mpesaB2c({
-        amount,
-        phone: withdrawal.destination,
-        remarks: `VoltBet payout ${ref}`,
-        resultUrl,
-        queueTimeOutUrl: resultUrl,
-      });
-      // Persist the conversationId immediately — the callback matches on it.
+      // Explicit admin click → fire the B2C payout. Palplus when configured
+      // (PALPLUS_API_KEY + PALPLUS_MERCHANT_ID), legacy Daraja otherwise.
+      const usePalplus = Boolean(settings.palplusApiKey && settings.palplusMerchantId);
+      const callbackUrl = usePalplus
+        ? `${base}/api/webhooks/palplus`
+        : `${base}/api/webhooks/mpesa/b2c?secret=${settings.mpesaCallbackSecret}`;
+      // B2C pays in KES — convert non-KES wallet amounts via system rates.
+      const kesAmount =
+        withdrawal.currencyCode === "KES"
+          ? amount
+          : toCents(await convert(amount, withdrawal.currencyCode, "KES"));
+
+      const payout = usePalplus
+        ? await palplusB2c({
+            amount: kesAmount,
+            phone: withdrawal.destination,
+            reference: ref,
+            callbackUrl,
+            transactionDesc: `VoltBet payout ${ref}`,
+          })
+        : await mpesaB2c({
+            amount: kesAmount,
+            phone: withdrawal.destination,
+            remarks: `VoltBet payout ${ref}`,
+            resultUrl: callbackUrl,
+            queueTimeOutUrl: callbackUrl,
+          });
+      // Persist the provider reference immediately — the callback matches on it.
+      const palplusResult = payout as Awaited<ReturnType<typeof palplusB2c>>;
+      const darajaResult = payout as Awaited<ReturnType<typeof mpesaB2c>>;
+      const providerRef = usePalplus ? palplusResult.conversationId : darajaResult.ConversationID;
       await prisma.withdrawal.update({
         where: { id },
         data: {
           adminNote: parsed.data.adminNote || withdrawal.adminNote,
           metadata: JSON.stringify({
             ...metadata,
-            conversationId: payout.ConversationID,
-            originatorConversationId: payout.OriginatorConversationID,
+            provider: usePalplus ? "PALPLUS" : "MPESA",
+            conversationId: providerRef,
+            ...(usePalplus
+              ? { palplus: palplusResult }
+              : { originatorConversationId: darajaResult.OriginatorConversationID }),
+            ...(withdrawal.currencyCode !== "KES" ? { kesAmount, walletAmount: amount } : {}),
           }),
         },
       });
       await auditLog({
         admin, action: "PAYOUT_INITIATED", entity: "WITHDRAWAL", entityId: id, userId: withdrawal.userId,
         prevValue: { status: withdrawal.status, reserved: true },
-        newValue: { status: "PROCESSING", provider: "MPESA", conversationId: payout.ConversationID },
+        newValue: { status: "PROCESSING", provider: usePalplus ? "PALPLUS" : "MPESA", conversationId: providerRef },
       });
-      return ok({ withdrawal: { id, status: "PROCESSING", payoutInitiated: true, provider: "MPESA", reserved: true } });
+      return ok({
+        withdrawal: {
+          id, status: "PROCESSING", payoutInitiated: true,
+          provider: usePalplus ? "PALPLUS" : "MPESA", reserved: true,
+        },
+      });
     } catch (e) {
       // Initiation failed — no money moved. Back to PENDING (still reserved).
       await prisma.withdrawal.update({
@@ -193,10 +224,12 @@ export const PATCH = handle(async (req: NextRequest, ctx: { params: Promise<{ id
 
   // ── APPROVE → COMPLETED (manual payout attestation) ─────────────────────
   if (newStatus === "COMPLETED") {
-    if (isMpesa) {
+    // M-Pesa completes via the B2C callback OR explicit manual attestation
+    // ("Approve & mark paid" with a payout reference/note). Never automatic.
+    if (isMpesa && !parsed.data.payoutRef && !parsed.data.adminNote) {
       throw new ApiError(
         409,
-        "M-Pesa withdrawals are completed by the payout callback — use PROCESSING to send the B2C payout.",
+        "M-Pesa withdrawals complete via the B2C callback (use PROCESSING / Approve via Palplus B2C) or with a manual payout reference.",
         "USE_PROCESSING"
       );
     }

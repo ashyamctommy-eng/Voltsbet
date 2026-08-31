@@ -40,6 +40,9 @@ export const POST = handle(async (req: NextRequest, ctx: { params: Promise<{ id:
       key: d.key,
       status: d.status,
       settlementMethod: d.settlementMethod || null,
+      // Admin-injected markets are flagged isManual so the odds sync never
+      // overwrites, suspends or resurrects them (see sync.upsertMarkets).
+      isManual: true,
       outcomes: {
         create: d.outcomes.map((o, i) => ({
           name: o.name,
@@ -47,6 +50,7 @@ export const POST = handle(async (req: NextRequest, ctx: { params: Promise<{ id:
           odds: o.odds.toFixed(2),
           status: o.status,
           sortOrder: i,
+          isManual: true,
         })),
       },
     },

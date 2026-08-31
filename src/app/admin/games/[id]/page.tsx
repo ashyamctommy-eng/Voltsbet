@@ -8,10 +8,10 @@ import { fmtOdds } from "@/lib/odds";
 
 type Outcome = {
   id: string; name: string; label: string | null; odds: string; status: string;
-  settled: boolean; result: string | null; sortOrder: number;
+  settled: boolean; result: string | null; sortOrder: number; isManual: boolean;
   _count?: { selections: number };
 };
-type Market = { id: string; name: string; key: string; status: string; settlementMethod: string | null; outcomes: Outcome[] };
+type Market = { id: string; name: string; key: string; status: string; settlementMethod: string | null; isManual: boolean; outcomes: Outcome[] };
 type GameDetail = {
   id: string; homeName: string; awayName: string; homeScore: number; awayScore: number;
   halfHomeScore: number | null; halfAwayScore: number | null; period: string | null; clock: string | null;
@@ -225,6 +225,7 @@ export default function AdminGameDetail() {
           <div key={m.id} className="card overflow-hidden">
             <div className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-3">
               <h4 className="font-bold">{m.name}</h4>
+              {m.isManual && <span className="rounded-full bg-purple-500/15 px-2 py-0.5 text-[10px] font-bold uppercase text-purple-400">MANUAL</span>}
               <span className="rounded-full bg-card2 px-2 py-0.5 text-[10px] font-bold uppercase text-ink2">{m.key}</span>
               <select
                 className="input ml-auto w-36 py-1.5"
@@ -249,6 +250,7 @@ export default function AdminGameDetail() {
                   <tr key={o.id} className={o.settled ? "opacity-70" : ""}>
                     <td className="px-4 py-2">
                       {o.label && <span className="mr-1.5 rounded bg-card2 px-1.5 py-0.5 text-[10px] font-bold text-ink2">{o.label}</span>}
+                      {o.isManual && <span className="mr-1.5 rounded bg-purple-500/15 px-1.5 py-0.5 text-[10px] font-bold text-purple-400">M</span>}
                       <span className="font-medium">{o.name}</span>
                       {o.settled && (
                         <span className={`ml-2 text-xs font-bold ${o.result === "WON" ? "text-green-400" : o.result === "VOID" ? "text-gray-400" : "text-red-400"}`}>

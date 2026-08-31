@@ -47,6 +47,13 @@ function clockToSeconds(clock: string | null | undefined): number | null {
   return null;
 }
 
+/** Compact label for an outcome without a label: "Over 2.5" → "Over", team
+ *  names stay truncated by the cell. */
+function shortOutcomeLabel(name: string): string {
+  const short = name.replace(/\s+[\d.]+$/, "").trim(); // strip trailing line
+  return short.length > 0 && short.length <= 10 ? short : name;
+}
+
 /** Live elapsed-time counter — ticks "87:56'" forward every second. */
 function LiveElapsed({ clock }: { clock: string | null | undefined }) {
   const base = clockToSeconds(clock);
@@ -120,14 +127,6 @@ export default function MatchCard({
   const odds = mainMarket?.outcomes.filter((o) => o.status === "ACTIVE").slice(0, 3) ?? [];
   const ctx = liveContext(game.status, game.clock, game.period);
 
-  const logoFor = (name: string) => {
-    if (name === view.homeTeam) return game.homeLogo;
-    if (name === view.awayTeam) return game.awayLogo;
-    return null;
-  };
-
-  /** Body rows: for 1X2 markets always render Home/Draw/Away (missing prices
-   *  show a "-" placeholder row); other markets render their own outcomes. */
   const isOneXTwo = mainMarket?.key === "MATCH_RESULT" || mainMarket?.key === "h2h";
   const outcomeRows: { leg: string; label: string | null; outcome?: (typeof odds)[number] }[] = isOneXTwo
     ? [
@@ -136,9 +135,6 @@ export default function MatchCard({
         { leg: view.awayTeam, label: "2", outcome: odds.find((o) => o.label === "2" || o.name === view.awayTeam) },
       ]
     : odds.map((o) => ({ leg: o.name, label: o.label, outcome: o }));
-  // Fix: the first-view team column shows ONLY the team names (home/away) —
-  // the "1", "2" and "Draw" labels live exclusively on the odds buttons.
-  const teamRows = isOneXTwo ? [outcomeRows[0], outcomeRows[2]] : outcomeRows;
 
   return (
     <div className="card card-hover p-2.5 sm:p-3">
@@ -181,51 +177,55 @@ export default function MatchCard({
         </div>
       )}
 
-      {/* Pre-match body: teams stacked left · 1/X/2 outcome boxes right */}
+      {/* Pre-match body: compact teams line · horizontal label-over-odds grid.
+          Outcome labels sit DIRECTLY ABOVE their odds box (grid-cols-3, or
+          grid-cols-2 for 2-way markets) — uniform across 1X2, Double Chance,
+          Draw No Bet and Over/Under quick markets. */}
       {!isFinished && odds.length > 0 && mainMarket ? (
-        <div className="mt-2 flex items-center justify-between gap-3">
-          <div className="min-w-0 flex-1 space-y-1">
-            {teamRows.map((row, i) => (
-              <div key={i} className="flex min-w-0 items-center gap-2">
-                {row.label !== "X" && (
-                  <TeamLogo name={row.leg} src={logoFor(row.leg)} className="h-4 w-4 shrink-0" />
-                )}
-                <span className="truncate text-sm font-semibold">{row.leg}</span>
-              </div>
-            ))}
+        <div className="mt-2">
+          <div className="flex items-center justify-between gap-2 text-xs text-ink2">
+            <span className="truncate font-semibold">
+              <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-brand/70 align-middle" />
+              {view.homeTeam} <span className="text-ink3">vs</span> {view.awayTeam}
+            </span>
+            <span className="shrink-0 font-bold uppercase tracking-wider text-ink3">{mainMarket.name}</span>
           </div>
 
-          {/* Rounded 1/X/2 boxes — aligned with the feed's column header */}
-          <div className="flex shrink-0 items-center gap-1 [&_.odds-btn]:h-9 [&_.odds-btn]:w-11 [&_.odds-btn]:flex-none [&_.odds-btn]:text-xs">
-            {outcomeRows.map((row, i) =>
-              row.outcome ? (
-                <OddsButton
-                  key={i}
-                  outcomeId={row.outcome.id}
-                  gameId={game.id}
-                  sport={game.sport.name}
-                  competition={view.leagueName}
-                  home={view.homeTeam}
-                  away={view.awayTeam}
-                  startAt={game.startAt.toISOString()}
-                  market={mainMarket.name}
-                  marketKey={mainMarket.key}
-                  outcome={row.outcome.name}
-                  label={row.label}
-                  odds={Number(row.outcome.odds)}
-                  gameStatus={game.status}
-                  live={isLive}
-                />
-              ) : (
-                <span
-                  key={i}
-                  className="flex h-9 w-11 items-center justify-center rounded-lg bg-card2 text-xs font-bold text-ink3"
-                  title={t("match.priceUnavailable")}
-                >
-                  -
+          <div
+            className={`mt-2 grid gap-2 ${odds.length === 2 ? "grid-cols-2" : "grid-cols-3"} [&_.odds-btn]:h-9 [&_.odds-btn]:w-full [&_.odds-btn]:flex-none [&_.odds-btn]:text-xs`}
+          >
+            {outcomeRows.map((row, i) => (
+              <div key={i} className="flex flex-col gap-1">
+                <span className="truncate text-center text-[10px] font-bold uppercase tracking-wide text-ink3">
+                  {row.label ?? shortOutcomeLabel(row.leg)}
                 </span>
-              ),
-            )}
+                {row.outcome ? (
+                  <OddsButton
+                    outcomeId={row.outcome.id}
+                    gameId={game.id}
+                    sport={game.sport.name}
+                    competition={view.leagueName}
+                    home={view.homeTeam}
+                    away={view.awayTeam}
+                    startAt={game.startAt.toISOString()}
+                    market={mainMarket.name}
+                    marketKey={mainMarket.key}
+                    outcome={row.outcome.name}
+                    label={row.label}
+                    odds={Number(row.outcome.odds)}
+                    gameStatus={game.status}
+                    live={isLive}
+                  />
+                ) : (
+                  <span
+                    className="flex h-9 w-full items-center justify-center rounded-lg bg-card2 text-xs font-bold text-ink3"
+                    title={t("match.priceUnavailable")}
+                  >
+                    -
+                  </span>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       ) : !isFinished ? (

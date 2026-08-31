@@ -12,23 +12,42 @@ export default async function SportPage({ params }: { params: Promise<{ slug: st
   if (!sport || !sport.active) notFound();
 
   const s = await getSettings();
-  const [sports, games] = await Promise.all([
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const hideSeeded = s.hideSeededGames ? { source: "API" } : {};
+
+  const [sports, liveToday, upcoming] = await Promise.all([
     prisma.sport.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
+    // Live / kicked-off-today matches first — the "now" surface.
     prisma.game.findMany({
       where: {
         sportId: sport.id,
-        // Near-term, upcoming fixtures ONLY — finished/cancelled games live
-        // on /results, LIVE games on /live, and a fixture that already kicked
-        // off (startAt <= now) is no longer pre-match: the /scores pipeline
-        // owns it and the /live surface shows it.
+        OR: [
+          { status: { in: ["LIVE", "HALF_TIME", "IN_PLAY"] } },
+          { startAt: { gte: todayStart, lte: new Date() } },
+        ],
+        ...hideSeeded,
+      },
+      include: { sport: true, markets: { include: { outcomes: true }, orderBy: { sortOrder: "asc" } } },
+      orderBy: [{ status: "asc" }, { startAt: "asc" }],
+    }),
+    // Upcoming fixtures — the fallback when nothing is live/today.
+    prisma.game.findMany({
+      where: {
+        sportId: sport.id,
         status: { notIn: ["FINISHED", "CANCELLED", "LIVE", "HALF_TIME"] },
         startAt: { gte: new Date() },
-        ...(s.hideSeededGames ? { source: "API" } : {}),
+        ...hideSeeded,
       },
       include: { sport: true, markets: { include: { outcomes: true }, orderBy: { sortOrder: "asc" } } },
       orderBy: [{ live: "desc" }, { startAt: "asc" }],
     }),
   ]);
+
+  // UX guard: a sport tab with no live/today matches falls back to upcoming
+  // fixtures instead of an empty state.
+  const games = liveToday.length > 0 ? liveToday : upcoming;
+  const mode: "live" | "upcoming" = liveToday.length > 0 ? "live" : "upcoming";
 
   return (
     <div className="mx-auto max-w-[1600px] px-4">
@@ -63,7 +82,11 @@ export default async function SportPage({ params }: { params: Promise<{ slug: st
             <span className="text-3xl">{sport.icon}</span>
             <div>
               <h1 className="text-2xl font-extrabold">{sport.name}</h1>
-              <p className="text-sm text-ink3">{games.length} upcoming matches</p>
+              <p className="text-sm text-ink3">
+                {mode === "live"
+                  ? `${games.length} live / today${liveToday.length === 0 ? "" : ""}`
+                  : `${games.length} upcoming matches`}
+              </p>
             </div>
           </div>
 

@@ -70,6 +70,11 @@ export default function DepositPage() {
 
   const limits = account?.limits;
   const methods = limits?.depositMethods ?? ["CRYPTO"];
+
+  // Fallback guard (render-time, no effects): if the selected method was
+  // removed (e.g. M-Pesa toggled off via ENABLE_MPESA_PAYMENTS), the UI
+  // falls back to the first offered method — crypto by default.
+  const effectiveMethod = (methods.includes(method) ? method : methods[0]) as "CRYPTO" | "MPESA" | "VOUCHER" ?? "CRYPTO";
   const coins = limits?.cryptoCurrencies ?? [];
   const rate = limits?.cryptoRates?.[crypto];
   const amountNum = parseFloat(amount) || 0;
@@ -93,7 +98,7 @@ export default function DepositPage() {
   const valid =
     amountNum >= (limits?.depositMin ?? 0) &&
     amountNum <= (limits?.depositMax ?? 0) &&
-    (method === "MPESA" ? /^(\+?254|0)[17]\d{8}$/.test(phone.replace(/\s/g, "")) : true) &&
+    (effectiveMethod === "MPESA" ? /^(\+?254|0)[17]\d{8}$/.test(phone.replace(/\s/g, "")) : true) &&
     account?.user.status !== "SUSPENDED";
 
   const step = !pending ? 1 : 2;
@@ -104,14 +109,14 @@ export default function DepositPage() {
     setLoading(true);
     const res = await apiFetch<{ deposit: PendingDeposit }>("/api/account", {
       method: "POST",
-      body: method === "MPESA"
+      body: effectiveMethod === "MPESA"
         ? { amount: amountNum, method: "MPESA", phone }
         : { amount: amountNum, method: "CRYPTO", cryptoCurrency: crypto },
     });
     setLoading(false);
     if (!res.ok) return push("error", res.error.message);
     setPending(res.data.deposit);
-    push("success", method === "MPESA" ? "STK push sent — check your phone 📱" : "Payment created — send the crypto to the address shown.");
+    push("success", effectiveMethod === "MPESA" ? "STK push sent — check your phone 📱" : "Payment created — send the crypto to the address shown.");
   }
 
   async function checkMpesaStatus() {
@@ -168,25 +173,25 @@ export default function DepositPage() {
       {/* Method toggle */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {methods.includes("CRYPTO") && (
-          <MethodCard active={method === "CRYPTO"} icon="₿" title="Crypto" sub="BTC · ETH · USDT" onClick={() => { setMethod("CRYPTO"); setPending(null); }} />
+          <MethodCard active={effectiveMethod === "CRYPTO"} icon="₿" title="Crypto" sub="BTC · ETH · USDT" onClick={() => { setMethod("CRYPTO"); setPending(null); }} />
         )}
         {methods.includes("MPESA") && (
-          <MethodCard active={method === "MPESA"} icon="📱" title="M-Pesa" sub="STK push · instant" onClick={() => { setMethod("MPESA"); setPending(null); }} />
+          <MethodCard active={effectiveMethod === "MPESA"} icon="📱" title="M-Pesa" sub="STK push · instant" onClick={() => { setMethod("MPESA"); setPending(null); }} />
         )}
         {methods.includes("VOUCHER") && (
-          <MethodCard active={method === "VOUCHER"} icon="🎟️" title="Voucher" sub="redeem a code" onClick={() => { setMethod("VOUCHER"); setPending(null); }} />
+          <MethodCard active={effectiveMethod === "VOUCHER"} icon="🎟️" title="Voucher" sub="redeem a code" onClick={() => { setMethod("VOUCHER"); setPending(null); }} />
         )}
       </div>
 
       {/* Voucher panel replaces the amount stepper (amount comes from the code) */}
-      {method === "VOUCHER" ? (
+      {effectiveMethod === "VOUCHER" ? (
         <VoucherDeposit onSuccess={refresh} />
       ) : (
       <>
       {/* Stepper */}
       <div className="flex items-center gap-2 text-[11px] font-bold">
         {[
-          ["1", method === "MPESA" ? "Enter number" : "Choose coin"],
+          ["1", effectiveMethod === "MPESA" ? "Enter number" : "Choose coin"],
           ["2", "Enter amount"],
           ["3", "Send & confirm"],
         ].map(([n, label], i) => (
@@ -211,10 +216,10 @@ export default function DepositPage() {
           {/* Coin / phone selector */}
           <div className="card p-5">
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="font-bold">{method === "MPESA" ? "1 · Your M-Pesa number" : "1 · Choose coin"}</h3>
-              <span className="text-xs text-ink3">{method === "MPESA" ? "Lipa na M-Pesa" : "No deposit fees"}</span>
+              <h3 className="font-bold">{effectiveMethod === "MPESA" ? "1 · Your M-Pesa number" : "1 · Choose coin"}</h3>
+              <span className="text-xs text-ink3">{effectiveMethod === "MPESA" ? "Lipa na M-Pesa" : "No deposit fees"}</span>
             </div>
-            {method === "MPESA" ? (
+            {effectiveMethod === "MPESA" ? (
               <div className="flex items-center gap-3">
                 <span className="rounded-lg bg-[#1f3d2b] px-3 py-2.5 text-sm font-bold text-[#3ecf6e]">+254</span>
                 <input
@@ -276,7 +281,7 @@ export default function DepositPage() {
                   required
                 />
               </div>
-              {method === "CRYPTO" && cryptoAmount !== null && (
+              {effectiveMethod === "CRYPTO" && cryptoAmount !== null && (
                 <div className="mt-2 flex items-center justify-between rounded-lg bg-brand/5 px-3 py-2 text-sm">
                   <span className="text-ink2">You&apos;ll send</span>
                   <span className="font-bold text-brand">
@@ -284,7 +289,7 @@ export default function DepositPage() {
                   </span>
                 </div>
               )}
-              {method === "MPESA" && amountNum > 0 && (() => {
+              {effectiveMethod === "MPESA" && amountNum > 0 && (() => {
                 // M-Pesa charges in KES — show what a non-KES wallet user
                 // will actually be charged (KES per wallet unit).
                 const walletCur = (account?.user.currencyCode ?? "KES").toUpperCase();
@@ -312,10 +317,10 @@ export default function DepositPage() {
               </div>
             </div>
 
-            <button className={`btn w-full py-3 ${method === "MPESA" ? "bg-[#1f3d2b] text-[#3ecf6e] hover:brightness-110" : "btn-primary"}`} disabled={loading || !valid}>
+            <button className={`btn w-full py-3 ${effectiveMethod === "MPESA" ? "bg-[#1f3d2b] text-[#3ecf6e] hover:brightness-110" : "btn-primary"}`} disabled={loading || !valid}>
               {loading
                 ? "Processing…"
-                : method === "MPESA"
+                : effectiveMethod === "MPESA"
                   ? "Pay with M-Pesa"
                   : "Create Payment"}
             </button>
@@ -325,13 +330,13 @@ export default function DepositPage() {
                   ? `Minimum deposit is ${limits?.depositMin?.toLocaleString()}`
                   : amountNum > (limits?.depositMax ?? 0)
                     ? `Maximum deposit is ${limits?.depositMax?.toLocaleString()}`
-                    : method === "MPESA"
+                    : effectiveMethod === "MPESA"
                       ? "Enter a valid Kenyan phone number"
                       : "Deposits are disabled for your account status"}
               </p>
             )}
             <p className="text-center text-[11px] text-ink3">
-              {method === "MPESA"
+              {effectiveMethod === "MPESA"
                 ? "You'll get an M-Pesa PIN prompt on your phone. Confirm it to complete the deposit."
                 : "Demo mode: use “Simulate provider confirmation” to test the crypto flow without keys."}
             </p>
@@ -353,13 +358,13 @@ export default function DepositPage() {
         <div className="space-y-4">
           <div className="card space-y-4 p-6">
             <div className="flex items-center justify-between">
-              <h3 className="font-bold">3 · {method === "MPESA" ? "Confirm on your phone" : "Send payment"}</h3>
+              <h3 className="font-bold">3 · {effectiveMethod === "MPESA" ? "Confirm on your phone" : "Send payment"}</h3>
               <span className="rounded-full bg-amber-500/15 px-2.5 py-1 text-[10px] font-bold uppercase text-amber-400">
                 {pending.status ?? "Awaiting Payment"}
               </span>
             </div>
 
-            {method === "MPESA" ? (
+            {effectiveMethod === "MPESA" ? (
               <div className="rounded-xl border border-[#3ecf6e]/30 bg-[#1f3d2b]/30 p-5 text-center">
                 <div className="text-3xl">📱</div>
                 <p className="mt-2 font-semibold">Check your phone</p>
@@ -397,17 +402,17 @@ export default function DepositPage() {
                 <div className="mt-0.5 font-bold">{pending.amount.toLocaleString()} {account?.wallet?.currencyCode}</div>
               </div>
               <div className="rounded-lg bg-card2 p-3">
-                <div className="text-xs text-ink3">{method === "MPESA" ? "Provider" : "Network"}</div>
-                <div className="mt-0.5 font-bold">{method === "MPESA" ? "M-Pesa" : pending.cryptoCurrency ?? "—"}</div>
+                <div className="text-xs text-ink3">{effectiveMethod === "MPESA" ? "Provider" : "Network"}</div>
+                <div className="mt-0.5 font-bold">{effectiveMethod === "MPESA" ? "M-Pesa" : pending.cryptoCurrency ?? "—"}</div>
               </div>
             </div>
 
-            {method === "CRYPTO" && !pending.paymentAddress?.startsWith("vb") && (
+            {effectiveMethod === "CRYPTO" && !pending.paymentAddress?.startsWith("vb") && (
               <p className="text-center text-[11px] text-ink3">
                 This is a live provider address — we credit your balance automatically via webhook.
               </p>
             )}
-            {method === "CRYPTO" && pending.paymentAddress?.startsWith("vb") && (
+            {effectiveMethod === "CRYPTO" && pending.paymentAddress?.startsWith("vb") && (
               <button className="btn btn-accent w-full" onClick={simulateConfirm} disabled={checking}>
                 {checking ? "Confirming…" : "Simulate provider confirmation (demo)"}
               </button>
@@ -418,7 +423,7 @@ export default function DepositPage() {
           <div className="card p-5 text-sm text-ink2">
             <h4 className="font-bold text-ink">What happens next</h4>
             <ol className="mt-2 list-decimal space-y-1 pl-5">
-              <li>{method === "MPESA" ? "Enter your PIN on the M-Pesa prompt." : "Send the exact amount to the address above."}</li>
+              <li>{effectiveMethod === "MPESA" ? "Enter your PIN on the M-Pesa prompt." : "Send the exact amount to the address above."}</li>
               <li>We verify the payment with the provider (on-chain / Safaricom callback).</li>
               <li>Your balance is credited automatically — no manual claims.</li>
             </ol>

@@ -50,7 +50,12 @@ export type SiteSettings = {
   mpesaShortcode: string; // Paybill number
   mpesaInitiatorName: string;
   mpesaSecurityCredential: string; // encrypted B2C initiator password (see scripts/)
-  mpesaCallbackSecret: string; // random string protecting webhook URLs
+  mpesaCallbackSecret: string; // random string protecting webhook URLs (legacy Daraja)
+  // M-Pesa via Palplus gateway (replaces Daraja for new installs)
+  palplusApiKey: string;
+  palplusMerchantId: string;
+  palplusWebhookSecret: string; // validates Palplus callback signatures
+  palplusEnv: string; // sandbox | production
   appUrl: string; // public base URL for callback URLs
   heroTitle: string;
   heroSubtitle: string;
@@ -122,6 +127,10 @@ const DEFAULTS: SiteSettings = {
   mpesaInitiatorName: "",
   mpesaSecurityCredential: "",
   mpesaCallbackSecret: "",
+  palplusApiKey: "",
+  palplusMerchantId: "",
+  palplusWebhookSecret: "",
+  palplusEnv: "sandbox",
   appUrl: "",
   heroTitle: "Bet on the games you love",
   heroSubtitle: "Fast odds, instant crypto deposits, live betting.",
@@ -189,7 +198,12 @@ export async function getSettings(): Promise<SiteSettings> {
   if (!s.cryptoCurrencies.length) s.cryptoCurrencies = DEFAULTS.cryptoCurrencies;
   try { s.cryptoRates = JSON.parse(raw["crypto.rates"] ?? "{}"); } catch {}
   if (!Object.keys(s.cryptoRates).length) s.cryptoRates = DEFAULTS.cryptoRates;
-  s.mpesaEnabled = raw["mpesa.enabled"] === "true";
+  // ENABLE_MPESA_PAYMENTS env wins when set (true|false) — the hard kill
+  // switch for the whole M-Pesa rail (deposit + withdrawal tabs hide).
+  s.mpesaEnabled =
+    process.env.ENABLE_MPESA_PAYMENTS !== undefined
+      ? process.env.ENABLE_MPESA_PAYMENTS === "true"
+      : raw["mpesa.enabled"] === "true";
   s.mpesaWithdrawalsEnabled =
     process.env.ENABLE_MPESA_WITHDRAWALS !== undefined
       ? process.env.ENABLE_MPESA_WITHDRAWALS === "true" // env wins when set
@@ -204,6 +218,10 @@ export async function getSettings(): Promise<SiteSettings> {
   s.mpesaInitiatorName = raw["mpesa.initiatorName"] ?? s.mpesaInitiatorName;
   s.mpesaSecurityCredential = raw["mpesa.securityCredential"] ?? s.mpesaSecurityCredential;
   s.mpesaCallbackSecret = raw["mpesa.callbackSecret"] ?? s.mpesaCallbackSecret;
+  s.palplusApiKey = raw["palplus.apiKey"] ?? s.palplusApiKey;
+  s.palplusMerchantId = raw["palplus.merchantId"] ?? s.palplusMerchantId;
+  s.palplusWebhookSecret = raw["palplus.webhookSecret"] ?? s.palplusWebhookSecret;
+  s.palplusEnv = raw["palplus.env"] ?? s.palplusEnv;
   s.appUrl = raw["app.url"] ?? s.appUrl;
   s.heroTitle = raw["home.heroTitle"] ?? s.heroTitle;
   s.heroSubtitle = raw["home.heroSubtitle"] ?? s.heroSubtitle;

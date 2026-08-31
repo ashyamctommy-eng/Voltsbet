@@ -204,6 +204,7 @@ no match clock; `completed` flag and scores are authoritative.
 | `SEED_ADMIN_EMAIL` | — | Super-admin email for the seed (default `admin@voltbet.test`) |
 | `SEED_ADMIN_PASSWORD` | — | Super-admin password for the seed — **no production fallback**; skip admin if unset |
 | `SEED_DEMO_USERS` | — | `true` to seed demo users in production (default: skipped) |
+| `ENABLE_MPESA_PAYMENTS` | — | `false` hides the M-Pesa tab on Deposit & Withdraw (users fall back to crypto); `ENABLE_MPESA_WITHDRAWALS` gates payouts |
 
 Full list: [`.env.production.example`](.env.production.example)
 

@@ -6,6 +6,7 @@ import { isUserActionAllowed, userBlockReason } from "@/lib/statuses";
 import { currencyMap, convert, formatMoney } from "@/lib/currency";
 import { toCents } from "@/lib/wallet";
 import { npCreatePayment } from "@/lib/providers/nowpayments";
+import { palplusStkPush } from "@/lib/providers/palplus";
 import { mpesaStkPush, normalizeMpesaPhone, publicBaseUrl } from "@/lib/providers/mpesa";
 import { z } from "zod";
 
@@ -198,10 +199,11 @@ export const POST = handle(async (req: NextRequest) => {
       );
     }
 
+    const usePalplus = Boolean(settings.palplusApiKey && settings.palplusMerchantId);
     const deposit = await prisma.deposit.create({
       data: {
         userId: user.id,
-        provider: "MPESA",
+        provider: usePalplus ? "PALPLUS" : "MPESA",
         method: "MPESA",
         amount: amount.toFixed(2),
         currencyCode: wallet.currencyCode,
@@ -216,19 +218,30 @@ export const POST = handle(async (req: NextRequest) => {
 
     try {
       const base = publicBaseUrl(settings);
-      const callback = `${base}/api/webhooks/mpesa/stk?secret=${settings.mpesaCallbackSecret}`;
-      const push = await mpesaStkPush({
-        amount: kesAmount,
-        phone,
-        accountReference: `VB-${user.id.slice(-6)}`,
-        callbackUrl: callback,
-      });
+      const push = usePalplus
+        ? await palplusStkPush({
+            amount: kesAmount,
+            phone,
+            accountReference: `VB-${user.id.slice(-6)}`,
+            callbackUrl: `${base}/api/webhooks/palplus`,
+          })
+        : await mpesaStkPush({
+            amount: kesAmount,
+            phone,
+            accountReference: `VB-${user.id.slice(-6)}`,
+            callbackUrl: `${base}/api/webhooks/mpesa/stk?secret=${settings.mpesaCallbackSecret}`,
+          });
+      const checkoutRequestId =
+        "checkoutRequestId" in push ? push.checkoutRequestId : push.CheckoutRequestID;
+      const merchantRequestId = "merchantRequestId" in push ? push.merchantRequestId : "";
       await prisma.deposit.update({
         where: { id: deposit.id },
         data: {
           metadata: JSON.stringify({
-            checkoutRequestId: push.CheckoutRequestID,
+            checkoutRequestId,
+            ...(merchantRequestId ? { merchantRequestId } : {}),
             phone: normalizeMpesaPhone(phone),
+            provider: usePalplus ? "PALPLUS" : "MPESA",
             ...(wallet.currencyCode !== "KES" ? { kesAmount, walletAmount: amount } : {}),
           }),
         },
@@ -238,7 +251,7 @@ export const POST = handle(async (req: NextRequest) => {
           id: deposit.id,
           amount,
           method: "MPESA",
-          checkoutRequestId: push.CheckoutRequestID,
+          checkoutRequestId,
           status: "AWAITING_PAYMENT",
           note: "Check your phone and enter your M-Pesa PIN to complete the payment.",
         },

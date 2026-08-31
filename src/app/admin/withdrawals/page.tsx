@@ -89,17 +89,27 @@ export default function AdminWithdrawals() {
                   <>
                     <button
                       className="btn btn-sm bg-green-600 text-white hover:brightness-110"
+                      title="Initiate the Palplus B2C payout now (explicit admin action — never automatic)"
                       disabled={["COMPLETED", "REJECTED", "CANCELLED", "FAILED", "PROCESSING"].includes(w.status)}
                       onClick={() => change(w, "PROCESSING")}
                     >
-                      Send payout
+                      Approve via Palplus B2C
+                    </button>
+                    <button
+                      className="btn btn-sm bg-emerald-700 text-white hover:brightness-110"
+                      title="Mark as paid without calling the API (offline transfer) — requires a payout reference/note"
+                      disabled={["COMPLETED", "REJECTED", "CANCELLED", "FAILED", "PROCESSING"].includes(w.status)}
+                      onClick={() => approve(w)}
+                    >
+                      {attesting === w.id ? "Confirm paid" : "Approve & mark paid (manual)"}
                     </button>
                     <button
                       className="btn btn-sm bg-red-600 text-white hover:brightness-110"
-                      disabled={["COMPLETED", "REJECTED", "CANCELLED", "FAILED"].includes(w.status)}
+                      title="Cancel the request and restore the reserved funds to the user's wallet"
+                      disabled={["COMPLETED", "REJECTED", "CANCELLED", "FAILED", "PROCESSING"].includes(w.status)}
                       onClick={() => change(w, "REJECTED")}
                     >
-                      Reject
+                      Reject & refund
                     </button>
                   </>
                 ) : (

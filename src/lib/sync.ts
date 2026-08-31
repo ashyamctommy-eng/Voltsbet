@@ -83,9 +83,48 @@ export const SPORT_KEY_MAP: Record<string, string> = {
   soccer_sweden_superettan: "football",
   basketball_nba: "basketball",
   basketball_euroleague: "basketball",
+  basketball_ncaab: "basketball", // in-season Sep–Apr
+  basketball_wnba: "basketball",
+  // Tennis — tournament keys (in-season only; the US Open runs Aug–Sep)
+  tennis_atp_us_open: "tennis",
+  tennis_wta_us_open: "tennis",
+  tennis_atp_winston_salem: "tennis",
   baseball_mlb: "baseball", icehockey_nhl: "ice-hockey",
   rugbyleague_nrl: "rugby", handball_germany_bundesliga: "handball",
+  // Esports — The Odds API coverage is seasonal; keys activate when listed
+  csgo_esl: "esports",
+  dota2_international: "esports",
+  lol_lck: "esports",
 };
+
+/** Display metadata for sport slugs the seed may not have created (existing
+ *  installs) — sync auto-creates missing rows so new leagues always surface. */
+const SPORT_FALLBACK: Record<string, { name: string; icon: string }> = {
+  football: { name: "Football", icon: "⚽" },
+  basketball: { name: "Basketball", icon: "🏀" },
+  tennis: { name: "Tennis", icon: "🎾" },
+  baseball: { name: "Baseball", icon: "⚾" },
+  "ice-hockey": { name: "Ice Hockey", icon: "🏒" },
+  rugby: { name: "Rugby", icon: "🏉" },
+  handball: { name: "Handball", icon: "🤾" },
+  esports: { name: "Esports", icon: "🎮" },
+};
+
+/** Upsert Sport rows for every slug SPORT_KEY_MAP can produce. Idempotent;
+ *  lets existing installs pick up new sports (e.g. Esports) without a
+ *  reseed. */
+async function ensureMappedSports(): Promise<void> {
+  const slugs = [...new Set(Object.values(SPORT_KEY_MAP))];
+  const existing = await prisma.sport.findMany({ where: { slug: { in: slugs } }, select: { slug: true } });
+  const have = new Set(existing.map((s) => s.slug));
+  for (const slug of slugs) {
+    if (have.has(slug)) continue;
+    const meta = SPORT_FALLBACK[slug] ?? { name: slug, icon: "🏆" };
+    await prisma.sport.create({
+      data: { name: meta.name, slug, icon: meta.icon, sortOrder: 99, active: true, isPopular: false },
+    });
+  }
+}
 
 export async function syncGames(providerId?: string) {
   const providerId_ = providerId ?? "the-odds-api";
@@ -101,6 +140,10 @@ export async function syncGames(providerId?: string) {
   const sports = await provider.fetchSports();
   const wanted = sports.filter((s) => SPORT_KEY_MAP[s.key]);
   const sportKeys = wanted.map((s) => s.key);
+
+  // Make sure every mapped sport has a Sport row (new installs get them from
+  // the seed; existing installs get them here) before the N+1 batch lookup.
+  await ensureMappedSports();
 
   const games = await provider.fetchUpcomingGames(sportKeys);
 
@@ -331,7 +374,8 @@ type MarketWithOutcomes = {
   gameId: string;
   key: string;
   status: string;
-  outcomes: { id: string; name: string; settled: boolean; status: string; odds: unknown }[];
+  isManual: boolean;
+  outcomes: { id: string; name: string; settled: boolean; status: string; odds: unknown; isManual: boolean }[];
 };
 
 /**
@@ -353,6 +397,9 @@ async function upsertMarkets(gameId: string, game: ApiGame, prefetched: MarketWi
       // Settled markets are sacred: never re-open, never re-price, never add
       // outcomes to them.
       if (existing.status === "SETTLED") continue;
+      // Admin-created (isManual) markets are sacred too: the feed never
+      // overwrites their prices, adds outcomes or suspends legs.
+      if (existing.isManual) continue;
 
       const feedNames = new Set(m.outcomes.map((o) => o.name));
       const existingByName = new Map(existing.outcomes.map((o) => [o.name, o]));
@@ -362,6 +409,7 @@ async function upsertMarkets(gameId: string, game: ApiGame, prefetched: MarketWi
         if (outcome) {
           // A settled outcome must never be resurrected by a feed refresh.
           if (outcome.settled) continue;
+          if (outcome.isManual) continue; // admin-set price — feed never overrides
           const nextOdds = o.odds.toFixed(2);
           // Write only when something actually changed.
           if (Number(outcome.odds).toFixed(2) !== nextOdds || outcome.status !== "ACTIVE") {
@@ -383,7 +431,7 @@ async function upsertMarkets(gameId: string, game: ApiGame, prefetched: MarketWi
       // Outcomes the feed no longer carries are stale prices — suspend them
       // (they stay bettable-proof without deleting history).
       for (const o of existing.outcomes) {
-        if (!feedNames.has(o.name) && !o.settled && o.status !== "SUSPENDED") {
+        if (!feedNames.has(o.name) && !o.settled && !o.isManual && o.status !== "SUSPENDED") {
           ops.push(prisma.outcome.update({ where: { id: o.id }, data: { status: "SUSPENDED" } }));
         }
       }
@@ -397,7 +445,7 @@ async function upsertMarkets(gameId: string, game: ApiGame, prefetched: MarketWi
           outcomes: { create: m.outcomes.map((o, j) => ({ name: o.name, label: o.label ?? null, odds: o.odds.toFixed(2), sortOrder: j })) },
         },
       });
-      byKey.set(m.key, { id: created.id, gameId, key: m.key, status: "OPEN", outcomes: [] });
+      byKey.set(m.key, { id: created.id, gameId, key: m.key, status: "OPEN", isManual: false, outcomes: [] });
     }
 
     // Derive extra bettable markets from any full-time 3-way h2h (Double Chance, Draw No Bet)
@@ -427,12 +475,14 @@ async function upsertMarkets(gameId: string, game: ApiGame, prefetched: MarketWi
     const existing = byKey.get(d.key);
     if (existing) {
       if (existing.status === "SETTLED") continue; // never touch settled markets
+      if (existing.isManual) continue; // admin-owned — derived engine stays away
       const feedNames = new Set(d.outcomes.map((o) => o.name));
       const existingByName = new Map(existing.outcomes.map((o) => [o.name, o]));
       for (const o of d.outcomes) {
         const outcome = existingByName.get(o.name);
         if (outcome) {
           if (outcome.settled) continue; // never resurrect settled outcomes
+          if (outcome.isManual) continue; // admin-set price — never overridden
           if (Number(outcome.odds).toFixed(2) !== o.odds || outcome.status !== "ACTIVE") {
             ops.push(prisma.outcome.update({ where: { id: outcome.id }, data: { odds: o.odds, status: "ACTIVE" } }));
           }
@@ -441,7 +491,7 @@ async function upsertMarkets(gameId: string, game: ApiGame, prefetched: MarketWi
         }
       }
       for (const o of existing.outcomes) {
-        if (!feedNames.has(o.name) && !o.settled && o.status !== "SUSPENDED") {
+        if (!feedNames.has(o.name) && !o.settled && !o.isManual && o.status !== "SUSPENDED") {
           ops.push(prisma.outcome.update({ where: { id: o.id }, data: { status: "SUSPENDED" } }));
         }
       }
@@ -457,7 +507,7 @@ async function upsertMarkets(gameId: string, game: ApiGame, prefetched: MarketWi
       });
       // Keep the in-memory index honest so a second source market in the same
       // run sees the derived market instead of creating a duplicate.
-      byKey.set(d.key, { id: created.id, gameId, key: d.key, status: "OPEN", outcomes: [] });
+      byKey.set(d.key, { id: created.id, gameId, key: d.key, status: "OPEN", isManual: false, outcomes: [] });
     }
   }
 }
