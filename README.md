@@ -204,9 +204,13 @@ One provider for all sports data — **The Odds API (v4)**:
    markets that endpoint serves.
 2. **Per-event endpoint** (`/events/{id}/odds`): **BTTS, Correct Score, Double
    Chance, Draw No Bet, alternate totals/spreads, half-time lines** for the
-   nearest fixtures of the configured leagues (Pinnacle-confirmed; 1 credit
-   per served market per event — see `ODDS_API_EVENT_MARKET_LIMIT`; the full
-   market set is configurable via `ODDS_API_MARKETS`, default includes
+   nearest fixtures of the configured leagues. **Bovada is the primary event
+   book** (audited 2026-08-31: 10 market keys / 51–52 outcome lines per EPL
+   fixture incl. 20-line alternate spreads), **Pinnacle is the fallback** for
+   markets Bovada doesn't serve (`ODDS_API_EVENT_BOOKMAKERS`, default
+   `bovada,pinnacle`). 1 credit per served market per event — see
+   `ODDS_API_EVENT_MARKET_LIMIT`; the full market set is configurable via
+   `ODDS_API_MARKETS`, default includes
    `alternate_spreads,alternate_totals,h2h_h1,totals_h1,spreads_h1,
    h2h_h2,totals_h2,spreads_h2` — verified against the live API; the
    `h2h_1st_half`-style names 422 and are dropped gracefully).

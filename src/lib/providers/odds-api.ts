@@ -331,7 +331,12 @@ export class TheOddsApi implements OddsProvider {
   ): Promise<ApiGame[]> {
     const extended = markets.filter((m) => !(LIST_MARKETS as readonly string[]).includes(m));
     if (!extended.length || !events.length) return [];
-    const bookmakers = process.env.ODDS_API_EVENT_BOOKMAKERS ?? "pinnacle";
+    // Bovada primary (deepest event-pass board — audit 2026-08-31: 10 keys /
+    // 51-52 lines per EPL fixture incl. 20-line alternate spreads), Pinnacle
+    // as the fallback book for markets Bovada doesn't serve (e.g. correct
+    // score). Response order follows the param order, so bovada prices win
+    // where both books serve a market. Override via ODDS_API_EVENT_BOOKMAKERS.
+    const bookmakers = process.env.ODDS_API_EVENT_BOOKMAKERS ?? "bovada,pinnacle";
     const out: ApiGame[] = [];
     for (const ev of events) {
       const cacheKey = `ev:${ev.eventId}:${bookmakers}:${extended.join(",")}`;
