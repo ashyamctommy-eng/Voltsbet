@@ -11,6 +11,7 @@
  */
 "use client";
 
+import { standardizeMarketName } from "@/lib/market-labels";
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import { LANG_KEY, LEGACY_LANG_KEY, resources, countryToLang, RTL_LANGS } from "./i18n-resources";
@@ -149,6 +150,9 @@ if (!i18n.isInitialized) {
  *  keys, keeping any line suffix (2.5) untranslated. Falls back to the raw
  *  name for markets we don't know. */
 export function tMarket(name: string): string {
+  // Standardize legacy provider terminology (Spread → Handicap) so existing
+  // DB rows render with the canonical labels — no data migration needed.
+  const canonical = standardizeMarketName(name);
   const known: Record<string, string> = {
     "Match Result": "market.matchResult",
     "Correct Score": "market.correctScore",
@@ -158,9 +162,9 @@ export function tMarket(name: string): string {
     "Draw No Bet": "market.drawNoBet",
     Winner: "market.winner",
   };
-  const key = known[name] ?? (name.startsWith("Over/Under") ? "market.overUnder" : null);
-  if (!key) return name;
-  const line = name.startsWith("Over/Under") ? name.replace(/^Over\/Under/, "").trim() : "";
+  const key = known[canonical] ?? (canonical.startsWith("Over/Under") ? "market.overUnder" : null);
+  if (!key) return canonical;
+  const line = canonical.startsWith("Over/Under") ? canonical.replace(/^Over\/Under/, "").trim() : "";
   const base = i18n.t(key);
   return line ? `${base} ${line}` : base;
 }

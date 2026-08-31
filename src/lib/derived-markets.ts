@@ -277,10 +277,10 @@ export function deriveMarketsFrom1x2(
   for (const h of [-2.5, -1.5, -0.5, 0.5, 1.5, 2.5]) {
     const thr = Math.round(0.5 - h);
     const pHome = spreadCoverProb(lh, la, thr);
-    altSpr.push({ name: `Home ${h > 0 ? "+" : ""}${h}`, label: "1", odds: priced(pHome, marginFor(overround, 12)) });
-    altSpr.push({ name: `Away ${h > 0 ? "-" : "+"}${Math.abs(h)}`, label: "2", odds: priced(1 - pHome, marginFor(overround, 12)) });
+    altSpr.push({ name: `${homeName} ${h > 0 ? "+" : ""}${h}`, label: "1", odds: priced(pHome, marginFor(overround, 12)) });
+    altSpr.push({ name: `${awayName} ${h > 0 ? "-" : "+"}${Math.abs(h)}`, label: "2", odds: priced(1 - pHome, marginFor(overround, 12)) });
   }
-  markets.push({ key: "ALTERNATE_SPREAD", name: "Alternate Spreads", sortOrder: 14, outcomes: altSpr });
+  markets.push({ key: "ALTERNATE_SPREAD", name: "Alternate Handicaps", sortOrder: 14, outcomes: altSpr });
 
   // Team totals — home & away O/U 0.5 … 3.5
   const teamOutcomes = (lam: number, label: string): DerivedOutcome[] => {

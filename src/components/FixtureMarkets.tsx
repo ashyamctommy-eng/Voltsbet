@@ -6,6 +6,7 @@ import { IconStar, IconChevronDown } from "@/components/icons";
 import { fmtOdds } from "@/lib/odds";
 import { useTranslation } from "react-i18next";
 import { tMarket } from "@/lib/i18n";
+import { formatOutcomeName, groupHandicapPairs, HANDICAP_MARKET_KEYS } from "@/lib/market-labels";
 
 type FixtureOutcome = {
   id: string;
@@ -147,6 +148,11 @@ export default function FixtureMarkets({ game, markets }: { game: FixtureCtx; ma
     if (typeof window !== "undefined" && window.innerWidth >= 1280) setOpen(true);
   };
 
+  /** Handicap boards with line outcomes (Alternate Handicaps, 1st/2nd half
+   *  handicap) render as paired Home/Away rows per line. */
+  const isHandicapBoard = (m: FixtureMarket) =>
+    HANDICAP_MARKET_KEYS.has(m.key) && m.outcomes.some((o) => /[-+]\d+(\.\d+)?\s*$/.test(o.name.trim()));
+
   /** Cell layout: 2-way = two equal cards; Correct Score = 3-col grid. */
   const cellClass = (m: FixtureMarket) =>
     m.outcomes.length <= 2
@@ -233,49 +239,109 @@ export default function FixtureMarkets({ game, markets }: { game: FixtureCtx; ma
               />
             </button>
 
-            {open && (
-              <div className={`p-3 ${cellClass(m)}`}>
-                {m.outcomes.map((o) => {
-                  const odds = Number(o.odds);
-                  const active = o.status === "ACTIVE" && odds > 0;
-                  const selected = items.some((i) => i.outcomeId === o.id);
-                  return (
-                    <button
-                      key={o.id}
-                      type="button"
-                      disabled={!active}
-                      onClick={() => select(m, o)}
-                      aria-pressed={selected}
-                      title={active ? `${o.name} @ ${fmtOdds(odds)}` : t("common.suspended")}
-                      className={`flex items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-left transition-all active:scale-[0.98] ${
-                        selected
-                          ? SELECTED_CLS
-                          : "border border-line2 bg-card hover:border-line"
-                      } ${active ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}
-                    >
-                      <span className="flex min-w-0 items-center gap-1.5">
-                        {o.label && (
-                          <span className="shrink-0 rounded bg-hover-tint px-1.5 py-0.5 text-[10px] font-bold text-ink3">
-                            {o.label}
-                          </span>
-                        )}
-                        <span className="truncate text-sm font-semibold">{o.name}</span>
-                      </span>
-                      {active ? (
-                        <span className="shrink-0 text-sm font-extrabold tabular-nums text-brand">
-                          {fmtOdds(odds)}
-                        </span>
-                      ) : (
-                        <span className="shrink-0 text-xs font-semibold text-ink3">-</span>
+            {open &&
+              (isHandicapBoard(m) ? (
+                <div className="p-3">
+                  {groupHandicapPairs(m.outcomes, game.homeName, game.awayName).map((pair) => (
+                    <div key={pair.line} className="mb-2 grid grid-cols-2 gap-2 last:mb-0">
+                      {[pair.home, pair.away].map((side, i) =>
+                        side ? (
+                          <HandicapCell
+                            key={`${pair.line}-${i}`}
+                            outcome={side as FixtureOutcome}
+                            market={m}
+                            onSelect={select}
+                            selectedIds={items.map((it) => it.outcomeId)}
+                            t={t}
+                          />
+                        ) : (
+                          <span key={`${pair.line}-${i}`} />
+                        ),
                       )}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className={`p-3 ${cellClass(m)}`}>
+                  {m.outcomes.map((o) => {
+                    const odds = Number(o.odds);
+                    const active = o.status === "ACTIVE" && odds > 0;
+                    const selected = items.some((i) => i.outcomeId === o.id);
+                    return (
+                      <button
+                        key={o.id}
+                        type="button"
+                        disabled={!active}
+                        onClick={() => select(m, o)}
+                        aria-pressed={selected}
+                        title={active ? `${formatOutcomeName(o.name, m.key)} @ ${fmtOdds(odds)}` : t("common.suspended")}
+                        className={`flex items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-left transition-all active:scale-[0.98] ${
+                          selected
+                            ? SELECTED_CLS
+                            : "border border-line2 bg-card hover:border-line"
+                        } ${active ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}
+                      >
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          {o.label && (
+                            <span className="shrink-0 rounded bg-hover-tint px-1.5 py-0.5 text-[10px] font-bold text-ink3">
+                              {o.label}
+                            </span>
+                          )}
+                          <span className="truncate text-sm font-semibold">{formatOutcomeName(o.name, m.key)}</span>
+                        </span>
+                        {active ? (
+                          <span className="shrink-0 text-sm font-extrabold tabular-nums text-brand">
+                            {fmtOdds(odds)}
+                          </span>
+                        ) : (
+                          <span className="shrink-0 text-xs font-semibold text-ink3">-</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
           </div>
         );
       })}
     </div>
+  );
+}
+
+/** One paired handicap selection box: team (±point) on the left, odds right. */
+function HandicapCell({
+  outcome,
+  market,
+  onSelect,
+  selectedIds,
+  t,
+}: {
+  outcome: FixtureOutcome;
+  market: FixtureMarket;
+  onSelect: (m: FixtureMarket, o: FixtureOutcome) => void;
+  selectedIds: string[];
+  t: (key: string) => string;
+}) {
+  const odds = Number(outcome.odds);
+  const active = outcome.status === "ACTIVE" && odds > 0;
+  const selected = selectedIds.includes(outcome.id);
+  return (
+    <button
+      type="button"
+      disabled={!active}
+      onClick={() => onSelect(market, outcome)}
+      aria-pressed={selected}
+      title={active ? `${formatOutcomeName(outcome.name, market.key)} @ ${fmtOdds(odds)}` : t("common.suspended")}
+      className={`flex items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-left transition-all active:scale-[0.98] ${
+        selected ? SELECTED_CLS : "border border-line2 bg-card hover:border-line"
+      } ${active ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}
+    >
+      <span className="min-w-0 truncate text-sm font-semibold">{formatOutcomeName(outcome.name, market.key)}</span>
+      {active ? (
+        <span className="shrink-0 text-sm font-extrabold tabular-nums text-brand">{fmtOdds(odds)}</span>
+      ) : (
+        <span className="shrink-0 text-xs font-semibold text-ink3">-</span>
+      )}
+    </button>
   );
 }
