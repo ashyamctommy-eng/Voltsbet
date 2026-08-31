@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { refreshLiveScores } from "@/lib/live-scores";
 import LiveFeed from "@/components/LiveFeed";
+import { LIVE_STATUSES } from "@/lib/game-status";
 
 export const dynamic = "force-dynamic";
 
@@ -11,16 +12,29 @@ export default async function LivePage() {
   // at most one sweep per active league per LIVE_SCORES_THROTTLE_SECONDS
   // window) before reading the DB.
   await refreshLiveScores();
+  // The badge and the rendered cards must count the SAME set: every row the
+  // feed's isLiveStatus() filter accepts (status in LIVE_STATUSES OR live:true).
   const liveGames = await prisma.game.findMany({
     where: {
-      // Live-only: this route owns in-play matches; pre-match scheduling
-      // lives on the home feed.
-      status: { in: ["LIVE", "HALF_TIME", "IN_PLAY"] },
+      OR: [{ status: { in: [...LIVE_STATUSES] } }, { live: true }],
       ...(s.hideSeededGames ? { source: "API" } : {}),
     },
     include: { sport: true, markets: { include: { outcomes: true }, orderBy: { sortOrder: "asc" } } },
     orderBy: [{ status: "asc" }, { startAt: "asc" }],
     take: 60,
+  });
+
+  // Dead-hour fallback: today's next kickoffs so /live is never an empty
+  // dead end (matches the sport-feed "fall back to upcoming" philosophy).
+  const soon = await prisma.game.findMany({
+    where: {
+      status: { notIn: ["FINISHED", "CANCELLED", ...LIVE_STATUSES] },
+      startAt: { gte: new Date() },
+      ...(s.hideSeededGames ? { source: "API" } : {}),
+    },
+    include: { sport: true, markets: { include: { outcomes: true }, orderBy: { sortOrder: "asc" } } },
+    orderBy: { startAt: "asc" },
+    take: 6,
   });
 
   const liveCount = liveGames.length;
@@ -34,7 +48,7 @@ export default async function LivePage() {
       </div>
 
       <div className="mt-6">
-        <LiveFeed games={liveGames} refreshSeconds={s.liveRefreshSeconds} />
+        <LiveFeed games={liveGames} fallback={soon} refreshSeconds={s.liveRefreshSeconds} />
       </div>
     </div>
   );

@@ -75,7 +75,7 @@ export async function refreshLiveScores(): Promise<{
     const candidates = await prisma.game.findMany({
       where: {
         OR: [
-          { status: { in: ["LIVE", "HALF_TIME"] } },
+          { status: { in: ["LIVE", "HALF_TIME", "IN_PLAY"] } },
           {
             status: "SCHEDULED",
             startAt: { gte: new Date(now - LIVE_LOOKBACK_HOURS * 3600_000), lte: new Date(now) },

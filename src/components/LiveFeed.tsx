@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import MatchCard from "@/components/MatchCard";
 import { IconTv } from "@/components/icons";
@@ -43,10 +44,15 @@ type FeedGame = {
 export default function LiveFeed({
   games,
   refreshSeconds = 60,
+  fallback,
 }: {
   games: FeedGame[];
   /** Auto-refresh interval in seconds (admin setting live.refreshSeconds). */
   refreshSeconds?: number;
+  /** Pre-match kickoffs to show INSTEAD of the dead empty card when nothing
+   *  is live (the /live page feeds it today's next games, so the page is
+   *  never a dead end — same philosophy as the sport-feed fallback). */
+  fallback?: FeedGame[];
 }) {
   const router = useRouter();
 
@@ -74,13 +80,30 @@ export default function LiveFeed({
 
       <div className="mt-4">
         {live.length === 0 ? (
-          <div className="card p-12 text-center">
-            <IconTv className="mx-auto h-10 w-10 text-ink3" />
-            <p className="mt-3 font-semibold">No live matches right now</p>
-            <p className="mt-1 text-sm text-ink3">
-              Check back soon — in-play games appear here in real time.
-            </p>
-          </div>
+          fallback && fallback.length > 0 ? (
+            <div>
+              <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold text-ink3">
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-400" />
+                No live matches right now — these kick off soon
+              </div>
+              <div className="mt-3 grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+                {fallback.map((g) => (
+                  <MatchCard key={g.id} game={g} />
+                ))}
+              </div>
+              <Link href="/" className="mt-3 inline-block text-xs font-bold text-brand hover:underline">
+                View all matches →
+              </Link>
+            </div>
+          ) : (
+            <div className="card p-12 text-center">
+              <IconTv className="mx-auto h-10 w-10 text-ink3" />
+              <p className="mt-3 font-semibold">No live matches right now</p>
+              <p className="mt-1 text-sm text-ink3">
+                Check back soon — in-play games appear here in real time.
+              </p>
+            </div>
+          )
         ) : (
           <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
             {live.map((g) => (
