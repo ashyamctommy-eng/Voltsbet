@@ -26,6 +26,8 @@ export const HANDICAP_MARKET_KEYS = new Set([
   "HANDICAP",
   "ASIAN_HANDICAP",
   "asian_handicap",
+  "CORNERS_HANDICAP",
+  "CARDS_HANDICAP",
 ]);
 
 /** Legacy DB/provider names → canonical UI terminology. */

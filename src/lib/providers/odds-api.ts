@@ -114,11 +114,17 @@ export const ODDS_MARKETS = (
     "h2h_h2",
     "totals_h2",
     "spreads_h2",
-    "total_corners",
-    "total_bookings",
-    // "player_props" — supported via MARKET_MAP but NOT requested by default
-    // (heaviest quota consumers on the extended endpoint; enable per league
-    // with ODDS_API_MARKETS=...,player_props when the product needs them).
+    // Real The Odds API soccer keys for corners + bookings (verified against
+    // the official betting-markets list — "total_corners"/"total_bookings"
+    // are NOT valid keys and were silently 422-dropped by the sync retry).
+    "alternate_totals_corners",
+    "alternate_totals_cards",
+    // More soccer keys are wired in MARKET_MAP and usable via
+    // ODDS_API_MARKETS (halftime_fulltime, btts_h1, correct_score_h1,
+    // double_chance_h1, corners_1x2, to_qualify, alternate_spreads_corners,
+    // alternate_spreads_cards, alternate_team_totals_corners, player props)
+    // but are NOT in the default list — each costs 1 credit per market per
+    // event on the extended endpoint.
   ]
 ) as readonly string[];
 
@@ -143,9 +149,29 @@ const MARKET_MAP: {
   { key: "btts", local: "BTTS", name: "Both Teams to Score" },
   { key: "double_chance", local: "DOUBLE_CHANCE", name: "Double Chance" },
   { key: "draw_no_bet", local: "DRAW_NO_BET", name: "Draw No Bet" },
-  { key: "total_corners", local: "TOTAL_CORNERS", name: "Total Corners" },
-  { key: "total_bookings", local: "TOTAL_BOOKINGS", name: "Total Cards/Bookings" },
-  { key: "player_props", local: "PLAYER_PROPS", name: "Player Props" },
+  // Corners / cards (real soccer keys — O/U via the alternate_* family)
+  { key: "alternate_totals_corners", local: "TOTAL_CORNERS", name: "Total Corners" },
+  { key: "alternate_totals_cards", local: "TOTAL_BOOKINGS", name: "Total Cards/Bookings" },
+  { key: "alternate_spreads_corners", local: "CORNERS_HANDICAP", name: "Handicap Corners" },
+  { key: "alternate_spreads_cards", local: "CARDS_HANDICAP", name: "Handicap Cards" },
+  { key: "alternate_team_totals_corners", local: "TEAM_CORNERS", name: "Team Total Corners" },
+  { key: "corners_1x2", local: "CORNERS_1X2", name: "Corners 1X2" },
+  // Half-time / other soccer keys (opt-in via ODDS_API_MARKETS)
+  { key: "halftime_fulltime", local: "HT_FT", name: "Half-Time / Full-Time" },
+  { key: "btts_h1", local: "FIRST_HALF_BTTS", name: "1st Half - Both Teams to Score" },
+  { key: "correct_score_h1", local: "CORRECT_SCORE_H1", name: "Correct Score 1st Half" },
+  { key: "double_chance_h1", local: "DOUBLE_CHANCE_H1", name: "Double Chance 1st Half" },
+  { key: "to_qualify", local: "TO_QUALIFY", name: "To Qualify" },
+  // Soccer player props — US bookmakers only (Bovada is one of them);
+  // opt-in via ODDS_API_MARKETS (expensive: 1 credit/market/event)
+  { key: "player_goal_scorer_anytime", local: "PLAYER_GOALSCORER_ANYTIME", name: "Anytime Goalscorer" },
+  { key: "player_first_goal_scorer", local: "PLAYER_FIRST_GOALSCORER", name: "First Goalscorer" },
+  { key: "player_last_goal_scorer", local: "PLAYER_LAST_GOALSCORER", name: "Last Goalscorer" },
+  { key: "player_to_receive_card", local: "PLAYER_RECEIVE_CARD", name: "Player to Receive a Card" },
+  { key: "player_to_receive_red_card", local: "PLAYER_RECEIVE_RED_CARD", name: "Player to Receive a Red Card" },
+  { key: "player_shots_on_target", local: "PLAYER_SHOTS_ON_TARGET", name: "Player Shots on Target" },
+  { key: "player_shots", local: "PLAYER_SHOTS", name: "Player Shots" },
+  { key: "player_assists", local: "PLAYER_ASSISTS", name: "Player Assists" },
 ];
 
 /**
@@ -162,13 +188,13 @@ function normalizeOutcomeName(
   homeName: string,
   awayName: string,
 ): { name: string; label?: string } {
-  if (localKey === "CORRECT_SCORE") {
+  if (localKey === "CORRECT_SCORE" || localKey === "CORRECT_SCORE_H1") {
     // "Home:2|Away:1" → "2-1" (home score first, regardless of team names)
     const m = name.match(/:(\d+)\|.*:(\d+)/);
     if (m) return { name: `${m[1]}-${m[2]}` };
     return { name };
   }
-  if (localKey === "DOUBLE_CHANCE") {
+  if (localKey === "DOUBLE_CHANCE" || localKey === "DOUBLE_CHANCE_H1") {
     const n = name.toLowerCase();
     const home = homeName.toLowerCase();
     const away = awayName.toLowerCase();
@@ -182,6 +208,25 @@ function normalizeOutcomeName(
     const n = name.toLowerCase();
     if (n === homeName.toLowerCase()) return { name, label: "1" };
     if (n === awayName.toLowerCase()) return { name, label: "2" };
+    return { name };
+  }
+  if (localKey === "HT_FT") {
+    // "Arsenal/Arsenal" (halftime_fulltime) → "1/1" — the convention the
+    // auto-settle HT_FT resolver + bet slip expect. Unmappable halves pass
+    // through (they'd settle via admin review).
+    const m = name.split("/");
+    if (m.length === 2) {
+      const half = (side: string): string => {
+        const s = side.trim().toLowerCase();
+        if (!s || s === "draw") return "X";
+        if (s === homeName.toLowerCase()) return "1";
+        if (s === awayName.toLowerCase()) return "2";
+        return s; // unmapped team name — keep the raw side
+      };
+      const a = half(m[0]);
+      const b = half(m[1]);
+      if (/^[12X]$/.test(a) && /^[12X]$/.test(b)) return { name: `${a}/${b}` };
+    }
     return { name };
   }
   return { name };

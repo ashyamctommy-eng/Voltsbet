@@ -51,13 +51,24 @@ endpoint `/events/{id}/odds`, and only by a limited set of bookmakers —
 per event.
 
 By default the sync fetches `btts, double_chance, draw_no_bet,
-correct_score` for the **nearest 3 fixtures** of the top 6 leagues
+correct_score, alternate_totals_corners (Total Corners), alternate_totals_cards
+(Total Cards/Bookings)` for the **nearest 4 fixtures** of the top 6 leagues
 (`ODDS_API_EVENT_MARKET_LIMIT`, `ODDS_API_EVENT_MARKET_LEAGUES`,
-`ODDS_API_EVENT_BOOKMAKERS`). Events where the chosen books return no data
-are skipped (no error, no partial markets). Add half-time lines
-(`h2h_h1, totals_h1, h2h_h2, totals_h2`) to `ODDS_API_MARKETS` when
-coverage exists. Correct-score outcome names are normalized to the local
-`0-1` convention and double-chance to `1X/X2/12`, so the settlement engine
+`ODDS_API_EVENT_BOOKMAKERS`, default `bovada,pinnacle`). Events where the
+chosen books return no data are skipped (no error, no partial markets).
+
+More real soccer keys are wired in `MARKET_MAP` and can be enabled via
+`ODDS_API_MARKETS` (each costs 1 credit per market per event): half-time
+lines (`h2h_h1, totals_h1, spreads_h1, h2h_h2, totals_h2, spreads_h2`),
+`halftime_fulltime` (HT/FT), `btts_h1`, `correct_score_h1`,
+`double_chance_h1`, `corners_1x2`, `to_qualify`,
+`alternate_spreads_corners/cards`, `alternate_team_totals_corners`, and the
+soccer player props (`player_goal_scorer_anytime`, `player_first_goal_scorer`,
+… — **US bookmakers only**, so Bovada serves them, Pinnacle does not).
+
+Correct-score outcome names are normalized to the local
+`0-1` convention, double-chance to `1X/X2/12`, and HT/FT to `1/1`, so the
+settlement engine
 resolves them automatically; half-time lines stay admin-settled (the
 `scores` feed exposes no half-time scores).
 
