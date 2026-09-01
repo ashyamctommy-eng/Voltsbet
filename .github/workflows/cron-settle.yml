@@ -1,0 +1,14 @@
+name: cron-settle
+on:
+  schedule:
+    - cron: "*/12 * * * *"   # UTC — settle finished games
+  workflow_dispatch: {}
+jobs:
+  hit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hit settle cron endpoint
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: curl -fsS -m 120 "https://${APP_URL}/api/cron/settle?secret=${CRON_SECRET}"

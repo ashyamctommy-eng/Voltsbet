@@ -1,0 +1,15 @@
+name: cron-sync
+on:
+  schedule:
+    - cron: "0 6 */3 * *"    # UTC — every 3rd day (free tier ~11 syncs/mo)
+  workflow_dispatch: {}
+jobs:
+  hit:
+    runs-on: ubuntu-latest
+    steps:
+      # -m 300: the throttled sync takes ~50s
+      - name: Hit sync cron endpoint
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: curl -fsS -m 300 "https://${APP_URL}/api/cron/sync?secret=${CRON_SECRET}"

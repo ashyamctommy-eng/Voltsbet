@@ -1,0 +1,14 @@
+name: cron-schedule
+on:
+  schedule:
+    - cron: "0 5 * * *"      # UTC — 7-day calendar refresh (0 quota)
+  workflow_dispatch: {}
+jobs:
+  hit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hit schedule cron endpoint
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: curl -fsS -m 120 "https://${APP_URL}/api/cron/schedule?secret=${CRON_SECRET}"

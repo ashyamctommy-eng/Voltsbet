@@ -1,1 +1,0 @@
-- [Vite migration boundaries](vite-migration-boundaries.md) — keep Next/Prisma server modules out of browser-reachable shared helpers.

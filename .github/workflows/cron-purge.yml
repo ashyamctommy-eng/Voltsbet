@@ -1,0 +1,14 @@
+name: cron-purge
+on:
+  schedule:
+    - cron: "0 0 * * *"      # UTC — purge expired calendar rows
+  workflow_dispatch: {}
+jobs:
+  hit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hit purge cron endpoint
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: curl -fsS -m 120 "https://${APP_URL}/api/cron/purge?secret=${CRON_SECRET}"
