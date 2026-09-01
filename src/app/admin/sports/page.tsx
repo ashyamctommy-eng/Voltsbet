@@ -65,7 +65,7 @@ export default function AdminSports() {
         </div>
         <div>
           <label className="label">Icon (emoji)</label>
-          <input className="input" value={form.icon} onChange={(e) => setForm({ ...form, icon: e.target.value })} placeholder="🎯" />
+          <input className="input" value={form.icon} onChange={(e) => setForm({ ...form, icon: e.target.value })} placeholder="Legacy emoji (vector icons auto-derived from slug)" />
         </div>
         <div>
           <label className="label">Sort order</label>

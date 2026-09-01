@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { SportIcon } from "@/components/SportIcon";
 import { useBetSlip } from "@/components/BetSlipContext";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTranslation } from "react-i18next";
@@ -203,7 +204,7 @@ export default function MatchFeed({
   /** When provided (sport pages), renders the sport header ABOVE the filter
    *  bar with counts computed from the SAME array the feed filters — the
    *  header number and the rendered card list can never drift apart. */
-  sportHeader?: { name: string; icon: string | null };
+  sportHeader?: { name: string; icon: string | null; slug?: string | null };
 }) {
   // Client-side schedule (auto-fetched + cached when no server data).
   const [clientGames, setClientGames] = useState<FeedGame[] | null>(null);
@@ -505,7 +506,7 @@ export default function MatchFeed({
           feed auto-falls-back to upcoming, the label flips to match. */}
       {sportHeader && (
         <div className="mb-4 flex items-center gap-3">
-          <span className="text-3xl">{sportHeader.icon}</span>
+          <SportIcon slug={sportHeader.slug} icon={sportHeader.icon} className="h-9 w-9" />
           <div className="min-w-0">
             <h1 className="text-2xl font-extrabold">{sportHeader.name}</h1>
             <p className="text-sm text-ink3">

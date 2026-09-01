@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { SportIcon } from "@/components/SportIcon";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/client";
@@ -304,7 +305,7 @@ type SearchHit = {
   icon?: string | null;
   homeName?: string;
   awayName?: string;
-  sport?: { icon?: string | null } | null;
+  sport?: { slug?: string; icon?: string | null } | null;
 };
 
 function SearchBox() {
@@ -357,7 +358,7 @@ function SearchBox() {
               <div className="text-[10px] font-bold uppercase tracking-wider text-ink3">{t("nav.sports")}</div>
               {results.sports.map((s: SearchHit) => (
                 <Link key={s.id} href={`/sports/${s.slug}`} className="block py-1.5 text-sm text-ink2 hover:text-ink">
-                  {s.icon} {s.name}
+                  <SportIcon slug={s.slug} icon={s.icon} className="h-3.5 w-3.5 shrink-0" /> {s.name}
                 </Link>
               ))}
             </div>
@@ -367,7 +368,7 @@ function SearchBox() {
               <div className="text-[10px] font-bold uppercase tracking-wider text-ink3">{t("common.matches")}</div>
               {results.games.map((g: SearchHit) => (
                 <Link key={g.id} href={`/match/${g.id}`} className="block py-1.5 text-sm text-ink2 hover:text-ink">
-                  {g.sport?.icon ?? ""} {g.homeName} vs {g.awayName}
+                  <SportIcon slug={g.sport?.slug} icon={g.sport?.icon} className="h-3.5 w-3.5 shrink-0" /> {g.homeName} vs {g.awayName}
                 </Link>
               ))}
               <Link href={`/search?q=${encodeURIComponent(q)}`} className="block py-1.5 text-xs font-semibold text-brand">

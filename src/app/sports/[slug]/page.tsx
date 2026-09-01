@@ -93,7 +93,7 @@ export default async function SportPage({ params }: { params: Promise<{ slug: st
             games={games}
             sportKey={slug}
             sports={sports}
-            sportHeader={{ name: sport.name, icon: sport.icon }}
+            sportHeader={{ name: sport.name, icon: sport.icon, slug: sport.slug }}
           />
         </div>
       </div>

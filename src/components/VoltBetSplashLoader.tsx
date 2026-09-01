@@ -71,7 +71,7 @@ export default function UNIBET360SplashLoader() {
             <span className="text-3xl font-black">U</span>
           </div>
         </div>
-        <p className="vb-wordmark mt-5 text-sm font-black tracking-[0.35em]">VOLTBET</p>
+        <p className="vb-wordmark mt-5 text-sm font-black tracking-[0.35em]">UNIBET360</p>
       </div>
     </div>
   );

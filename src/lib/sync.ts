@@ -105,26 +105,26 @@ export const SPORT_KEY_MAP: Record<string, string> = {
 /** Display metadata for sport slugs the seed may not have created (existing
  *  installs) — sync auto-creates missing rows so new leagues always surface. */
 const SPORT_FALLBACK: Record<string, { name: string; icon: string }> = {
-  football: { name: "Football", icon: "⚽" },
-  basketball: { name: "Basketball", icon: "🏀" },
-  tennis: { name: "Tennis", icon: "🎾" },
-  baseball: { name: "Baseball", icon: "⚾" },
-  "american-football": { name: "American Football", icon: "🏈" },
-  "ice-hockey": { name: "Ice Hockey", icon: "🏒" },
-  "australian-rules": { name: "Australian Rules", icon: "🏉" },
-  rugby: { name: "Rugby", icon: "🏉" },
-  cricket: { name: "Cricket", icon: "🏏" },
-  boxing: { name: "Boxing", icon: "🥊" },
-  mma: { name: "MMA", icon: "🥊" },
-  golf: { name: "Golf", icon: "⛳" },
-  handball: { name: "Handball", icon: "🤾" },
-  volleyball: { name: "Volleyball", icon: "🏐" },
-  "table-tennis": { name: "Table Tennis", icon: "🏓" },
-  badminton: { name: "Badminton", icon: "🏸" },
-  snooker: { name: "Snooker", icon: "🎱" },
-  darts: { name: "Darts", icon: "🎯" },
-  lacrosse: { name: "Lacrosse", icon: "🥍" },
-  esports: { name: "Esports", icon: "🎮" },
+  football: { name: "Football", icon: "" },
+  basketball: { name: "Basketball", icon: "" },
+  tennis: { name: "Tennis", icon: "" },
+  baseball: { name: "Baseball", icon: "" },
+  
+  
+  
+  rugby: { name: "Rugby", icon: "" },
+  cricket: { name: "Cricket", icon: "" },
+  boxing: { name: "Boxing", icon: "" },
+  mma: { name: "MMA", icon: "" },
+  golf: { name: "Golf", icon: "" },
+  handball: { name: "Handball", icon: "" },
+  volleyball: { name: "Volleyball", icon: "" },
+  "table-tennis": { name: "Table Tennis", icon: "" },
+  badminton: { name: "Badminton", icon: "" },
+  snooker: { name: "Snooker", icon: "" },
+  darts: { name: "Darts", icon: "" },
+  lacrosse: { name: "Lacrosse", icon: "" },
+  esports: { name: "Esports", icon: "" },
 };
 
 /** Curated category for known sport prefixes — auto-maps ANY league the API
@@ -204,7 +204,7 @@ async function ensureMappedSports(apiSports: { key: string; name: string }[] = [
   const have = new Set(existing.map((s) => s.slug));
   for (const slug of slugs) {
     if (have.has(slug)) continue;
-    const meta = SPORT_FALLBACK[slug] ?? { name: prettifySlug(slug), icon: "🏆" };
+    const meta = SPORT_FALLBACK[slug] ?? { name: prettifySlug(slug), icon: "" };
     await prisma.sport.create({
       data: { name: meta.name, slug, icon: meta.icon, sortOrder: 99, active: true, isPopular: false },
     });

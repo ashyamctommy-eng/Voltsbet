@@ -17,7 +17,7 @@ export const GET = handle(async (req: NextRequest) => {
         OR: [{ homeName: { contains: q } }, { awayName: { contains: q } }],
         ...(s.hideSeededGames ? { source: "API" } : {}),
       },
-      include: { sport: true },
+      include: { sport: { select: { slug: true, icon: true } } },
       take: 8,
       orderBy: { startAt: "asc" },
     }),

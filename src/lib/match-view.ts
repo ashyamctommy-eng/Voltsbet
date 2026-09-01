@@ -100,7 +100,7 @@ export function apiMatchToFeedGame(view: FeedMatchView): ApiFeedGame {
     clock: view.elapsedMinute || null,
     live: view.isLive,
     featured: false,
-    sport: { name: "Football", slug: "football", icon: "⚽" },
+    sport: { name: "Football", slug: "football", icon: null },
     competitionName: view.leagueName,
     markets: view.markets.map((m) => ({
       id: `${view.id}-${m.key}`,
