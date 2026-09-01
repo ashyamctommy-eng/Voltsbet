@@ -1,0 +1,187 @@
+--- a/src/app/layout.tsx
++++ b/src/app/layout.tsx
+@@ -17,10 +17,14 @@
+ import BroadcastBanner from "@/components/BroadcastBanner";
+ import UNIBET360SplashLoader from "@/components/VoltBetSplashLoader";
+ 
+-export const metadata: Metadata = {
+-  title: { default: "UNIBET360 â€” Sports Betting", template: "%s | UNIBET360" },
+-  description: "Fast odds, live betting and instant crypto deposits.",
+-};
++export async function generateMetadata(): Promise<Metadata> {
++  const settings = await getSettings();
++  const siteName = settings.siteName?.trim() || process.env.NEXT_PUBLIC_SITE_NAME?.trim() || "UNIBET360";
++  return {
++    title: { default: `${siteName} â€” Sports Betting`, template: `%s | ${siteName}` },
++    description: `Fast odds, live betting and instant crypto deposits on ${siteName}.`,
++  };
++}
+ export const viewport: Viewport = {
+   themeColor: "#0b1220",
+   width: "device-width",
+@@ -39,6 +43,8 @@
+     prisma.sport.findMany({ where: { active: true }, orderBy: [{ isPopular: "desc" }, { sortOrder: "asc" }], take: 8 }),
+   ]);
+ 
++  const siteName = s.siteName?.trim() || process.env.NEXT_PUBLIC_SITE_NAME?.trim() || "UNIBET360";
++
+   let headerUser: HeaderUser = null;
+   if (user) {
+     const [wallet, unread] = await Promise.all([
+@@ -92,9 +98,9 @@
+                     telegram: s.telegram,
+                   }}
+                 >
+-                  <UNIBET360SplashLoader />
++                  <UNIBET360SplashLoader siteName={siteName} />
+                   <BroadcastBanner />
+-                  <Header user={headerUser} siteName={s.siteName} sports={sports} />
++                  <Header user={headerUser} siteName={siteName} sports={sports} />
+                   {/* Mobile bottom padding clears the bottom nav (~64px) plus the
+                       floating yellow betslip bar (sits at 62px, ~56px tall). */}
+                   <main className="min-h-[60vh] pb-32 xl:pb-0">{children}</main>
+--- a/src/components/VoltBetSplashLoader.tsx
++++ b/src/components/VoltBetSplashLoader.tsx
+@@ -13,7 +13,8 @@
+  * Shows once per browser session (first page load), then fades out.
+  * Pure CSS keyframe animations â€” no JS rAF, smooth at 60fps.
+  */
+-export default function UNIBET360SplashLoader() {
++export default function UNIBET360SplashLoader({ siteName }: { siteName?: string }) {
++  const brand = siteName?.trim() || process.env.NEXT_PUBLIC_SITE_NAME?.trim() || "UNIBET360";
+   // SSR + first paint show the loader; the effect then runs the lifecycle
+   // entirely through timers (never a synchronous setState in the effect).
+   const [phase, setPhase] = useState<"shown" | "leaving" | "hidden">("shown");
+@@ -71,7 +72,7 @@
+             <span className="text-3xl font-black">U</span>
+           </div>
+         </div>
+-        <p className="vb-wordmark mt-5 text-sm font-black tracking-[0.35em]">UNIBET360</p>
++        <p className="vb-wordmark mt-5 text-center text-sm font-black tracking-[0.25em]">{brand}</p>
+       </div>
+     </div>
+   );
+--- a/src/components/VoltBetLogo.tsx
++++ b/src/components/VoltBetLogo.tsx
+@@ -5,14 +5,15 @@
+  * branding setting (--vb-primary, default #00e676) via the `brand` token,
+  * so it re-colors with the theme engine in both dark and light mode.
+  */
+-export default function UNIBET360Logo({ className }: { className?: string }) {
++export default function UNIBET360Logo({ className, siteName }: { className?: string; siteName?: string }) {
++  const brand = siteName?.trim() || process.env.NEXT_PUBLIC_SITE_NAME?.trim() || "UNIBET360";
+   return (
+     <span className={`flex shrink-0 items-center gap-2 ${className ?? ""}`}>
+       <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand text-base font-black text-[#052e16] shadow-[0_0_16px_rgba(0,230,118,0.35)]">
+         U
+       </span>
+-      <span className="text-lg font-extrabold tracking-tight text-primary-text">
+-        UNIBET<span className="text-brand">360</span>
++      <span className="max-w-[10rem] truncate text-lg font-extrabold tracking-tight text-primary-text" title={brand}>
++        {brand}
+       </span>
+     </span>
+   );
+--- a/src/components/Header.tsx
++++ b/src/components/Header.tsx
+@@ -58,8 +58,8 @@
+   const menuRef = useRef<HTMLDivElement>(null);
+ 
+   // Category tabs â€” sports from the provider/DB, Live pinned last.
+-  const categoryTabs: { labelKey?: string; label: string; href: string; icon?: string | null }[] = [
+-    ...(sports ?? []).map((sp) => ({ label: sp.name, href: `/sports/${sp.slug}`, icon: sp.icon })),
++  const categoryTabs: { labelKey?: string; label: string; href: string; slug?: string; icon?: string | null }[] = [
++    ...(sports ?? []).map((sp) => ({ label: sp.name, href: `/sports/${sp.slug}`, slug: sp.slug, icon: sp.icon })),
+     { labelKey: "nav.live", label: "Live", href: "/live" },
+   ];
+ 
+@@ -112,7 +112,7 @@
+         </button>
+ 
+         <Link href="/" className="flex shrink-0 items-center gap-2">
+-          <UNIBET360Logo />
++          <UNIBET360Logo siteName={siteName} />
+           <span className="sr-only">{siteName}</span>
+         </Link>
+ 
+@@ -214,7 +214,7 @@
+       {/* â”€â”€ Category scrollbar (provider-driven sports) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+       <div className="border-t border-line bg-panel-bg/60">
+         <div className="no-scrollbar mx-auto flex max-w-[1600px] items-stretch gap-1 overflow-x-auto px-2 sm:px-4">
+-          {categoryTabs.map(({ labelKey, label, href, icon }) => {
++          {categoryTabs.map(({ labelKey, label, href, slug, icon }) => {
+             const active =
+               pathname === href ||
+               (href !== "/live" && isActive(href)) ||
+@@ -229,7 +229,11 @@
+                   active ? "border-brand text-brand" : "border-transparent text-ink2 hover:text-ink"
+                 }`}
+               >
+-                {icon ? <span aria-hidden>{icon}</span> : labelKey === "nav.live" ? <IconLive className="h-4 w-4 sm:h-[18px] sm:w-[18px]" /> : null}
++                {labelKey === "nav.live" ? (
++                   <IconLive className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
++                 ) : (
++                   <SportIcon slug={slug} icon={icon} className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
++                 )}
+                 {labelKey ? t(labelKey) : label}
+               </Link>
+             );
+--- a/src/components/Footer.tsx
++++ b/src/components/Footer.tsx
+@@ -14,7 +14,7 @@
+     <footer className="mt-16 border-t border-line bg-panel-bg">
+       <div className="mx-auto grid max-w-[1600px] gap-8 px-4 py-10 sm:grid-cols-2 lg:grid-cols-4">
+         <div>
+-          <UNIBET360Logo />
++          <UNIBET360Logo siteName={s.siteName} />
+           <p className="mt-3 text-sm text-ink3">{s.tagline}. Fast odds, live betting, instant crypto deposits.</p>
+         </div>
+         <div>
+--- a/src/app/page.tsx
++++ b/src/app/page.tsx
+@@ -3,9 +3,9 @@
+ import { getSettings } from "@/lib/settings";
+ import { getPrematchFeed, apiMatchToFeedGame } from "@/lib/feed";
+ import { isLiveStatus } from "@/lib/game-status";
+-import BannerCarousel from "@/components/BannerCarousel";
+ import MatchSlideshow from "@/components/MatchSlideshow";
+ import MatchFeed, { type FeedGame as MatchFeedGame } from "@/components/MatchFeed";
++import { SportIcon } from "@/components/SportIcon";
+ 
+ export const dynamic = "force-dynamic";
+ 
+@@ -17,8 +17,7 @@
+  *  gate caused a quota-starved partial API feed to MASK good DB games. */
+ export default async function HomePage() {
+   const s = await getSettings();
+-  const [banners, dbGames, popularSports, promotions] = await Promise.all([
+-    prisma.banner.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
++  const [dbGames, popularSports, promotions] = await Promise.all([
+     // Synced DB games (cron sync keeps them fresh). Rendered first when recent
+     // â€” this is the free-tier-friendly path: 0 API requests per page load.
+     prisma.game.findMany({
+@@ -84,15 +83,6 @@
+       ) : null}
+       <MatchFeed games={games} sports={popularSports} />
+ 
+-      {/* Admin banners */}
+-      {banners.length > 0 && (
+-        <section className="mt-10">
+-          <BannerCarousel
+-            banners={banners.map((b) => ({ id: b.id, title: b.title, description: b.description, image: b.image, ctaText: b.ctaText, ctaUrl: b.ctaUrl }))}
+-          />
+-        </section>
+-      )}
+-
+       {/* Popular sports */}
+       <section className="mt-10">
+         <div className="mb-4 flex items-center justify-between">
+@@ -106,7 +96,7 @@
+               href={`/sports/${sp.slug}`}
+               className="card card-hover flex w-28 shrink-0 flex-col items-center gap-1.5 px-3 py-4 text-center sm:w-auto"
+             >
+-              <span className="text-3xl">{sp.icon}</span>
++              <SportIcon slug={sp.slug} icon={sp.icon} className="h-8 w-8 text-brand" />
+               <span className="text-sm font-semibold">{sp.name}</span>
+               <span className="text-[11px] text-ink3">{sp._count.games} matches</span>
+             </Link>
