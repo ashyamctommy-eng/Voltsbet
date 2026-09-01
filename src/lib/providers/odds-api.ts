@@ -97,34 +97,60 @@ export const LIST_MARKETS = ["h2h", "spreads", "totals"] as const;
  * totals_h1, h2h_h2, totals_h2` for half-time markets when bookmaker
  * coverage exists — the UI renders any market key that comes back.
  */
+/**
+ * Default market set = the FULL football menu, for football ONLY.
+ *
+ * Football-only by construction: the list endpoint auto-drops any key a
+ * sport doesn't serve (422 → retry with the supported subset, so non-football
+ * sports keep their usual h2h/spreads/totals), and the extended per-event
+ * pass runs exclusively for ODDS_API_EVENT_MARKET_LEAGUES (top-6 soccer
+ * leagues by default). Other sports are never affected by the extended keys.
+ *
+ * Quota: each extended key costs 1 credit per market per event on the
+ * per-event pass (ODDS_API_EVENT_MARKET_LIMIT × leagues). 28 keys × 4 events
+ * × 6 leagues ≈ 600–670 credits per sync worst case — comfortable on the
+ * paid 20K tier at the default every-3-days cadence (~7K/mo), NOT on the
+ * free 500/mo tier. Trim via ODDS_API_MARKETS / ODDS_API_EVENT_MARKET_LIMIT.
+ */
 export const ODDS_MARKETS = (
   process.env.ODDS_API_MARKETS?.split(",").map((s) => s.trim()).filter(Boolean) ?? [
+    // list-endpoint trio (served for most sports)
     "h2h",
     "spreads",
     "totals",
+    // football extended menu (per-event pass, soccer leagues only)
     "btts",
     "double_chance",
     "draw_no_bet",
     "correct_score",
     "alternate_spreads",
     "alternate_totals",
+    "team_totals",
+    "alternate_team_totals",
     "h2h_h1",
     "totals_h1",
     "spreads_h1",
     "h2h_h2",
     "totals_h2",
     "spreads_h2",
-    // Real The Odds API soccer keys for corners + bookings (verified against
-    // the official betting-markets list — "total_corners"/"total_bookings"
-    // are NOT valid keys and were silently 422-dropped by the sync retry).
-    "alternate_totals_corners",
-    "alternate_totals_cards",
-    // More soccer keys are wired in MARKET_MAP and usable via
-    // ODDS_API_MARKETS (halftime_fulltime, btts_h1, correct_score_h1,
-    // double_chance_h1, corners_1x2, to_qualify, alternate_spreads_corners,
-    // alternate_spreads_cards, alternate_team_totals_corners, player props)
-    // but are NOT in the default list — each costs 1 credit per market per
-    // event on the extended endpoint.
+    "alternate_totals_corners", // Total Corners O/U
+    "alternate_totals_cards", // Total Cards/Bookings O/U
+    "alternate_spreads_corners", // Handicap Corners
+    "alternate_spreads_cards", // Handicap Cards
+    "alternate_team_totals_corners", // Team Total Corners
+    "corners_1x2",
+    "btts_h1",
+    "correct_score_h1",
+    "double_chance_h1",
+    "halftime_fulltime", // HT/FT — normalized to 1/1 for auto-settle
+    "to_qualify",
+    // Soccer player props (US bookmakers only — Bovada serves them, Pinnacle
+    // does not) are NOT in the default list: 8 keys × events is the heaviest
+    // quota consumer and none of them auto-settle (no stats feed). Enable
+    // per league with ODDS_API_MARKETS=...,player_goal_scorer_anytime,
+    // player_first_goal_scorer,player_last_goal_scorer,
+    // player_to_receive_card,player_to_receive_red_card,
+    // player_shots_on_target,player_shots,player_assists
   ]
 ) as readonly string[];
 

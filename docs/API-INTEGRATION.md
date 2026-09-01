@@ -50,27 +50,38 @@ endpoint `/events/{id}/odds`, and only by a limited set of bookmakers —
 (**Pinnacle** confirmed for soccer, 2026-08-31). Cost: 1 credit per market
 per event.
 
-By default the sync fetches `btts, double_chance, draw_no_bet,
-correct_score, alternate_totals_corners (Total Corners), alternate_totals_cards
-(Total Cards/Bookings)` for the **nearest 4 fixtures** of the top 6 leagues
-(`ODDS_API_EVENT_MARKET_LIMIT`, `ODDS_API_EVENT_MARKET_LEAGUES`,
-`ODDS_API_EVENT_BOOKMAKERS`, default `bovada,pinnacle`). Events where the
-chosen books return no data are skipped (no error, no partial markets).
+**Football-only by design.** The default `ODDS_API_MARKETS` carries the FULL
+football menu (28 keys): the list trio + `btts, double_chance, draw_no_bet,
+correct_score, team_totals, alternate_* (spreads/totals/team totals),
+h2h_h1/totals_h1/spreads_h1, h2h_h2/totals_h2/spreads_h2,
+alternate_totals_corners (Total Corners), alternate_totals_cards (Total
+Cards), alternate_spreads_corners/cards, alternate_team_totals_corners,
+corners_1x2, btts_h1, correct_score_h1, double_chance_h1, halftime_fulltime
+(HT/FT), to_qualify`. Non-football sports are unaffected — the list endpoint
+rejects keys it doesn't serve (sync drops them and retries with the
+supported subset), and the extended per-event pass runs only for
+`ODDS_API_EVENT_MARKET_LEAGUES` (top-6 soccer leagues by default; extend via
+env to cover more football).
 
-More real soccer keys are wired in `MARKET_MAP` and can be enabled via
-`ODDS_API_MARKETS` (each costs 1 credit per market per event): half-time
-lines (`h2h_h1, totals_h1, spreads_h1, h2h_h2, totals_h2, spreads_h2`),
-`halftime_fulltime` (HT/FT), `btts_h1`, `correct_score_h1`,
-`double_chance_h1`, `corners_1x2`, `to_qualify`,
-`alternate_spreads_corners/cards`, `alternate_team_totals_corners`, and the
-soccer player props (`player_goal_scorer_anytime`, `player_first_goal_scorer`,
-… — **US bookmakers only**, so Bovada serves them, Pinnacle does not).
+Soccer player props (`player_goal_scorer_anytime`, `player_first_goal_scorer`,
+`player_last_goal_scorer`, `player_to_receive_card`,
+`player_to_receive_red_card`, `player_shots_on_target`, `player_shots`,
+`player_assists`) are **US bookmakers only** — Bovada serves them, Pinnacle
+does not — and are the heaviest quota consumers (8 keys × events) with no
+auto-settlement (no stats feed). Keep them opt-in via `ODDS_API_MARKETS`.
 
-Correct-score outcome names are normalized to the local
-`0-1` convention, double-chance to `1X/X2/12`, and HT/FT to `1/1`, so the
-settlement engine
-resolves them automatically; half-time lines stay admin-settled (the
-`scores` feed exposes no half-time scores).
+**Quota (paid 20K tier):** 28 extended keys × `ODDS_API_EVENT_MARKET_LIMIT`
+(4) × leagues (6) ≈ 600–670 credits per sync worst case ≈ ~7K/month at the
+default every-3-days cadence. Daily syncs would exceed the plan — keep the
+cadence or trim `ODDS_API_MARKETS`/`EVENT_MARKET_LIMIT`. Corners/cards
+markets also cannot auto-settle (no corner counts in `/scores`) — admin
+settlement required.
+
+Correct-score outcome names are normalized to the local `0-1` convention,
+double-chance to `1X/X2/12`, and HT/FT to `1/1`, so the settlement engine
+resolves them automatically; half-time-dependent markets auto-settle when
+the `/scores` feed provides half-time scores, otherwise they stay for admin
+review.
 
 Config: `ODDS_API_MARKETS` (list + extended set), `ODDS_API_EVENT_*`
 (per-event pass), `ODDS_API_LIVE_MARKETS` + `LIVE_ODDS_THROTTLE_SECONDS`
