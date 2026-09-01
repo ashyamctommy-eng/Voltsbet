@@ -68,7 +68,7 @@ export default function UNIBET360SplashLoader() {
 
           {/* Brand badge */}
           <div className="vb-badge flex h-16 w-16 items-center justify-center rounded-full">
-            <span className="text-3xl font-black">V</span>
+            <span className="text-3xl font-black">U</span>
           </div>
         </div>
         <p className="vb-wordmark mt-5 text-sm font-black tracking-[0.35em]">VOLTBET</p>
