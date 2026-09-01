@@ -87,7 +87,7 @@ type GameScores = {
   halfAwayScore?: number | null;
 };
 
-function resolveOutcome(
+export function resolveOutcome(
   game: GameScores,
   marketKey: string,
   outcomeName: string,
@@ -148,10 +148,13 @@ function resolveOutcome(
   }
 
   // ── 1st Half totals — settles off the half-time score when the feed
-  //    populated it; never guesses from the full-time score. ──────────
+  //    populated it; never guesses from the full-time score. Only enters
+  //    when the outcome actually carries an Over/Under line (a bare "1st
+  //    Half" name — Highest Scoring Half — must fall through to its own
+  //    handler).
   if (
     ["HT_TOTALS", "1H_TOTALS", "FIRST_HALF_TOTALS", "OVER_UNDER_1H", "OVER_UNDER_2H"].includes(marketKey) ||
-    /\b(1st|first)[ -]half\b/.test(name)
+    (/\b(1st|first)[ -]half\b/.test(name) && /\b(over|under)\b/.test(name))
   ) {
     if (game.halfHomeScore == null || game.halfAwayScore == null) return null; // no HT score → admin
     const line = Number(name.match(/[\d.]+/)?.[0]);
@@ -252,6 +255,86 @@ function resolveOutcome(
     const [h, a] = [Number(m[1]), Number(m[2])];
     if (h === home && a === away) return "WON";
     return "LOST";
+  }
+
+  // ── European Handicap — 3-way integer line (−1) ─────────────
+  //    Home −1 wins on d ≥ 2, Draw wins on d = 1, Away +1 wins on d ≤ 0.
+  if (marketKey === "EUROPEAN_HANDICAP") {
+    const d = home - away;
+    if (label === "1" || /-\d+(\.0+)?$/.test(name)) return d >= 2 ? "WON" : "LOST";
+    if (label === "x" || name === "draw") return d === 1 ? "WON" : "LOST";
+    if (label === "2" || /\+\d+(\.0+)?$/.test(name)) return d <= 0 ? "WON" : "LOST";
+    return null;
+  }
+
+  // ── Win to Nil — team wins AND keeps a clean sheet ──────────
+  if (marketKey === "WIN_TO_NIL") {
+    const homeWtn = r === "H" && away === 0;
+    const awayWtn = r === "A" && home === 0;
+    if (label === "1") return homeWtn ? "WON" : "LOST";
+    if (label === "2") return awayWtn ? "WON" : "LOST";
+    if (label === "x" || name === "neither") return homeWtn || awayWtn ? "LOST" : "WON";
+    return null;
+  }
+
+  // ── Clean Sheet — home/away clean sheet or concede ──────────
+  if (marketKey === "CLEAN_SHEET") {
+    const homeNameL = game.homeName.toLowerCase();
+    const awayNameL = game.awayName.toLowerCase();
+    const isHome = name.includes(homeNameL) || label === "1";
+    const isAway = name.includes(awayNameL) || label === "2";
+    const clean = name.includes("clean sheet");
+    const concede = name.includes("concede");
+    if (!isHome && !isAway) return null;
+    if (isHome && clean) return away === 0 ? "WON" : "LOST";
+    if (isHome && concede) return away > 0 ? "WON" : "LOST";
+    if (isAway && clean) return home === 0 ? "WON" : "LOST";
+    if (isAway && concede) return home > 0 ? "WON" : "LOST";
+    return null;
+  }
+
+  // ── Multi-Goals — Betika goal ranges (1-2 / 2-3 / 3-5 / 6+) ─
+  if (marketKey === "MULTI_GOALS") {
+    const total = home + away;
+    const m = name.match(/^(\d+)\s*-\s*(\d+)\s*goals?$/);
+    if (m) {
+      const [lo, hi] = [Number(m[1]), Number(m[2])];
+      return total >= lo && total <= hi ? "WON" : "LOST";
+    }
+    if (/^6\+\s*goals?$/.test(name)) return total >= 6 ? "WON" : "LOST";
+    return null;
+  }
+
+  // ── 1st Half BTTS — settles off the half-time score when the
+  //    feed populated it; never guesses from the full-time score. ──
+  if (marketKey === "FIRST_HALF_BTTS") {
+    if (game.halfHomeScore == null || game.halfAwayScore == null) return null;
+    const both1H = Number(game.halfHomeScore) > 0 && Number(game.halfAwayScore) > 0;
+    if (name === "yes") return both1H ? "WON" : "LOST";
+    if (name === "no") return both1H ? "LOST" : "WON";
+    return null;
+  }
+
+  // ── Highest Scoring Half — needs half-time scores ───────────
+  if (marketKey === "HIGHEST_SCORING_HALF") {
+    if (game.halfHomeScore == null || game.halfAwayScore == null) return null;
+    const ht1 = Number(game.halfHomeScore) + Number(game.halfAwayScore);
+    const ht2 = home + away - ht1;
+    if (label === "1" || name === "1st half") return ht1 > ht2 ? "WON" : "LOST";
+    if (label === "x" || name === "tie") return ht1 === ht2 ? "WON" : "LOST";
+    if (label === "2" || name === "2nd half") return ht2 > ht1 ? "WON" : "LOST";
+    return null;
+  }
+
+  // ── Half-Time / Full-Time (1/1 … 2/2) — needs half-time score ─
+  if (marketKey === "HT_FT") {
+    if (game.halfHomeScore == null || game.halfAwayScore == null) return null;
+    const htDiff = Number(game.halfHomeScore) - Number(game.halfAwayScore);
+    const htR = htDiff > 0 ? "1" : htDiff < 0 ? "2" : "X";
+    const ftR = r === "H" ? "1" : r === "A" ? "2" : "X";
+    const expected = `${htR}/${ftR}`.toLowerCase();
+    if (/^[12x]\/[12x]$/.test(name)) return name === expected ? "WON" : "LOST";
+    return null;
   }
 
   return null; // unknown market — leave to admin

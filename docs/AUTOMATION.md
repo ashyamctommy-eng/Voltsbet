@@ -2,9 +2,21 @@
 
 ## 1. Auto-settlement (cron)
 
-Settles finished games automatically (result resolution for `MATCH_RESULT`,
-`OVER_UNDER`, `DOUBLE_CHANCE`, `BTTS`, `CORRECT_SCORE`; anything ambiguous is
-left for admin review — auto-settle never guesses).
+Settles finished games automatically from the final score (and half-time
+scores where the market needs them). Auto-resolved market families:
+
+- `MATCH_RESULT` / 1X2, `DOUBLE_CHANCE`, `DRAW_NO_BET` (draw → VOID refund)
+- `OVER_UNDER` + `ALTERNATE_TOTALS` (whole & half lines; push → VOID; quarter
+  Asian lines → admin review)
+- `SPREAD` / `HANDICAP` / `ALTERNATE_SPREAD` (whole & half lines; mixed
+  quarter splits → admin review)
+- `TEAM_TOTALS_HOME/AWAY`, `BTTS`, `GOAL_PARITY` (odd/even), `CORRECT_SCORE`
+- `EUROPEAN_HANDICAP` (3-way −1), `CLEAN_SHEET`, `WIN_TO_NIL`, `MULTI_GOALS`
+- Half-time-dependent markets — settled **only when the feed provided
+  half-time scores**, otherwise left for admin review: `OVER_UNDER_1H`,
+  `OVER_UNDER_2H`, `FIRST_HALF_BTTS`, `HIGHEST_SCORING_HALF`, `HT_FT`
+
+Anything ambiguous is left for admin review — auto-settle never guesses.
 
 **Configure:** Admin → Website Settings → **Automation**:
 - `settlement.delayMinutes` — how long after a game finishes before settling (default 10).

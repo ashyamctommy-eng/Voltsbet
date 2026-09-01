@@ -64,6 +64,48 @@ against the NOWPayments and M-Pesa **sandboxes**.
 
 ---
 
+## Step 5.5 — Cron jobs (settlement, sync, schedule, rates, purge)
+
+Railway has native cron (no GitHub Actions needed): **Project → your service →
+Settings → Cron Jobs → Add Cron Job**. Each job is an HTTP request to one of
+the app's cron endpoints. All endpoints require the cron secret — set it once
+in Admin → Website Settings → **Automation → cron.secret** (or as the
+`CRON_SECRET` env var) and use it in every URL below.
+
+| Endpoint | Schedule | Why |
+|---|---|---|
+| `GET /api/cron/settle?secret=<cron.secret>` | every 10 min | **settles finished games** (pays winners/refunds) — this is what closes out open bets |
+| `GET /api/cron/rates?secret=<cron.secret>` | hourly (:17) | fresh fiat + crypto rates |
+| `GET /api/cron/schedule?secret=<cron.secret>` | daily 03:00 UTC | 7-day calendar refresh — **0 quota** |
+| `GET /api/cron/purge?secret=<cron.secret>` | daily 00:00 UTC | expire stale deposits + purge old fixtures |
+| `GET /api/cron/sync?secret=<cron.secret>` | every 3 days (06:00 UTC) | pre-match odds + live scores (**quota-heavy — see below**) |
+
+Notes:
+
+- **Without the settle job, nothing settles automatically** — finished games
+  stay `OPEN` until an admin settles them manually. The settle job is the one
+  you cannot skip.
+- The `/sync` job is the only quota-heavy one (The Odds API free tier = 500
+  requests/month). The default cadence (every 3 days) is already tuned for it;
+  **do not run it daily on the free tier** — see
+  `docs/API-INTEGRATION.md` (Rate budget) and the env knobs
+  (`ODDS_API_MARKETS`, `ODDS_API_EVENT_MARKET_LIMIT`,
+  `ODDS_API_EVENT_MARKET_LEAGUES`). The 0-quota `/schedule` job keeps
+  fixtures visible even when `/sync` is sparse.
+- Endpoints self-throttle and coalesce (see `src/lib/cron-guard.ts`), so
+  overlapping triggers (admin "Run now" + cron) never double-run.
+- Verify a job end-to-end once with your browser or curl:
+
+  ```
+  curl -s "https://YOUR-APP.up.railway.app/api/cron/settle?secret=<cron.secret>"
+  # → { "ok": true, "settled": [...], "skipped": [] }
+  ```
+
+- VPS/cPanel instead of Railway? Use `./setup.sh` (installs the same jobs as
+  a local crontab against `http://localhost:3000`).
+
+---
+
 ## Step 6 — NOWPayments (crypto) sandbox wiring
 
 1. **nowpayments.io** → Register → Dashboard → **API Keys**.
