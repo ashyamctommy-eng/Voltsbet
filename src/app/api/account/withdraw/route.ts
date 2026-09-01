@@ -1,10 +1,10 @@
 import { NextRequest } from "next/server";
-import { randomBytes } from "crypto";
 import { handle, ok, requireUser, verifyCsrf, ApiError } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { isUserActionAllowed, userBlockReason } from "@/lib/statuses";
 import { debitWallet } from "@/lib/wallet";
+import { generateWithdrawalRef } from "@/lib/ref-code";
 import { z } from "zod";
 
 const schema = z.object({
@@ -13,13 +13,10 @@ const schema = z.object({
   destination: z.string().min(3, "Enter your payment destination (e.g. wallet address or M-Pesa number)"),
 });
 
-/** Human-friendly tracking reference: WD-2026-XXXX (unique, collision-retried). */
+/** Human-friendly auto-assigned reference: PLP-WDR-XXXXXXXX (unique, collision-retried). */
 async function mintTrackingId(): Promise<string> {
-  const year = new Date().getFullYear();
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I confusion
   for (let i = 0; i < 8; i++) {
-    const suffix = Array.from(randomBytes(4)).map((b) => alphabet[b % alphabet.length]).join("");
-    const candidate = `WD-${year}-${suffix}`;
+    const candidate = generateWithdrawalRef();
     const clash = await prisma.withdrawal.findUnique({ where: { trackingId: candidate }, select: { id: true } });
     if (!clash) return candidate;
   }

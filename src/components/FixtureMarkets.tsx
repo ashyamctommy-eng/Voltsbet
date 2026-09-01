@@ -37,9 +37,13 @@ type FixtureCtx = {
 };
 
 /* Market category buckets (keys our provider/sync produce). */
-const MAIN_KEYS = ["MATCH_RESULT", "h2h", "DOUBLE_CHANCE", "BTTS", "DRAW_NO_BET", "SPREAD"];
-const TOTALS_KEYS = ["OVER_UNDER", "totals"];
-const FIRST_HALF_KEYS = ["HT_RESULT", "HALF_TIME_RESULT", "HT_OVER_UNDER", "h2h_h1", "totals_h1", "OVER_UNDER_1H"];
+const MAIN_KEYS = [
+  "MATCH_RESULT", "h2h", "DOUBLE_CHANCE", "BTTS", "DRAW_NO_BET", "SPREAD",
+  "EUROPEAN_HANDICAP", "HT_FT", "HIGHEST_SCORING_HALF", "MULTI_GOALS",
+  "CLEAN_SHEET", "WIN_TO_NIL", "TOTAL_CORNERS", "TOTAL_BOOKINGS", "PLAYER_PROPS",
+];
+const TOTALS_KEYS = ["OVER_UNDER", "totals", "TOTAL_CORNERS", "TOTAL_BOOKINGS"];
+const FIRST_HALF_KEYS = ["HT_RESULT", "HALF_TIME_RESULT", "HT_OVER_UNDER", "h2h_h1", "totals_h1", "OVER_UNDER_1H", "FIRST_HALF_BTTS"];
 const SECOND_HALF_KEYS = ["2H_RESULT", "h2h_h2", "totals_h2", "OVER_UNDER_2H"];
 const CORRECT_SCORE_KEYS = ["CORRECT_SCORE", "correct_score"];
 
@@ -60,6 +64,10 @@ const THREE_COL_KEYS = new Set([
   "h2h_h2",
   "CORRECT_SCORE",
   "correct_score",
+  "EUROPEAN_HANDICAP",
+  "HT_FT",
+  "HIGHEST_SCORING_HALF",
+  "WIN_TO_NIL",
 ]);
 
 type Category = "all" | "main" | "totals" | "first_half" | "second_half" | "correct_score";

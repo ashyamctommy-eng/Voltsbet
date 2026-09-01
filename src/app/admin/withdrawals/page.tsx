@@ -12,15 +12,44 @@ type Withdrawal = {
 };
 
 const STATUSES = ["PENDING", "VERIFICATION_REQUIRED", "PROCESSING", "COMPLETED", "REJECTED", "CANCELLED", "FAILED"];
+const FINAL = ["COMPLETED", "REJECTED", "CANCELLED", "FAILED", "PROCESSING"];
+
+/** Click-to-copy reference badge (PLP-WDR-XXXXXXXX). */
+function RefBadge({ ref }: { ref: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      title="Click to copy reference code"
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(ref);
+        } catch {
+          const ta = document.createElement("textarea");
+          ta.value = ref;
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand("copy");
+          ta.remove();
+        }
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1600);
+      }}
+      className={`ml-2 rounded px-1.5 py-0.5 font-mono text-[10px] font-bold transition-colors ${
+        copied ? "bg-green-500/20 text-green-400" : "bg-brand/10 text-brand hover:bg-brand/20"
+      }`}
+    >
+      {copied ? "✓ copied" : ref}
+    </button>
+  );
+}
 
 export default function AdminWithdrawals() {
   const { push } = useToast();
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [status, setStatus] = useState("");
-  // Manual-approval attestation: which row is collecting a payout ref/note
-  const [attesting, setAttesting] = useState<string | null>(null);
-  const [payoutRef, setPayoutRef] = useState("");
-  const [note, setNote] = useState("");
+  // Single-click approval confirmation modal
+  const [confirming, setConfirming] = useState<Withdrawal | null>(null);
 
   useEffect(() => {
     load();
@@ -32,27 +61,17 @@ export default function AdminWithdrawals() {
     if (r.ok) setWithdrawals(r.data.withdrawals);
   }
 
-  async function change(w: Withdrawal, s: string, extra: { adminNote?: string; payoutRef?: string } = {}) {
-    const res = await apiFetch(`/api/admin/withdrawals/${w.id}`, { method: "PATCH", body: { status: s, ...extra } });
+  async function change(w: Withdrawal, action: "approve" | "reject" | "cancel") {
+    const url = `/api/admin/withdrawals/${w.id}/${action === "approve" ? "approve" : "reject"}`;
+    const body = action === "cancel" ? { status: "CANCELLED" } : action === "reject" ? { status: "REJECTED" } : {};
+    const res = await apiFetch(url, { method: "POST", body });
     if (!res.ok) return push("error", res.error.message);
-    push("success", s === "COMPLETED" ? "Approved — marked paid" : s === "REJECTED" ? "Rejected — reservation refunded" : `Withdrawal → ${s.toLowerCase()}`);
-    setAttesting(null);
-    setPayoutRef("");
-    setNote("");
+    push(
+      "success",
+      action === "approve" ? "Approved — marked paid" : action === "reject" ? "Rejected — reservation refunded" : "Cancelled — reservation refunded",
+    );
+    setConfirming(null);
     load();
-  }
-
-  /** COMPLETED needs a manual payout attestation (receipt/note). */
-  function approve(w: Withdrawal) {
-    if (attesting === w.id) {
-      if (!payoutRef.trim() && !note.trim()) {
-        return push("error", "Enter the payout reference (tx hash / payment code) or a note describing the manual payout.");
-      }
-      return change(w, "COMPLETED", { payoutRef: payoutRef.trim(), adminNote: note.trim() });
-    }
-    setAttesting(w.id);
-    setPayoutRef("");
-    setNote("");
   }
 
   return (
@@ -74,9 +93,7 @@ export default function AdminWithdrawals() {
                 <div className="font-semibold">
                   {Number(w.amount).toLocaleString()} {w.currencyCode}
                   <span className="ml-2 rounded bg-card2 px-1.5 py-0.5 text-[10px] font-bold text-ink2">{w.method}</span>
-                  {w.trackingId && (
-                    <span className="ml-2 rounded bg-brand/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-brand">{w.trackingId}</span>
-                  )}
+                  {w.trackingId && <RefBadge ref={w.trackingId} />}
                 </div>
                 <div className="truncate text-xs text-ink3">
                   {w.user.username} · {w.user.email} · {formatDateTime(new Date(w.createdAt))}
@@ -87,59 +104,69 @@ export default function AdminWithdrawals() {
               <div className="flex flex-wrap gap-1.5">
                 <button
                   className="btn btn-sm bg-green-600 text-white hover:brightness-110"
-                  title="Mark as paid — requires a payout reference (tx hash / payment code) or an admin note"
-                  disabled={["COMPLETED", "REJECTED", "CANCELLED", "FAILED", "PROCESSING"].includes(w.status)}
-                  onClick={() => approve(w)}
+                  title="Mark as paid — funds are already reserved; the PLP-WDR reference is the audit trail"
+                  disabled={FINAL.includes(w.status)}
+                  onClick={() => setConfirming(w)}
                 >
-                  {attesting === w.id ? "Confirm paid" : "Approve & mark paid"}
+                  Approve & mark paid
                 </button>
                 <button
                   className="btn btn-sm bg-red-600 text-white hover:brightness-110"
                   title="Reject the request and restore the reserved funds to the user's wallet"
-                  disabled={["COMPLETED", "REJECTED", "CANCELLED", "FAILED", "PROCESSING"].includes(w.status)}
-                  onClick={() => change(w, "REJECTED")}
+                  disabled={FINAL.includes(w.status)}
+                  onClick={() => change(w, "reject")}
                 >
                   Reject & refund
                 </button>
                 <button
                   className="btn btn-ghost btn-sm"
                   title="Cancel the request and restore the reserved funds to the user's wallet"
-                  disabled={["COMPLETED", "REJECTED", "CANCELLED", "FAILED", "PROCESSING"].includes(w.status)}
-                  onClick={() => change(w, "CANCELLED")}
+                  disabled={FINAL.includes(w.status)}
+                  onClick={() => change(w, "cancel")}
                 >
                   Cancel
                 </button>
               </div>
             </div>
-
-            {/* Manual payout attestation form */}
-            {attesting === w.id && (
-              <div className="mt-3 space-y-2 rounded-xl border border-brand/30 bg-brand/5 p-3">
-                <p className="text-xs text-ink2">
-                  Funds are already reserved. Record how you paid <b>{w.user.username}</b> {Number(w.amount).toLocaleString()} {w.currencyCode}:
-                </p>
-                <input
-                  className="input font-mono text-xs"
-                  placeholder="Payout reference — tx hash / M-Pesa code / bank ref"
-                  value={payoutRef}
-                  onChange={(e) => setPayoutRef(e.target.value)}
-                />
-                <input
-                  className="input text-xs"
-                  placeholder="Or an admin note describing the manual payout"
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                />
-                <button className="btn btn-ghost btn-sm" onClick={() => setAttesting(null)}>Back</button>
-              </div>
-            )}
           </div>
         ))}
       </div>
+
+      {/* Single-click approval confirmation modal */}
+      {confirming && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setConfirming(null)}
+        >
+          <div className="card w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-bold">Approve withdrawal?</h3>
+            <p className="mt-2 text-sm text-ink2">
+              Mark <b>{Number(confirming.amount).toLocaleString()} {confirming.currencyCode}</b> as paid to{" "}
+              <b>{confirming.user.username}</b>
+              {confirming.trackingId ? (
+                <>
+                  {" "}· ref <span className="font-mono text-brand">{confirming.trackingId}</span>
+                </>
+              ) : null}
+              ? Funds were reserved at request time — this only finalizes the payout.
+            </p>
+            <div className="mt-4 flex gap-2">
+              <button className="btn btn-ghost flex-1" onClick={() => setConfirming(null)}>Back</button>
+              <button
+                className="btn flex-1 bg-green-600 text-white hover:brightness-110"
+                onClick={() => change(confirming, "approve")}
+              >
+                Approve & mark paid
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <p className="text-xs text-ink3">
-        Funds are reserved at request time (atomic wallet debit). Approving requires a payout reference (tx hash / payment
-        code) or an admin note attesting the external transfer. Reject/Cancel refunds the reservation exactly once. All
-        actions are audited.
+        Funds are reserved at request time (atomic wallet debit) with an auto-assigned{" "}
+        <span className="font-mono">PLP-WDR-*</span> reference. Approve finalizes the payout (single click — the
+        reference code is the audit trail). Reject/Cancel refunds the reservation exactly once. All actions are audited.
       </p>
     </div>
   );

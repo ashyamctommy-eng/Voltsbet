@@ -114,6 +114,11 @@ export const ODDS_MARKETS = (
     "h2h_h2",
     "totals_h2",
     "spreads_h2",
+    "total_corners",
+    "total_bookings",
+    // "player_props" — supported via MARKET_MAP but NOT requested by default
+    // (heaviest quota consumers on the extended endpoint; enable per league
+    // with ODDS_API_MARKETS=...,player_props when the product needs them).
   ]
 ) as readonly string[];
 
@@ -138,6 +143,9 @@ const MARKET_MAP: {
   { key: "btts", local: "BTTS", name: "Both Teams to Score" },
   { key: "double_chance", local: "DOUBLE_CHANCE", name: "Double Chance" },
   { key: "draw_no_bet", local: "DRAW_NO_BET", name: "Draw No Bet" },
+  { key: "total_corners", local: "TOTAL_CORNERS", name: "Total Corners" },
+  { key: "total_bookings", local: "TOTAL_BOOKINGS", name: "Total Cards/Bookings" },
+  { key: "player_props", local: "PLAYER_PROPS", name: "Player Props" },
 ];
 
 /**

@@ -20,7 +20,15 @@
  *        2H_RESULT         2nd-half 1/X/2        (3)  — λ scaled by 0.53
  *        OVER_UNDER_2H     2nd-half O/U 0.5,1.5  (4)
  *        GOAL_PARITY       Even / Odd goals      (2)
- *   = 63 derived outcome lines per priced fixture.
+ *        FIRST_HALF_BTTS   1st-half BTTS         (2)
+ *        HIGHEST_SCORING_HALF  1st/2nd/Tie       (3)
+ *        MULTI_GOALS       goal ranges 1-2,2-3,3-5,6+ (4)
+ *        CLEAN_SHEET       home/away CS + concede(4)
+ *        WIN_TO_NIL        home/away/neither     (3)
+ *        EUROPEAN_HANDICAP 3-way integer line (-1)(3)
+ *        CORRECT_SCORE     top-18 scores + others(21)
+ *        HT_FT             half-time/full-time   (9)
+ *   = 112 derived outcome lines per priced fixture.
  *
  * Modelling assumptions (documented, standard bookmaking practice):
  *   - Goals per team ~ independent Poisson (bivariate-Poisson proxy).
@@ -55,7 +63,17 @@ export const DERIVED_MARKET_KEYS = [
   "2H_RESULT",
   "OVER_UNDER_2H",
   "GOAL_PARITY",
+  "FIRST_HALF_BTTS",
+  "HIGHEST_SCORING_HALF",
+  "MULTI_GOALS",
+  "CLEAN_SHEET",
+  "WIN_TO_NIL",
+  "EUROPEAN_HANDICAP",
+  "HT_FT",
 ] as const;
+// NOTE: CORRECT_SCORE is intentionally NOT engine-owned — when the API feed
+// prices it (real market data), the API market claims the key and the engine
+// backs off; the Poisson board only fills games the feed doesn't price.
 
 /** Env kill-switch: ENABLE_DERIVED_MARKETS=false turns the engine off. */
 export const DERIVE_ENABLED = process.env.ENABLE_DERIVED_MARKETS !== "false";
@@ -339,6 +357,174 @@ export function deriveMarketsFrom1x2(
       { name: "Odd", odds: priced(odd, marginFor(overround, 2)) },
     ],
   });
+
+  // ── Score-path derivations (joint Poisson score distributions) ──────────
+  // lh1/la1/lh2/la2 (half-time split rates) are computed above for the
+  // HT_RESULT / OVER_UNDER_1H / 2H_RESULT / OVER_UNDER_2H boards.
+  const SCORE_CAP = 12; // probability mass beyond 12 goals is negligible
+  const pH1 = poissonPmf(lh1);
+  const pA1 = poissonPmf(la1);
+  const pH2 = poissonPmf(lh2);
+  const pA2 = poissonPmf(la2);
+
+  // 1st Half — Both Teams to Score
+  const btts1H = (1 - Math.exp(-lh1)) * (1 - Math.exp(-la1));
+  markets.push({
+    key: "FIRST_HALF_BTTS",
+    name: "1st Half - Both Teams to Score",
+    sortOrder: 22,
+    outcomes: [
+      { name: "Yes", odds: priced(btts1H, marginFor(overround, 2)) },
+      { name: "No", odds: priced(1 - btts1H, marginFor(overround, 2)) },
+    ],
+  });
+
+  // Highest Scoring Half — 1st > 2nd | Tie | 2nd > 1st
+  const t1H = poissonPmf(lh1 + la1);
+  const t2H = poissonPmf(lh2 + la2);
+  let pHalf1 = 0, pHalfTie = 0, pHalf2 = 0;
+  for (let x = 0; x <= SCORE_CAP; x++) {
+    for (let y = 0; y <= SCORE_CAP; y++) {
+      const p = t1H[x] * t2H[y];
+      if (x > y) pHalf1 += p;
+      else if (y > x) pHalf2 += p;
+      else pHalfTie += p;
+    }
+  }
+  markets.push({
+    key: "HIGHEST_SCORING_HALF",
+    name: "Highest Scoring Half",
+    sortOrder: 23,
+    outcomes: [
+      { name: "1st Half", label: "1", odds: priced(pHalf1, marginFor(overround, 3)) },
+      { name: "Tie", label: "X", odds: priced(pHalfTie, marginFor(overround, 3)) },
+      { name: "2nd Half", label: "2", odds: priced(pHalf2, marginFor(overround, 3)) },
+    ],
+  });
+
+  // Multi-Goals — Betika-style goal ranges (ranges overlap by design; each
+  // line is an independent bet, settled per-outcome).
+  const lTot = lh + la;
+  const pRange = (lo: number, hi: number) => Math.max(0, poissonTail(lTot, lo) - poissonTail(lTot, hi + 1));
+  markets.push({
+    key: "MULTI_GOALS",
+    name: "Multi-Goals",
+    sortOrder: 24,
+    outcomes: [
+      { name: "1-2 Goals", odds: priced(pRange(1, 2), marginFor(overround, 4)) },
+      { name: "2-3 Goals", odds: priced(pRange(2, 3), marginFor(overround, 4)) },
+      { name: "3-5 Goals", odds: priced(pRange(3, 5), marginFor(overround, 4)) },
+      { name: "6+ Goals", odds: priced(pRange(6, 40), marginFor(overround, 4)) },
+    ],
+  });
+
+  // Clean Sheet — P(opponent scores 0)
+  const csHome = Math.exp(-la);
+  const csAway = Math.exp(-lh);
+  markets.push({
+    key: "CLEAN_SHEET",
+    name: "Clean Sheet",
+    sortOrder: 25,
+    outcomes: [
+      { name: `${homeName} - Clean Sheet`, label: "1", odds: priced(csHome, marginFor(overround, 2)) },
+      { name: `${homeName} - Concede`, label: "1", odds: priced(1 - csHome, marginFor(overround, 2)) },
+      { name: `${awayName} - Clean Sheet`, label: "2", odds: priced(csAway, marginFor(overround, 2)) },
+      { name: `${awayName} - Concede`, label: "2", odds: priced(1 - csAway, marginFor(overround, 2)) },
+    ],
+  });
+
+  // Win to Nil — team wins AND keeps a clean sheet
+  const wtnHome = (1 - Math.exp(-lh)) * Math.exp(-la);
+  const wtnAway = (1 - Math.exp(-la)) * Math.exp(-lh);
+  markets.push({
+    key: "WIN_TO_NIL",
+    name: "Win to Nil",
+    sortOrder: 26,
+    outcomes: [
+      { name: `${homeName} Win to Nil`, label: "1", odds: priced(wtnHome, marginFor(overround, 3)) },
+      { name: `${awayName} Win to Nil`, label: "2", odds: priced(wtnAway, marginFor(overround, 3)) },
+      { name: "Neither", label: "X", odds: priced(1 - wtnHome - wtnAway, marginFor(overround, 3)) },
+    ],
+  });
+
+  // European Handicap — 3-way integer line (-1): Home −1 (d ≥ 2), Draw (d = 1), Away +1 (d ≤ 0)
+  const pHome2 = spreadCoverProb(lh, la, 2);
+  const pDraw1 = Math.max(0, spreadCoverProb(lh, la, 1) - pHome2);
+  const pAway0 = 1 - spreadCoverProb(lh, la, 1);
+  markets.push({
+    key: "EUROPEAN_HANDICAP",
+    name: "European Handicap (-1)",
+    sortOrder: 27,
+    outcomes: [
+      { name: `${homeName} -1`, label: "1", odds: priced(pHome2, marginFor(overround, 3)) },
+      { name: "Draw", label: "X", odds: priced(pDraw1, marginFor(overround, 3)) },
+      { name: `${awayName} +1`, label: "2", odds: priced(pAway0, marginFor(overround, 3)) },
+    ],
+  });
+
+  // Correct Score — top-18 most likely scorelines + Any-Other aggregates (21 outcomes)
+  const pH = poissonPmf(lh);
+  const pA = poissonPmf(la);
+  const cells: { h: number; a: number; p: number }[] = [];
+  for (let h = 0; h <= SCORE_CAP; h++) {
+    for (let a = 0; a <= SCORE_CAP; a++) cells.push({ h, a, p: pH[h] * pA[a] });
+  }
+  cells.sort((x, y) => y.p - x.p);
+  const top = cells.slice(0, 18);
+  const topKeys = new Set(top.map((c) => `${c.h}-${c.a}`));
+  let pOtherH = 0, pOtherD = 0, pOtherA = 0;
+  for (const c of cells) {
+    if (topKeys.has(`${c.h}-${c.a}`)) continue;
+    if (c.h > c.a) pOtherH += c.p;
+    else if (c.h === c.a) pOtherD += c.p;
+    else pOtherA += c.p;
+  }
+  const csMargin = marginFor(overround, 21);
+  markets.push({
+    key: "CORRECT_SCORE",
+    name: "Correct Score",
+    sortOrder: 28,
+    outcomes: [
+      ...top.map((c) => ({
+        name: `${c.h}-${c.a}`,
+        label: c.h > c.a ? "1" : c.h === c.a ? "X" : "2",
+        odds: priced(c.p, csMargin),
+      })),
+      { name: "Any Other Home Win", label: "1", odds: priced(pOtherH, csMargin) },
+      { name: "Any Other Draw", label: "X", odds: priced(pOtherD, csMargin) },
+      { name: "Any Other Away Win", label: "2", odds: priced(pOtherA, csMargin) },
+    ],
+  });
+
+  // Half-Time / Full-Time — 9 outcomes from independent-half score paths
+  // (HT uses the 47% half rates, FT is the convolution of both halves, so the
+  // FT marginal is exactly the source Poisson(lh, la) — self-consistent).
+  const htFt = Array.from({ length: 3 }, () => [0, 0, 0] as number[]);
+  for (let h1 = 0; h1 <= SCORE_CAP; h1++) {
+    for (let a1 = 0; a1 <= SCORE_CAP; a1++) {
+      const r1 = h1 > a1 ? 0 : h1 === a1 ? 1 : 2;
+      const p1 = pH1[h1] * pA1[a1];
+      for (let h2 = 0; h2 <= SCORE_CAP; h2++) {
+        for (let a2 = 0; a2 <= SCORE_CAP; a2++) {
+          const H = h1 + h2;
+          const A = a1 + a2;
+          const r2 = H > A ? 0 : H === A ? 1 : 2;
+          htFt[r1][r2] += p1 * pH2[h2] * pA2[a2];
+        }
+      }
+    }
+  }
+  const RES_LABELS = ["1", "X", "2"] as const;
+  const htFtOutcomes: DerivedOutcome[] = [];
+  for (let r1 = 0; r1 < 3; r1++) {
+    for (let r2 = 0; r2 < 3; r2++) {
+      htFtOutcomes.push({
+        name: `${RES_LABELS[r1]}/${RES_LABELS[r2]}`,
+        odds: priced(htFt[r1][r2], marginFor(overround, 9)),
+      });
+    }
+  }
+  markets.push({ key: "HT_FT", name: "Half-Time / Full-Time", sortOrder: 29, outcomes: htFtOutcomes });
 
   return { markets, full: true };
 }
