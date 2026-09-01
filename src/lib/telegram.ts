@@ -113,7 +113,7 @@ export async function issueTelegramOtp(userId: string, purpose: OtpPurpose = "LO
 
   const sent = await sendTelegramMessage(
     user.telegramChatId,
-    `🔐 <b>VoltBet verification code</b>\n\n<code>${code}</code>\n\nValid for 5 minutes. If you didn't request this, ignore it and change your password.`
+    `🔐 <b>UNIBET360 verification code</b>\n\n<code>${code}</code>\n\nValid for 5 minutes. If you didn't request this, ignore it and change your password.`
   );
   if (!sent) {
     throw new ApiError(502, "Could not reach Telegram — open the bot chat and press Start, then retry.", "TELEGRAM_UNREACHABLE");

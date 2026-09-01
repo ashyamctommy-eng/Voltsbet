@@ -42,7 +42,7 @@ export async function syncMarketRates(): Promise<RatesSyncResult> {
   let kesPerUsd = 0;
 
   // ── 1) Fiat exchange rates (base KES) ───────────────────────────────
-  const fxRates = await fetch(FX_URL, { headers: { "user-agent": "VoltBet/1.0" } })
+  const fxRates = await fetch(FX_URL, { headers: { "user-agent": "UNIBET360/1.0" } })
     .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`er-api HTTP ${r.status}`))))
     .then((j) => (j?.result === "success" && j.rates ? (j.rates as Record<string, number>) : null))
     .catch((e) => {
@@ -72,7 +72,7 @@ export async function syncMarketRates(): Promise<RatesSyncResult> {
   // ── 2) Crypto prices (USD → KES via the FX feed) ────────────────────
   let cryptoRates: Record<string, number> | null = null;
   if (Number.isFinite(kesPerUsd) && kesPerUsd > 0) {
-    const prices = await fetch(CG_URL, { headers: { "user-agent": "VoltBet/1.0" } })
+    const prices = await fetch(CG_URL, { headers: { "user-agent": "UNIBET360/1.0" } })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`coingecko HTTP ${r.status}`))))
       .catch((e) => {
         console.error("[rates] crypto fetch failed:", e instanceof Error ? e.message : e);

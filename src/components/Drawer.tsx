@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import LanguageSelector from "@/components/LanguageSelector";
 import { usePathname } from "next/navigation";
 import { useTheme } from "@/components/ThemeProvider";
 import {
@@ -102,14 +103,17 @@ export default function Drawer({
       >
         {/* Header */}
         <div className="flex items-center gap-3 border-b border-line px-4 py-4">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand text-lg font-black text-[#052e16]">V</span>
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand text-lg font-black text-[#052e16]">U</span>
           <div className="min-w-0">
-            <div className="truncate text-base font-extrabold tracking-tight">VoltBet</div>
+            <div className="truncate text-base font-extrabold tracking-tight">UNIBET360</div>
             <div className="text-[10px] font-semibold uppercase tracking-wider text-ink3">Menu</div>
+          </div>
+          <div className="ml-auto flex items-center gap-2">
+            <LanguageSelector />
           </div>
           <button
             onClick={onClose}
-            className="ml-auto flex h-8 w-8 items-center justify-center rounded-lg border border-line text-ink2 transition-colors hover:border-line2 hover:text-ink"
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-line text-ink2 transition-colors hover:border-line2 hover:text-ink"
             aria-label="Close menu"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="h-4 w-4">

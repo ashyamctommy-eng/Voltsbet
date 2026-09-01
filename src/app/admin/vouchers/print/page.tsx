@@ -68,7 +68,7 @@ export default function VoucherPrintPage() {
         {rows.map((code, i) => (
           <div key={`${code}-${i}`} className="voucher-card">
             <div className="text-center">
-              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-brand">VoltBet</div>
+              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-brand">UNIBET360</div>
               <div className="text-[9px] uppercase tracking-wider text-ink3">Deposit Voucher</div>
               <div className="mt-2 text-xl font-extrabold">
                 {cur} {Number(val || 0).toLocaleString()}

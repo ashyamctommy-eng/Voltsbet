@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# VoltBet schema drift guard.
+# UNIBET360 schema drift guard.
 #
 # Fails when prisma/schema.prisma (PostgreSQL, production) and
 # prisma/schema.mysql.prisma (MySQL/MariaDB variant, deploy-mysql.sh) fall out

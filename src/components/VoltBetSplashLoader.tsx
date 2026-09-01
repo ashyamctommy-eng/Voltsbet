@@ -6,14 +6,14 @@ const SESSION_KEY = "vb-splash-shown";
 
 /**
  * Brand loading screen — full-screen dark overlay with:
- *  - centered circular badge holding the VoltBet mark
+ *  - centered circular badge holding the UNIBET360 mark
  *  - sonar ripple rings scaling 1 → 1.8 with fading opacity
  *  - a rotating SVG arc whose stroke length pulses 0% → 75%
  *
  * Shows once per browser session (first page load), then fades out.
  * Pure CSS keyframe animations — no JS rAF, smooth at 60fps.
  */
-export default function VoltBetSplashLoader() {
+export default function UNIBET360SplashLoader() {
   // SSR + first paint show the loader; the effect then runs the lifecycle
   // entirely through timers (never a synchronous setState in the effect).
   const [phase, setPhase] = useState<"shown" | "leaving" | "hidden">("shown");

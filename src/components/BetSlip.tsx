@@ -316,7 +316,7 @@ function SlipBody(props: {
 
       {/* ── Footer: stake controls + green CTA ── */}
       {items.length > 0 && (
-        <div className="sticky bottom-0 border-t border-line bg-panel-bg px-3 py-3 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+        <div className="sticky bottom-0 border-t border-line bg-panel-bg px-3 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-4">
           <div className="flex items-center justify-between text-sm">
             <span className="text-ink2">Total Odds</span>
             <span className="text-base font-bold text-green-400">{totalOdds ? fmtOdds(totalOdds) : "—"}</span>
@@ -330,13 +330,19 @@ function SlipBody(props: {
               </span>
             </div>
             <div className="relative">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-ink3">
+              {/* Currency prefix as a distinct left label — padded by code
+                  length so 3-letter codes (KES/USD) never overlap the value. */}
+              <span
+                className={`pointer-events-none absolute left-3 top-1/2 flex -translate-y-1/2 items-center rounded bg-hover-tint px-1.5 py-0.5 text-[11px] font-black tracking-wide text-ink2 ${
+                  activeCur.length >= 3 ? "w-9 justify-center" : ""
+                }`}
+              >
                 {activeCur}
               </span>
               <input
                 id="slip-stake"
                 ref={stakeRef}
-                className="input !pl-9"
+                className={`input ${activeCur.length >= 3 ? "!pl-16" : "!pl-9"}`}
                 type="number"
                 min="1"
                 step="any"
@@ -346,7 +352,7 @@ function SlipBody(props: {
                 onChange={(e) => setStake(e.target.value)}
               />
             </div>
-            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {QUICK_STAKES.map((q) => (
                 <button
                   key={q}
@@ -379,9 +385,9 @@ function SlipBody(props: {
             {placing ? "Placing…" : `Place Bet${stakeNum > 0 ? ` · ${formatCurrency(convertAmount(potentialWin, defaultCode, activeCur), activeCur)}` : ""}`}
           </button>
           {reason ? (
-            <p className="mt-2 text-center text-[11px] font-medium text-amber-400">{reason}</p>
+            <p className="mt-3 text-center text-[11px] font-medium text-amber-400">{reason}</p>
           ) : (
-            <p className="mt-2 text-center text-[11px] text-ink3">
+            <p className="mt-3 text-center text-[11px] text-ink3">
               {mode === "MULTIPLE"
                 ? `${items.length}-fold accumulator`
                 : items.length > 1

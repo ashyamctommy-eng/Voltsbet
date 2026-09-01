@@ -15,10 +15,10 @@ import MobileNav from "@/components/MobileNav";
 import SupportWidget from "@/components/SupportWidget";
 import BetSlip from "@/components/BetSlip";
 import BroadcastBanner from "@/components/BroadcastBanner";
-import VoltBetSplashLoader from "@/components/VoltBetSplashLoader";
+import UNIBET360SplashLoader from "@/components/VoltBetSplashLoader";
 
 export const metadata: Metadata = {
-  title: { default: "VoltBet — Sports Betting", template: "%s | VoltBet" },
+  title: { default: "UNIBET360 — Sports Betting", template: "%s | UNIBET360" },
   description: "Fast odds, live betting and instant crypto deposits.",
 };
 export const viewport: Viewport = {
@@ -92,7 +92,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                     telegram: s.telegram,
                   }}
                 >
-                  <VoltBetSplashLoader />
+                  <UNIBET360SplashLoader />
                   <BroadcastBanner />
                   <Header user={headerUser} siteName={s.siteName} sports={sports} />
                   {/* Mobile bottom padding clears the bottom nav (~64px) plus the

@@ -40,7 +40,7 @@ export default function CasinoPage() {
       </div>
 
       <div className="mt-8 rounded-2xl border border-line bg-card p-6 text-center">
-        <h3 className="font-bold">Want real casino games on VoltBet?</h3>
+        <h3 className="font-bold">Want real casino games on UNIBET360?</h3>
         <p className="mx-auto mt-1 max-w-md text-sm text-ink2">
           We can integrate provider-backed games (slots, live casino, crash) through aggregation platforms.
         </p>

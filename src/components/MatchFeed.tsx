@@ -13,6 +13,7 @@ import { buildDateOptions, dayWindow, dateParamToValue, valueToDateParam } from 
 import { flagForLeague, countryForLeague } from "@/lib/league-flags";
 import { isLiveStatus } from "@/lib/game-status";
 import { apiMatchToFeedGame, type ApiFeedGame, type FeedMatchView } from "@/lib/match-view";
+import PromoBanner from "@/components/PromoBanner";
 
 type FeedGame = ApiFeedGame;
 
@@ -564,6 +565,9 @@ export default function MatchFeed({
           {t("common.matchesCount", { count: filtered.length })}
         </span>
       </div>
+
+      {/* High-impact promo strip — Betika-style, swipeable (home + sport feeds) */}
+      <PromoBanner />
 
       {/* Column header strip: Teams left · 1 / X / 2 headers right (1x2 view).
           Single-column only — hidden on desktop where cards sit in a 2-col grid. */}

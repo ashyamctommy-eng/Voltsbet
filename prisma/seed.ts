@@ -1,11 +1,11 @@
 /**
- * VoltBet seed script — run with: pnpm prisma db seed
+ * UNIBET360 seed script — run with: pnpm prisma db seed
  * Creates admin + demo customers, full sports catalogue, games, markets,
  * status engine, currencies, languages, content and settings.
  *
  * Production safety:
  * - The super admin is created ONLY from SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD
- *   (default email admin@voltbet.test). In production a missing password
+ *   (default email admin@unibet360.test). In production a missing password
  *   SKIPS admin creation with a warning — the well-known dev password is
  *   never a production fallback (use deploy/post-install.mjs instead).
  * - Demo users, demo betting history and demo notifications are skipped in
@@ -21,7 +21,7 @@ const prisma = new PrismaClient();
 
 // ── Seed configuration ──────────────────────────────────────────────────
 const IS_PROD = process.env.NODE_ENV === "production";
-const SEED_ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL || "admin@voltbet.test";
+const SEED_ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL || "admin@unibet360.test";
 const SEED_ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD || null; // null → dev-only fallback
 const SEED_DEMO_USERS = !IS_PROD || process.env.SEED_DEMO_USERS === "true";
 const BCRYPT_ROUNDS = 12; // matches login hardening (post-install.mjs)
@@ -36,13 +36,13 @@ const dec = (n: string | number) => n.toString();
 // list and feeds.
 
 async function main() {
-  console.log("Seeding VoltBet...");
+  console.log("Seeding UNIBET360...");
 
   // ── Idempotency: clear seed-owned dynamic records ───────────
   // Seed games are all source=MANUAL; removing them keeps reseeds clean.
   await prisma.betSelection.deleteMany({ where: { game: { source: "MANUAL" } } });
   await prisma.game.deleteMany({ where: { source: "MANUAL" } });
-  const demoUser = await prisma.user.findUnique({ where: { email: "demo@voltbet.test" } });
+  const demoUser = await prisma.user.findUnique({ where: { email: "demo@unibet360.test" } });
   if (demoUser) {
     // Remove ALL demo-user activity (bets, txns, deposits, withdrawals, notifications)
     // and reset the wallet to the seed balance — reseeds must be fully reproducible.
@@ -53,7 +53,7 @@ async function main() {
     await prisma.notification.deleteMany({ where: { OR: [{ userId: demoUser.id }, { userId: null }] } });
     await prisma.wallet.updateMany({ where: { userId: demoUser.id }, data: { balance: dec("24800"), bonusBalance: "0" } });
   }
-  for (const uid of ["pending@voltbet.test", "suspended@voltbet.test"]) {
+  for (const uid of ["pending@unibet360.test", "suspended@unibet360.test"]) {
     const u = await prisma.user.findUnique({ where: { email: uid } });
     if (u) {
       await prisma.deposit.deleteMany({ where: { userId: u.id } });
@@ -229,7 +229,7 @@ async function main() {
 
   // ── Settings ────────────────────────────────────────────────
   const settings: [string, unknown][] = [
-    ["site.name", "VoltBet"],
+    ["site.name", "UNIBET360"],
     ["site.tagline", "Live the rush"],
     ["branding.primaryColor", "#00e676"],
     ["branding.secondaryColor", "#0b1220"],
@@ -238,14 +238,14 @@ async function main() {
     ["betting.maxStake", "100000"],
     ["betting.maxPayout", "2000000"],
     ["support.whatsapp", "+254700000000"],
-    ["support.whatsappMessage", "Hello VoltBet! I need help."],
+    ["support.whatsappMessage", "Hello UNIBET360! I need help."],
     ["support.whatsappEnabled", "true"],
     ["support.whatsappPosition", "bottom-right"],
-    ["support.telegram", "https://t.me/voltbet_community"],
+    ["support.telegram", "https://t.me/unibet360_community"],
     ["support.telegramText", "Join Our Telegram Group"],
     ["support.telegramEnabled", "true"],
     ["support.telegramPosition", "bottom-left"],
-    ["support.email", "support@voltbet.test"],
+    ["support.email", "support@unibet360.test"],
     ["crypto.provider", "NOWPAYMENTS"],
     ["crypto.apiKey", ""],
     ["crypto.ipnSecret", ""],
@@ -288,7 +288,7 @@ async function main() {
         where: { email: SEED_ADMIN_EMAIL },
         update: {},
         create: {
-          fullName: "VoltBet Admin", username: SEED_ADMIN_EMAIL.split("@")[0],
+          fullName: "UNIBET360 Admin", username: SEED_ADMIN_EMAIL.split("@")[0],
           email: SEED_ADMIN_EMAIL, phone: "+254700000001",
           passwordHash: await bcrypt.hash(seedAdminPassword, BCRYPT_ROUNDS),
           role: "SUPER_ADMIN", status: "ACTIVE", verified: true, country: "KE",
@@ -303,10 +303,10 @@ async function main() {
   // Demo accounts — local dev only (skipped in production unless SEED_DEMO_USERS=true).
   const demo = SEED_DEMO_USERS
     ? await prisma.user.upsert({
-        where: { email: "demo@voltbet.test" },
+        where: { email: "demo@unibet360.test" },
         update: {},
         create: {
-          fullName: "Demo Player", username: "demo", email: "demo@voltbet.test",
+          fullName: "Demo Player", username: "demo", email: "demo@unibet360.test",
           phone: "+254700000002", passwordHash: await bcrypt.hash("Demo123!", BCRYPT_ROUNDS),
           role: "CUSTOMER", status: "ACTIVE", verified: true, country: "KE",
           currencyCode: "KES", referralCode: "VOLT-DEMO",
@@ -315,10 +315,10 @@ async function main() {
     : null;
   const pending = SEED_DEMO_USERS
     ? await prisma.user.upsert({
-        where: { email: "pending@voltbet.test" },
+        where: { email: "pending@unibet360.test" },
         update: {},
         create: {
-          fullName: "Pending User", username: "pendinguser", email: "pending@voltbet.test",
+          fullName: "Pending User", username: "pendinguser", email: "pending@unibet360.test",
           phone: "+254700000003", passwordHash: await bcrypt.hash("Demo123!", BCRYPT_ROUNDS),
           role: "CUSTOMER", status: "PENDING_VERIFICATION", verified: false, country: "KE",
           currencyCode: "KES",
@@ -327,10 +327,10 @@ async function main() {
     : null;
   const suspended = SEED_DEMO_USERS
     ? await prisma.user.upsert({
-        where: { email: "suspended@voltbet.test" },
+        where: { email: "suspended@unibet360.test" },
         update: {},
         create: {
-          fullName: "Suspended User", username: "suspendeduser", email: "suspended@voltbet.test",
+          fullName: "Suspended User", username: "suspendeduser", email: "suspended@unibet360.test",
           phone: "+254700000004", passwordHash: await bcrypt.hash("Demo123!", BCRYPT_ROUNDS),
           role: "CUSTOMER", status: "SUSPENDED", verified: true, country: "KE",
           currencyCode: "KES",
@@ -704,7 +704,7 @@ async function main() {
 
   // ── Content ─────────────────────────────────────────────────
   const banners = [
-    { title: "Welcome to VoltBet", description: "100% first deposit bonus up to KSh 10,000", image: "", ctaText: "Claim Bonus", ctaUrl: "/register", sortOrder: 0 },
+    { title: "Welcome to UNIBET360", description: "100% first deposit bonus up to KSh 10,000", image: "", ctaText: "Claim Bonus", ctaUrl: "/register", sortOrder: 0 },
     { title: "El Clásico — Live", description: "Real Madrid vs Barcelona. Live betting available.", image: "", ctaText: "Bet Now", ctaUrl: `/match/${g3.id}`, sortOrder: 1 },
     { title: "Crypto Deposits", description: "Instant, secure deposits with BTC, ETH, USDT & more.", image: "", ctaText: "Deposit", ctaUrl: "/account/deposit", sortOrder: 2 },
   ];
@@ -732,7 +732,7 @@ async function main() {
   await prisma.notification.createMany({
     data: [
       ...(SEED_DEMO_USERS && demo ? [
-        { userId: demo.id, title: "Welcome to VoltBet! 🎉", message: "Thanks for joining. Claim your 100% welcome bonus today.", type: "GENERAL" },
+        { userId: demo.id, title: "Welcome to UNIBET360! 🎉", message: "Thanks for joining. Claim your 100% welcome bonus today.", type: "GENERAL" },
         { userId: demo.id, title: "Bet Won 🏆", message: "Your single on Manchester City to win (1-0) returned KSh 2,100.", type: "BET_RESULT" },
         { userId: demo.id, title: "Deposit Confirmed", message: "Your USDT deposit of KSh 5,000 was confirmed.", type: "DEPOSIT" },
       ] : []),
@@ -743,7 +743,7 @@ async function main() {
   // ── Audit log sample ────────────────────────────────────────
   await prisma.auditLog.create({
     data: {
-      adminId: admin?.id ?? null, adminName: admin?.fullName ?? "VoltBet Admin", action: "SEED",
+      adminId: admin?.id ?? null, adminName: admin?.fullName ?? "UNIBET360 Admin", action: "SEED",
       entity: "SYSTEM", newValue: JSON.stringify({ note: "Initial database seed" }),
     },
   });
@@ -762,8 +762,8 @@ async function main() {
     console.log(`  Super admin:  ${admin ? admin.email : "skipped — set SEED_ADMIN_PASSWORD or run deploy/post-install.mjs"}`);
   } else {
     console.log(`  Admin login:  ${admin?.email ?? SEED_ADMIN_EMAIL} / ${seedAdminPassword ?? "(not created)"}`);
-    console.log("  Demo login:   demo@voltbet.test / Demo123!");
-    console.log("  Pending user: pending@voltbet.test / Demo123! (betting locked)");
+    console.log("  Demo login:   demo@unibet360.test / Demo123!");
+    console.log("  Pending user: pending@unibet360.test / Demo123! (betting locked)");
   }
 }
 

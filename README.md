@@ -1,4 +1,4 @@
-# VoltBet — Sportsbook Platform
+# UNIBET360 — Sportsbook Platform
 
 Full-stack, database-driven sportsbook: customer frontend, admin panel, betting
 engine, settlement, **crypto + M-Pesa (Palpluss) + voucher** deposits,
@@ -111,10 +111,10 @@ pnpm dev                      # http://localhost:3000
 
 | Role | Login | Password | Notes |
 |---|---|---|---|
-| Super Admin | `admin@voltbet.test` | `Admin123!` | `/admin` — dev only |
-| Customer | `demo@voltbet.test` | `Demo123!` | Wallet KSh 24,800 |
-| Customer | `pending@voltbet.test` | `Demo123!` | Pending verification |
-| Customer | `suspended@voltbet.test` | `Demo123!` | Fully locked |
+| Super Admin | `admin@unibet360.test` | `Admin123!` | `/admin` — dev only |
+| Customer | `demo@unibet360.test` | `Demo123!` | Wallet KSh 24,800 |
+| Customer | `pending@unibet360.test` | `Demo123!` | Pending verification |
+| Customer | `suspended@unibet360.test` | `Demo123!` | Fully locked |
 
 ---
 
@@ -149,7 +149,7 @@ build — the compile itself still succeeds.
 | `APP_URL` | ✅ | — | Public HTTPS base URL — builds webhook callback URLs + cron configs |
 | `ODDS_API_KEY` | ✅ | — | the-odds-api.com v4 — pre-match odds, live scores, live odds, settlement |
 | `CRON_SECRET` | ✅ | — | Guards `/api/cron/*` (`?secret=` or `x-cron-secret`) — `openssl rand -hex 32` |
-| `SEED_ADMIN_EMAIL` | seed | `admin@voltbet.test` | Super-admin email created by the seed |
+| `SEED_ADMIN_EMAIL` | seed | `admin@unibet360.test` | Super-admin email created by the seed |
 | `SEED_ADMIN_PASSWORD` | seed | — | **No production fallback** — seed skips admin if unset |
 | `ODDS_API_REGIONS` | — | `us` | Bookmaker regions — paid plans: `us,eu` (more books/leagues) |
 | `ODDS_API_MARKETS` | — | `h2h,spreads,totals,btts,double_chance,draw_no_bet,correct_score` | List-endpoint markets + per-event extended markets; unsupported ones are auto-dropped |
@@ -540,4 +540,4 @@ at install time.
 ## Responsible gambling
 
 Deposit/stake/session limits and self-exclusion at `/responsible-gambling`.
-VoltBet is 18+ only.
+UNIBET360 is 18+ only.

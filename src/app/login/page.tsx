@@ -108,7 +108,7 @@ export default function LoginPage() {
         </form>
 
         <p className="mt-5 text-center text-sm text-ink2">
-          New to VoltBet?{" "}
+          New to UNIBET360?{" "}
           <Link href="/register" className="font-semibold text-brand hover:underline">Create an account</Link>
         </p>
       </div>

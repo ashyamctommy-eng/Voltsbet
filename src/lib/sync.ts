@@ -92,9 +92,14 @@ export const SPORT_KEY_MAP: Record<string, string> = {
   baseball_mlb: "baseball", icehockey_nhl: "ice-hockey",
   rugbyleague_nrl: "rugby", handball_germany_bundesliga: "handball",
   // Esports — The Odds API coverage is seasonal; keys activate when listed
-  csgo_esl: "esports",
-  dota2_international: "esports",
-  lol_lck: "esports",
+  // Regional cups — full football density (seasonal, auto-activate in season)
+  soccer_fa_cup: "football",
+  soccer_france_coupe_de_france: "football",
+  soccer_germany_dfb_pokal: "football",
+  soccer_italy_coppa_italia: "football",
+  soccer_spain_copa_del_rey: "football",
+  // Esports deliberately excluded — credits go to football density instead
+  // (see isBettableSportKey's ESPORT_KEYS blocklist).
 };
 
 /** Display metadata for sport slugs the seed may not have created (existing
@@ -153,6 +158,11 @@ const SPORT_PREFIX_MAP: Record<string, string> = {
  *  by Sport-row creation so the catalog stays clean. */
 const NON_BETTABLE_RE = /_(winner|championship_winner|preseason|all_stars|summer_league)$/;
 
+/** Esports — removed from the platform: the CS/Dota/League keys burned quota
+ *  for near-zero betting volume. Kept blocked even if the API lists them
+ *  again so credits go to football density instead. */
+const ESPORT_KEYS = new Set(["csgo_esl", "dota2_international", "lol_lck"]);
+
 /** Curated map first, then prefix fallback, then the raw key sanitized —
  *  every sport key the API serves resolves to a Sport slug. */
 export function resolveSportSlug(key: string): string {
@@ -164,9 +174,10 @@ export function resolveSportSlug(key: string): string {
 }
 
 /** True when the key represents games we can price (not an outright/futures
- *  market that /odds and /scores never serve games for). */
+ *  market that /odds and /scores never serve games for, and not an excluded
+ *  esports key). */
 export function isBettableSportKey(key: string): boolean {
-  return !NON_BETTABLE_RE.test(key);
+  return !NON_BETTABLE_RE.test(key) && !ESPORT_KEYS.has(key);
 }
 
 function prettifySlug(slug: string): string {
@@ -185,6 +196,10 @@ async function ensureMappedSports(apiSports: { key: string; name: string }[] = [
   for (const sp of apiSports) {
     if (isBettableSportKey(sp.key)) slugs.add(resolveSportSlug(sp.key));
   }
+  // Esports row (from seeds/older installs) is deactivated — it no longer
+  // belongs in the sports catalog.
+  await prisma.sport.updateMany({ where: { slug: "esports" }, data: { active: false } });
+
   const existing = await prisma.sport.findMany({ where: { slug: { in: [...slugs] } }, select: { slug: true } });
   const have = new Set(existing.map((s) => s.slug));
   for (const slug of slugs) {

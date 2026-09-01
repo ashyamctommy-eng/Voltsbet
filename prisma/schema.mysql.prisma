@@ -1,4 +1,4 @@
-// VoltBet — sportsbook platform schema
+// UNIBET360 — sportsbook platform schema
 // Production: PostgreSQL (Railway plugin or any Postgres host).
 // For local dev you can point DATABASE_URL at a local Postgres instance,
 // or switch the provider back to "sqlite" with url = "file:./dev.db".

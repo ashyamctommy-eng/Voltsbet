@@ -51,7 +51,7 @@ export default function RegisterPage() {
       setError(res.error.message);
       return;
     }
-    push("success", "Account created. Welcome to VoltBet! 🎉");
+    push("success", "Account created. Welcome to UNIBET360! 🎉");
     router.push("/");
     router.refresh();
   }
@@ -62,7 +62,7 @@ export default function RegisterPage() {
     <div className="mx-auto max-w-2xl px-4 py-12">
       <div className="card p-8">
         <h1 className="text-2xl font-extrabold">Create your account</h1>
-        <p className="mt-1 text-sm text-ink2">Join VoltBet and get a 100% welcome bonus on your first deposit.</p>
+        <p className="mt-1 text-sm text-ink2">Join UNIBET360 and get a 100% welcome bonus on your first deposit.</p>
 
         <form onSubmit={submit} className="mt-6 grid gap-4 sm:grid-cols-2">
           {error && (
@@ -116,8 +116,8 @@ export default function RegisterPage() {
             </select>
           </div>
           <div>
-            <label className="label" htmlFor="currency">Preferred currency</label>
-            <select id="currency" className={input} value={form.currency} onChange={(e) => set("currency", e.target.value)}>
+            <label className="label" htmlFor="currency">Preferred Wallet Currency</label>
+            <select id="currency" className={input} value={form.currency} onChange={(e) => set("currency", e.target.value)} required>
               {(currencies ?? [
                 { code: "KES", name: "Kenyan Shilling", symbol: "KSh" },
                 { code: "USD", name: "US Dollar", symbol: "$" },
@@ -132,6 +132,7 @@ export default function RegisterPage() {
                 <option key={c.code} value={c.code}>{c.code} — {c.name}</option>
               ))}
             </select>
+            <p className="mt-1 text-[11px] text-ink3">Your wallet is created in this currency — balances, deposits and payouts display in it.</p>
           </div>
 
           <div>

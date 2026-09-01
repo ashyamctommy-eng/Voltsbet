@@ -194,6 +194,10 @@ export default function FixtureMarkets({ game, markets }: { game: FixtureCtx; ma
         const open = !collapsed.has(m.id);
         const starred = stars.has(m.name);
         const hasPriced = m.outcomes.some((o) => Number(o.odds) > 0);
+        // Active-selection badge: how many of this market's outcomes are
+        // currently on the betslip.
+        const outcomeIds = new Set(m.outcomes.map((o) => o.id));
+        const selectedCount = items.filter((i) => outcomeIds.has(i.outcomeId)).length;
 
         return (
           <div key={m.id} className="card overflow-hidden">
@@ -234,6 +238,11 @@ export default function FixtureMarkets({ game, markets }: { game: FixtureCtx; ma
                   </span>
                 )}
               </span>
+              {selectedCount > 0 && (
+                <span className="shrink-0 rounded-full bg-brand px-2 py-0.5 text-[10px] font-black text-[#052e16]">
+                  {selectedCount}
+                </span>
+              )}
               <IconChevronDown
                 className={`h-4 w-4 shrink-0 text-ink3 transition-transform ${open ? "" : "rotate-180"}`}
               />

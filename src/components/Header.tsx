@@ -7,8 +7,7 @@ import { apiFetch } from "@/lib/client";
 import { useToast } from "@/components/BetSlipContext";
 import { useDrawer } from "@/components/DrawerProvider";
 import DepositModal from "@/components/DepositModal";
-import LanguageSelector from "@/components/LanguageSelector";
-import VoltBetLogo from "@/components/VoltBetLogo";
+import UNIBET360Logo from "@/components/VoltBetLogo";
 import { FEED_VIEWS, type FeedView } from "@/components/MatchFeed";
 import { useTranslation } from "react-i18next";
 import {
@@ -112,7 +111,7 @@ export default function Header({
         </button>
 
         <Link href="/" className="flex shrink-0 items-center gap-2">
-          <VoltBetLogo />
+          <UNIBET360Logo />
           <span className="sr-only">{siteName}</span>
         </Link>
 
@@ -130,7 +129,6 @@ export default function Header({
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
-          <LanguageSelector />
           <div className="hidden md:block">
             <SearchBox />
           </div>

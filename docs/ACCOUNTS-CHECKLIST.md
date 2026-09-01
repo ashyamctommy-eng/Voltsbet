@@ -1,4 +1,4 @@
-# VoltBet — Accounts Checklist (for the buyer)
+# UNIBET360 — Accounts Checklist (for the buyer)
 
 Create these accounts **before** the setup call so the installer can run
 end-to-end without waiting on anything. You keep all credentials — the

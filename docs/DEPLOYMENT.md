@@ -1,4 +1,4 @@
-# Deploying VoltBet
+# Deploying UNIBET360
 
 Two supported targets: **Railway** (fastest, managed) and a **VPS** (full control).
 Both use PostgreSQL in production.
@@ -35,9 +35,9 @@ Re-running is idempotent (existing `.env` is preserved unless `FORCE_ENV=1`).
    - Railway: add a **PostgreSQL** plugin when creating the service (gives you `DATABASE_URL`).
    - VPS: `sudo apt install postgresql`, then:
      ```sql
-     CREATE DATABASE voltbet;
-     CREATE USER voltbet WITH PASSWORD 'a-long-random-password';
-     GRANT ALL PRIVILEGES ON DATABASE voltbet TO voltbet;
+     CREATE DATABASE unibet360;
+     CREATE USER unibet360 WITH PASSWORD 'a-long-random-password';
+     GRANT ALL PRIVILEGES ON DATABASE unibet360 TO unibet360;
      ```
 
 ## 1. Railway
@@ -70,10 +70,10 @@ sudo apt-get install -y nodejs nginx
 sudo npm i -g pnpm pm2
 
 # Get the code
-git clone https://github.com/you/voltbet /opt/voltbet
-cd /opt/voltbet
+git clone https://github.com/you/unibet360 /opt/unibet360
+cd /opt/unibet360
 pnpm install
-cp .env.example .env        # set DATABASE_URL=postgresql://voltbet:pass@localhost:5432/voltbet
+cp .env.example .env        # set DATABASE_URL=postgresql://unibet360:pass@localhost:5432/unibet360
 pnpm prisma migrate deploy
 pnpm prisma db seed
 pnpm build
@@ -82,14 +82,14 @@ pnpm build
 PM2 (single process — fine for one VPS):
 
 ```bash
-pm2 start "pnpm start" --name voltbet --cwd /opt/voltbet
+pm2 start "pnpm start" --name unibet360 --cwd /opt/unibet360
 pm2 save && pm2 startup
 ```
 
 For a cron-driven odds sync, add:
 
 ```cron
-*/15 * * * * cd /opt/voltbet && ODDS_API_KEY=$ODDS_API_KEY node -e "import('./src/lib/sync.ts')" ...
+*/15 * * * * cd /opt/unibet360 && ODDS_API_KEY=$ODDS_API_KEY node -e "import('./src/lib/sync.ts')" ...
 ```
 
 (Or run sync inside the app — see `docs/API-INTEGRATION.md`.)

@@ -20,7 +20,7 @@ export default async function CronJobsPage() {
     <div>
       <h2 className="text-xl font-extrabold">Cronjobs</h2>
       <p className="mt-1 text-sm text-ink3">
-        The four scheduled jobs behind VoltBet — with ready-to-paste configs for cron-job.org (recommended), UptimeRobot,
+        The four scheduled jobs behind UNIBET360 — with ready-to-paste configs for cron-job.org (recommended), UptimeRobot,
         Railway cron, or plain curl. Schedules are evaluated in UTC.
       </p>
       <div className="mt-4">

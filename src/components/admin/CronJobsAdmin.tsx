@@ -200,7 +200,7 @@ export default function CronJobsAdmin({ baseUrl, secret, initialSchedules }: Pro
                     <CodeBlock value={wget} label="Railway start command" />
                     <div className="text-[10px] font-black uppercase tracking-wider text-ink3">cron-job.org</div>
                     <div className="space-y-1.5">
-                      <Field k="Title" v={`VoltBet ${job.title}`} />
+                      <Field k="Title" v={`UNIBET360 ${job.title}`} />
                       <Field k="URL" v={url} />
                       <Field k="Method" v="GET" />
                       <Field k="Cron syntax" v={schedule} />

@@ -82,7 +82,7 @@ export type SiteSettings = {
 };
 
 const DEFAULTS: SiteSettings = {
-  siteName: "VoltBet",
+  siteName: "UNIBET360",
   tagline: "Live the rush",
   primaryColor: "#00e676",
   secondaryColor: "#0b1220",

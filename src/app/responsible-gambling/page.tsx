@@ -33,7 +33,7 @@ export default function ResponsibleGamblingPage() {
       </div>
 
       <div className="mt-8 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
-        18+. Please play responsibly. VoltBet does not offer betting to minors.
+        18+. Please play responsibly. UNIBET360 does not offer betting to minors.
       </div>
     </div>
   );

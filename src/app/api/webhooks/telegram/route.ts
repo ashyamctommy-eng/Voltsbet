@@ -6,7 +6,7 @@ import { consumeTelegramLinkToken, sendTelegramMessage, escapeHtml } from "@/lib
 import { rateLimit } from "@/lib/rate-limit";
 
 /**
- * Telegram Bot webhook — receives updates for the VoltBet bot.
+ * Telegram Bot webhook — receives updates for the UNIBET360 bot.
  *
  * Handled commands:
  *   /start <LINK_TOKEN>  → deep-link account binding (token minted in
@@ -62,7 +62,7 @@ export const POST = handle(async (req: NextRequest) => {
     if (!token) {
       await sendTelegramMessage(
         msg.chat.id,
-        `👋 Welcome to the <b>VoltBet</b> bot!\n\nTo link your account, open VoltBet → Account → Settings → Telegram and tap <b>Link Telegram</b> — that button carries your personal link token.`
+        `👋 Welcome to the <b>UNIBET360</b> bot!\n\nTo link your account, open UNIBET360 → Account → Settings → Telegram and tap <b>Link Telegram</b> — that button carries your personal link token.`
       );
       return ok({ handled: "start" });
     }
@@ -74,7 +74,7 @@ export const POST = handle(async (req: NextRequest) => {
     if (!linked) {
       await sendTelegramMessage(
         msg.chat.id,
-        `⚠️ That link is invalid or expired. Generate a fresh one in VoltBet → Account → Settings → Telegram.`
+        `⚠️ That link is invalid or expired. Generate a fresh one in UNIBET360 → Account → Settings → Telegram.`
       );
       return ok({ handled: "link_failed" });
     }
@@ -88,7 +88,7 @@ export const POST = handle(async (req: NextRequest) => {
   if (text.startsWith("/help")) {
     await sendTelegramMessage(
       msg.chat.id,
-      `I deliver VoltBet verification codes. There's nothing to type here — codes arrive automatically when you log in.`
+      `I deliver UNIBET360 verification codes. There's nothing to type here — codes arrive automatically when you log in.`
     );
     return ok({ handled: "help" });
   }

@@ -81,7 +81,7 @@ export default function BetActions({
   }
 
   function share() {
-    const text = `VoltBet bet ${bet.code}: ${bet.selections.length} selection(s)`;
+    const text = `UNIBET360 bet ${bet.code}: ${bet.selections.length} selection(s)`;
     const payload = {
       title: `Bet ${bet.code}`,
       text,

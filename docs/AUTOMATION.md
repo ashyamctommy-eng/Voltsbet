@@ -25,7 +25,7 @@ Actions schedule, or any VPS crontab. Returns:
 
 ## 2. Odds margin & liability limits
 
-- `odds.marginPercent` (default 6) — the overround VoltBet keeps on top of the
+- `odds.marginPercent` (default 6) — the overround UNIBET360 keeps on top of the
   feed odds. Applied automatically in the sync pipeline; 0 = pass-through.
 - `betting.maxLiabilityPerMarket` (default 500000) — a bet is rejected if it
   would push this market's total exposure (open bets + new potential win)

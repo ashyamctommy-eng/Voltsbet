@@ -143,7 +143,7 @@ export async function palplusStkPush(opts: {
       amount: Math.round(opts.amount),
       phone: normalizeMpesaPhone(opts.phone),
       accountReference: opts.accountReference.slice(0, 12),
-      transactionDesc: (opts.transactionDesc ?? "VoltBet dep").slice(0, 13),
+      transactionDesc: (opts.transactionDesc ?? "UNIBET360 dep").slice(0, 13),
       callbackUrl: secureCallbackUrl(opts.callbackUrl, s.palplusWebhookSecret),
       ...(opts.channelId || s.palplusChannelId ? { channelId: opts.channelId || s.palplusChannelId } : {}),
     },

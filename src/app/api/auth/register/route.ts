@@ -79,7 +79,7 @@ export const POST = handle(async (req: NextRequest) => {
     data: {
       userId: user.id,
       type: "GENERAL",
-      title: "Welcome to VoltBet! 🎉",
+      title: "Welcome to UNIBET360! 🎉",
       message: "Thanks for joining. Claim your 100% welcome bonus today.",
     },
   });

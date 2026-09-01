@@ -172,13 +172,13 @@ export const PATCH = handle(async (req: NextRequest, ctx: { params: Promise<{ id
             amount: kesAmount,
             phone: withdrawal.destination,
             reference: ref,
-            description: `VoltBet payout ${ref}`,
+            description: `UNIBET360 payout ${ref}`,
             callbackUrl,
           })
         : await mpesaB2c({
             amount: kesAmount,
             phone: withdrawal.destination,
-            remarks: `VoltBet payout ${ref}`,
+            remarks: `UNIBET360 payout ${ref}`,
             resultUrl: callbackUrl,
             queueTimeOutUrl: callbackUrl,
           });

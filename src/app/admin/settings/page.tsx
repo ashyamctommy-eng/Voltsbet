@@ -91,7 +91,7 @@ const GROUPS: { title: string; anchor: string; icon: React.ReactNode; fields: Fi
       { key: "support.whatsappMessage", label: "WhatsApp default message", type: "text" },
       { key: "support.whatsappEnabled", label: "Show WhatsApp button", type: "toggle" },
       { key: "support.whatsappPosition", label: "WhatsApp position", type: "select", options: ["bottom-left", "bottom-right"] },
-      { key: "support.telegram", label: "Telegram URL", type: "text", hint: "e.g. https://t.me/voltbet" },
+      { key: "support.telegram", label: "Telegram URL", type: "text", hint: "e.g. https://t.me/unibet360" },
       { key: "support.telegramEnabled", label: "Show Telegram button", type: "toggle" },
       { key: "support.telegramPosition", label: "Telegram position", type: "select", options: ["bottom-left", "bottom-right"] },
       { key: "support.email", label: "Support email", type: "text" },
