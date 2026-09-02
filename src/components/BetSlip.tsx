@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
 import { useBetSlip } from "@/components/BetSlipContext";
@@ -20,20 +21,18 @@ type PlaceResponse = {
   acceptedOdds: string[];
 };
 
-type SlipAccount = {
-  wallet: { balance: number; balanceLabel: string; currencyCode: string; displayCurrencyCode?: string | null } | null;
-  limits: { minStake: number; maxStake: number; maxPayout: number };
-};
-
 /** Betika-style quick stake INCREMENTS — each adds to the current stake. */
 const QUICK_STAKES = [50, 100, 500, 1000];
 
 export default function BetSlip() {
   const { t } = useTranslation();
-  const { items, remove, clear, open, setOpen, mode, setMode, stake, setStake, totalOdds, potentialWin } = useBetSlip();
+  const {
+    items, remove, clear, open, setOpen, mode, setMode, stake, setStake, totalOdds, potentialWin,
+    account, authed,
+  } = useBetSlip();
+  const router = useRouter();
   const { push } = useToast();
   const [placing, setPlacing] = useState(false);
-  const [account, setAccount] = useState<SlipAccount | null>(null);
   const [oddsChange, setOddsChange] = useState<{ changed: { outcomeId: string; name: string; oldOdds: number; newOdds: number }[]; totalOdds: number; potentialWin: number } | null>(null);
 
   // Idempotency key for the CURRENT submission: stable while the slip contents
@@ -48,12 +47,8 @@ export default function BetSlip() {
       : `vb-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   }
 
-  useEffect(() => {
-    apiFetch<SlipAccount>("/api/account").then((r) => r.ok && setAccount(r.data));
-  }, []);
-
   const stakeNum = parseFloat(stake) || 0;
-  const balance = account?.wallet?.balance ?? 0;
+  const balance = account?.balance ?? 0;
 
   // Lock background scrolling while the mobile betslip drawer is open.
   useEffect(() => {
@@ -69,12 +64,27 @@ export default function BetSlip() {
     () => ({
       items, mode, setMode, stake, setStake, totalOdds, potentialWin,
       remove, clear, place: () => place(false), placing,
-      stakeNum, balance, minStake: account?.limits?.minStake ?? 50,
-      account,
+      stakeNum, balance, minStake: account?.minStake ?? 50,
+      account, authed,
+      goDeposit,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [items, mode, stake, totalOdds, potentialWin, placing, account]
+    [items, mode, stake, totalOdds, potentialWin, placing, account, authed]
   );
+
+  /**
+   * Insufficient-balance / guest auth redirect (spec: smart betslip deposit
+   * flow). Selections are NOT lost: BetSlipProvider caches them in
+   * localStorage, so they're restored the moment the user lands back.
+   *   signed-in  → straight to /account/deposit
+   *   guest      → /register?redirect=/account/deposit (auto-login after
+   *                signup sends them to fund the wallet)
+   */
+  const goDeposit = () => {
+    setOpen(false);
+    const dest = "/account/deposit";
+    router.push(authed ? dest : `/register?redirect=${encodeURIComponent(dest)}`);
+  };
 
   async function place(accept: boolean) {
     if (items.length === 0) return;
@@ -110,6 +120,13 @@ export default function BetSlip() {
     if (res.error.code === "ODD_CHANGE" && res.data) {
       const d = res.data as { changed: { outcomeId: string; name: string; oldOdds: number; newOdds: number }[]; totalOdds: number; potentialWin: number };
       setOddsChange(d);
+      return;
+    }
+    // Wallet came up short server-side (stake raced a withdrawal/other bet) —
+    // same smart redirect as the client-side guard. Guests get bounced to
+    // register with their slip cached, never a dead-end error toast.
+    if (res.error.code === "INSUFFICIENT_BALANCE" || res.error.code === "UNAUTHORIZED") {
+      goDeposit();
       return;
     }
     push("error", res.error.message);
@@ -189,12 +206,15 @@ function SlipBody(props: {
   stakeNum: number;
   balance: number;
   minStake: number;
-  account: SlipAccount | null;
+  account: { balance: number; currencyCode: string; minStake: number; maxStake: number; maxPayout: number } | null;
+  authed: boolean | null;
+  /** Smart deposit/auth redirect (insufficient balance / guest). */
+  goDeposit: () => void;
   onClose: () => void;
   desktop?: boolean;
   visible?: boolean;
 }) {
-  const { items, mode, setMode, stake, setStake, totalOdds, potentialWin, remove, clear, place, placing, stakeNum, balance, minStake, account, onClose, visible } = props;
+  const { items, mode, setMode, stake, setStake, totalOdds, potentialWin, remove, clear, place, placing, stakeNum, balance, minStake, account, authed, goDeposit, onClose, visible } = props;
   const { t } = useTranslation();
   const stakeRef = useRef<HTMLInputElement>(null);
 
@@ -202,7 +222,9 @@ function SlipBody(props: {
   // slip never converts to a display currency: the stake is wagered in the
   // wallet currency, so every shown amount must match what is actually bet.
   const { formatCurrency, defaultCode } = useCurrency();
-  const moneyCur = account?.wallet?.currencyCode ?? defaultCode;
+  // Wallet currency (USD | KES) — NEVER the display currency: the stake is
+  // wagered in the wallet currency so every label must match it exactly.
+  const moneyCur = account?.currencyCode ?? defaultCode;
   const moneyPrefix = currencyPrefix(moneyCur);
   const widePrefix = moneyPrefix.length >= 3;
 
@@ -217,12 +239,23 @@ function SlipBody(props: {
   const multiple = items.length > 1;
   const shown = mode === "SINGLE" ? items.slice(0, 1) : items;
 
-  const canPlace = stakeNum > 0 && stakeNum >= minStake && stakeNum <= balance && !placing;
+  const stakeValid = stakeNum > 0 && stakeNum >= minStake;
+  const signedIn = authed === true;
+  const guest = authed === false;
+  // Insufficient funds (signed-in only — guests have no wallet to compare).
+  const insufficient = signedIn && stakeValid && stakeNum > balance;
+  // Normal path: signed in with enough balance.
+  const canPlace = signedIn && stakeValid && !insufficient && !placing;
+  // Guests may always tap the CTA — it routes them to register (slip cached).
+  const ctaReady = (canPlace || insufficient || guest) && !placing && stakeValid;
+  // Blocked only while the stake is unusable, placement is in flight, or the
+  // auth snapshot hasn't resolved yet (avoids mis-routing on a slow fetch).
+  const ctaDisabled = placing || !stakeValid || authed === null || !ctaReady;
   const reason = stakeNum <= 0
     ? t("betslip.enterStakeHint")
     : stakeNum < minStake
       ? t("betslip.minStake", { amount: formatCurrency(minStake, moneyCur) })
-      : stakeNum > balance
+      : insufficient
         ? t("betslip.insufficientBalance")
         : "";
 
@@ -388,9 +421,26 @@ function SlipBody(props: {
             </span>
           </div>
 
-          {/* Full-width green Place Bet CTA */}
-          <button className="mt-2.5 w-full rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 py-3 text-base font-black text-[#052e16] shadow-[0_6px_20px_rgba(0,230,118,0.35)] transition-transform active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none" disabled={!canPlace} onClick={place}>
-            {placing ? t("betslip.placing") : `${t("betslip.placeBet")}${stakeNum > 0 ? ` · ${formatCurrency(potentialWin, moneyCur)}` : ""}`}
+          {/* Full-width green CTA — Place Bet, or the smart deposit/auth
+              redirect when the wallet can't cover the stake (or it's a
+              guest). Label stays clean: the Potential Win row above already
+              shows the return — no duplicated amount in the button. */}
+          <button
+            className="mt-2.5 w-full rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 py-3 text-base font-black text-[#052e16] shadow-[0_6px_20px_rgba(0,230,118,0.35)] transition-transform active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+            disabled={ctaDisabled}
+            onClick={() => {
+              if (insufficient || guest) {
+                goDeposit();
+                return;
+              }
+              if (canPlace) place();
+            }}
+          >
+            {placing
+              ? t("betslip.placing")
+              : insufficient || guest
+                ? t("nav.deposit")
+                : t("betslip.placeBet")}
           </button>
           {reason ? (
             <p className="mt-3 text-center text-[11px] font-medium text-amber-400">{reason}</p>

@@ -11,10 +11,17 @@ import { useCurrency } from "@/components/CurrencyProvider";
  *        left        center        right
  */
 export default function BetslipBar() {
-  const { items, stake, totalOdds, setOpen } = useBetSlip();
-  const { fmt } = useCurrency();
+  const { items, stake, totalOdds, setOpen, account } = useBetSlip();
+  const { formatCurrency, defaultCode } = useCurrency();
   const count = items.length;
   if (count === 0) return null;
+
+  // Currency sync: the floating bar must match the OPEN BETSLIP exactly —
+  // both format in the user's WALLET currency (USD | KES), never the display
+  // currency. The slip sheet was already wallet-bound; this bar now reads the
+  // same account snapshot from BetSlipProvider instead of hardcoding/using
+  // the platform default.
+  const moneyCur = account?.currencyCode ?? defaultCode;
 
   // Projection baseline until the user sets a stake (matches the sheet).
   const previewStake = parseFloat(stake) || 100;
@@ -41,7 +48,7 @@ export default function BetslipBar() {
         <span className="flex min-w-0 flex-col items-end">
           <span className="text-[10px] font-bold uppercase tracking-wider text-black/60">Payout</span>
           <span className="truncate text-base font-black leading-tight tabular-nums">
-            {fmt(Math.round(payout * 100) / 100)}
+            {formatCurrency(Math.round(payout * 100) / 100, moneyCur)}
           </span>
         </span>
       </span>

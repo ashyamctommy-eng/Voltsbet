@@ -19,6 +19,10 @@ type Props = {
   odds: number;
   gameStatus: string;
   live?: boolean;
+  /** True when this outcome belongs to a two-variable market (Goal Line,
+   *  BTTS, DNB, Asian handicap…) — the ONLY boards that get the emerald/sky
+   *  side colors. 1X2 & other 3+-way markets stay neutral. */
+  twoWay?: boolean;
 };
 
 export default function OddsButton(props: Props) {
@@ -32,13 +36,13 @@ export default function OddsButton(props: Props) {
     props.gameStatus !== "SCHEDULED" && props.gameStatus !== "LIVE" && props.gameStatus !== "HALF_TIME";
   const disabled = suspended || unavailable;
 
-  // Competing-side color token (Home/Under/Yes → emerald, Away/Over/No →
-  // sky, Draw/X → amber). Applied to the price only while the button is
-  // selectable and NOT selected — the selected state keeps its high-contrast
-  // green fill with dark text (see .odds-btn.selected).
-  const tone = sideTextClass(
-    outcomeSide({ label: props.label, name: props.outcome, home: props.home, away: props.away })
-  );
+  // Competing-side color token — ONLY on two-variable markets (per product
+  // spec): column 1 (Over/Home/Yes/Team 1) emerald, column 2 (Under/Away/
+  // No/Team 2) sky. Applied to the price while selectable and NOT selected —
+  // the selected state keeps its high-contrast green fill + dark text.
+  const tone = props.twoWay
+    ? sideTextClass(outcomeSide({ label: props.label, name: props.outcome, home: props.home, away: props.away }))
+    : null;
 
   const item: SlipItem = {
     outcomeId: props.outcomeId,

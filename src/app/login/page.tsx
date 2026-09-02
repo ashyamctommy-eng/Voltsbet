@@ -37,7 +37,10 @@ export default function LoginPage() {
       setNotice(res.data.message ?? "Enter the code we sent to your Telegram.");
       return;
     }
-    router.push(res.data.redirect ?? "/");
+    // Smart auth redirect: ?redirect=/account/deposit (betslip insufficient-
+    // balance flow) wins over the server's role-based default destination.
+    const redirect = new URLSearchParams(window.location.search).get("redirect");
+    router.push(redirect && redirect.startsWith("/") ? redirect : (res.data.redirect ?? "/"));
     router.refresh();
   }
 

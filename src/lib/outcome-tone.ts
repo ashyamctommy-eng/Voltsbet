@@ -1,15 +1,15 @@
 /**
- * Global outcome color tokens — ONE semantic source of truth for the side
- * colors used wherever odds render (OddsButton, match cards, feeds, the
- * fixture accordion, hero slideshow).
+ * Global outcome color tokens — semantic side colors for TWO-OUTCOME markets
+ * only (Goal Line / Over & Under, BTTS Yes/No, Asian Handicaps, DNB, team
+ * totals). 3+-outcome boards (1X2, double chance, correct score, HT/FT …)
+ * are deliberately NOT colored — callers gate with isTwoWayMarket().
  *
- * Product mapping (competing sides are always visually distinct):
- *   Option 1 / side A — Home · Team 1 · Under · Yes · "1"   → emerald
- *   Option 3 / middle — Draw · "X"                           → amber
- *   Option 2 / side B — Away · Team 2 · Over · No · "2"      → sky
+ * Product mapping (two-var boards, column convention):
+ *   Column 1 / option A — Over · Home · Team 1 · Yes   → emerald
+ *   Column 2 / option B — Under · Away · Team 2 · No    → sky
  *
  * Returns null (neutral → caller keeps its brand default) when the outcome
- * has no competing side: player lists, goal ranges, untyped lists.
+ * has no competing side or the board is not a two-variable market.
  *
  * Class literals live verbatim here so Tailwind v4's scanner picks them up.
  */
@@ -69,10 +69,10 @@ export function outcomeSide(o: {
   if (name === "even") return "second";
   if (/^(draw|tie|x)$/.test(name)) return "draw";
 
-  // Totals / team totals — line direction beats position: "Over …" = side B
-  // (sky), "Under …" = side A (emerald), incl. "Arsenal Over 1.5".
-  if (/\bover\b/.test(name)) return "second";
-  if (/\bunder\b/.test(name)) return "first";
+  // Totals / team totals — column convention: "Over …" is column 1 (emerald),
+  // "Under …" column 2 (sky) — incl. team totals like "Arsenal Over 1.5".
+  if (/\bover\b/.test(name)) return "first";
+  if (/\bunder\b/.test(name)) return "second";
 
   // Team sides — compare to the fixture's participants (guard short tokens).
   const home = (o.home ?? "").trim().toLowerCase();
@@ -80,4 +80,42 @@ export function outcomeSide(o: {
   if (home && home.length >= 3 && name.startsWith(home)) return "first";
   if (away && away.length >= 3 && name.startsWith(away)) return "second";
   return null;
+}
+
+/**
+ * Boards that are NOT two-variable (3-way or multi-way): never color-coded.
+ * Correct score, player props and ranges are additionally caught by shape.
+ */
+const MULTIWAY_KEYS = new Set([
+  "MATCH_RESULT", "h2h",
+  "HT_RESULT", "HALF_TIME_RESULT", "h2h_h1", "h2h_h2",
+  "DOUBLE_CHANCE", "DOUBLE_CHANCE_H1",
+  "EUROPEAN_HANDICAP", "HT_FT", "HIGHEST_SCORING_HALF", "CORNERS_1X2",
+  "CORRECT_SCORE", "correct_score", "CORRECT_SCORE_H1",
+  "MULTI_GOALS", "GOAL_PARITY_MIXED", "3WAY", "1X2",
+  "PLAYER_GOALSCORER_ANYTIME", "PLAYER_FIRST_GOALSCORER",
+  "PLAYER_LAST_GOALSCORER", "PLAYER_RECEIVE_CARD",
+  "PLAYER_RECEIVE_RED_CARD", "PLAYER_SHOTS_ON_TARGET", "PLAYER_SHOTS",
+  "PLAYER_ASSISTS",
+]);
+
+/**
+ * True when a market is a two-variable (binary) board eligible for the
+ * emerald/sky side colors: every outcome is an Over/Under line (Goal Line,
+ * alternate totals, corners/cards totals, team totals), a Yes/No pair (BTTS,
+ * win-to-nil), or exactly two options (DNB, Asian handicap, parity).
+ * 3+-outcome markets — 1X2, double chance, correct score, HT/FT, player
+ * props, goal ranges — return false and keep the neutral brand styling.
+ */
+export function isTwoWayMarket(marketKey: string, names: readonly string[]): boolean {
+  if (MULTIWAY_KEYS.has(marketKey)) return false;
+  const n = names.length;
+  if (n < 2) return false;
+  // Goal Line / totals / team totals — every outcome is an Over/Under line.
+  if (names.every((nm) => /\bover\b/i.test(nm) || /\bunder\b/i.test(nm))) return true;
+  // BTTS / simple Yes-No boards.
+  if (names.every((nm) => /^(yes|no)$/i.test(nm.trim()))) return true;
+  // Clean two-way board (DNB, Asian single line, parity, 2-way specials).
+  if (n === 2) return true;
+  return false;
 }

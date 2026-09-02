@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/client";
+import { LANGUAGES } from "@/lib/i18n-resources";
 import { useToast } from "@/components/BetSlipContext";
 
 export default function RegisterPage() {
@@ -55,7 +56,12 @@ export default function RegisterPage() {
       return;
     }
     push("success", "Account created. Welcome to UNIBET360! 🎉");
-    router.push("/");
+    // Smart auth redirect: ?redirect=/account/deposit (set when an
+    // insufficient-balance guest was routed here from the betslip) sends the
+    // new user straight to funding their wallet — selections survive via the
+    // betslip localStorage cache.
+    const redirect = new URLSearchParams(window.location.search).get("redirect");
+    router.push(redirect && redirect.startsWith("/") ? redirect : "/");
     router.refresh();
   }
 
@@ -134,13 +140,9 @@ export default function RegisterPage() {
           <div>
             <label className="label" htmlFor="language">Preferred language</label>
             <select id="language" className={input} value={form.language} onChange={(e) => set("language", e.target.value)}>
-              <option value="en">English</option>
-              <option value="sw">Kiswahili</option>
-              <option value="fr">Français</option>
-              <option value="de">Deutsch</option>
-              <option value="es">Español</option>
-              <option value="pt">Português</option>
-              <option value="nl">Nederlands</option>
+              {LANGUAGES.map((l) => (
+                <option key={l.code} value={l.code}>{l.name}</option>
+              ))}
             </select>
           </div>
           <div>

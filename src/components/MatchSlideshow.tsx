@@ -8,7 +8,6 @@ import { IconGift, IconClock } from "@/components/icons";
 import { formatKickoff, liveContext } from "@/lib/kickoff";
 import { leagueRank } from "@/lib/league-rank";
 import { apiMatchToFeedGame, type FeedMatchView } from "@/lib/match-view";
-import { outcomeSide, sideTextClass } from "@/lib/outcome-tone";
 
 type SlideGame = {
   id: string;
@@ -218,26 +217,15 @@ function MatchSlide({ g, index, total }: { g: SlideGame; index: number; total: n
           if (odds.length === 0) return null;
           return (
             <div className="mt-4 grid grid-cols-3 gap-2">
-              {odds.map((o, i) => {
-                // Home · Under · Yes → emerald, Draw/X → amber, Away · Over ·
-                // No → sky. The hero strip is a 1X2-only market, so a missing
-                // semantic match falls back to column position (1/X/2).
-                const side =
-                  outcomeSide({ label: o.label, name: o.name, home: g.homeName, away: g.awayName }) ??
-                  (["first", "draw", "second"] as const)[i % 3];
-                const tone = sideTextClass(side) ?? "text-ink";
-                return (
-                  <span
-                    key={o.name}
-                    className="flex h-10 items-center justify-center gap-1 rounded-lg border border-line2 bg-card text-sm font-bold"
-                  >
-                    {o.label && (
-                      <span className={`text-[10px] font-semibold ${tone}`}>{o.label}</span>
-                    )}
-                    <span className={tone}>{Number(o.odds).toFixed(2)}</span>
-                  </span>
-                );
-              })}
+              {odds.map((o) => (
+                <span
+                  key={o.name}
+                  className="flex h-10 items-center justify-center gap-1 rounded-lg border border-line2 bg-card text-sm font-bold text-ink"
+                >
+                  {o.label && <span className="text-[10px] font-semibold text-ink3">{o.label}</span>}
+                  {Number(o.odds).toFixed(2)}
+                </span>
+              ))}
             </div>
           );
         })()}

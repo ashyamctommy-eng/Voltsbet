@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, ReactNode } from "react";
+import { apiFetch } from "@/lib/client";
 
 export type SlipItem = {
   outcomeId: string;
@@ -22,7 +23,16 @@ export type SlipItem = {
   trend?: "up" | "down" | null;
 };
 
-type BetSlipCtx = {
+/** Wallet/auth snapshot shared by the slip, the floating bar and the
+ *  deposit-redirect flow — ONE account fetch per session (lazy on mount). */
+export type SlipAccountState = {
+  /** Parsed /api/account payload for an authenticated user (null when guest). */
+  account: { balance: number; currencyCode: string; minStake: number; maxStake: number; maxPayout: number } | null;
+  /** true = signed in · false = guest · null = auth check still pending. */
+  authed: boolean | null;
+};
+
+type BetSlipCtx = SlipAccountState & {
   items: SlipItem[];
   add: (item: SlipItem) => void;
   remove: (outcomeId: string) => void;
@@ -51,6 +61,8 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
   const [mode, setMode] = useState<"SINGLE" | "MULTIPLE">("SINGLE");
   const [stake, setStake] = useState("");
   const [hasOddsChange, setHasOddsChange] = useState(false);
+  const [account, setAccount] = useState<SlipAccountState["account"]>(null);
+  const [authed, setAuthed] = useState<boolean | null>(null);
   const loaded = useRef(false);
   const prevCountRef = useRef(0);
   /** Committed slip mirror for event handlers — add() reads it to decide
@@ -85,6 +97,37 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     itemsRef.current = items;
   }, [items]);
+
+  // Wallet/auth snapshot — currency drives EVERY money label on the slip +
+  // floating bar (wallet currency, never the display currency) and the
+  // deposit redirect branches guest vs logged-in.
+  useEffect(() => {
+    let alive = true;
+    apiFetch<{
+      wallet: { balance: number; currencyCode: string } | null;
+      limits: { minStake: number; maxStake: number; maxPayout: number };
+    }>("/api/account")
+      .then((r) => {
+        if (!alive) return;
+        if (r.ok && r.data.wallet) {
+          setAccount({
+            balance: Number(r.data.wallet.balance) || 0,
+            currencyCode: r.data.wallet.currencyCode,
+            minStake: r.data.limits?.minStake ?? 50,
+            maxStake: r.data.limits?.maxStake ?? 0,
+            maxPayout: r.data.limits?.maxPayout ?? 0,
+          });
+          setAuthed(true);
+        } else if (r.ok) {
+          setAuthed(true); // signed in but wallet row missing
+        } else {
+          setAuthed(r.error?.code === "UNAUTHORIZED" ? false : null);
+        }
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   // Auto-open the slip when the first selection lands (0 → 1). Desktop shows
   // the rail; mobile opens the sheet once so the user sees where their pick
@@ -189,8 +232,8 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ items, add, remove, clear, open, setOpen, mode, setMode, stake, setStake, totalOdds, potentialWin, hasOddsChange, syncOdds }),
-    [items, add, remove, clear, open, mode, stake, totalOdds, potentialWin, hasOddsChange, syncOdds]
+    () => ({ items, add, remove, clear, open, setOpen, mode, setMode, stake, setStake, totalOdds, potentialWin, hasOddsChange, syncOdds, account, authed }),
+    [items, add, remove, clear, open, mode, stake, totalOdds, potentialWin, hasOddsChange, syncOdds, account, authed]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

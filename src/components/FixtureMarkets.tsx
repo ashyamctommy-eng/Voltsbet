@@ -7,7 +7,7 @@ import { fmtOdds } from "@/lib/odds";
 import { useTranslation } from "react-i18next";
 import { tMarket } from "@/lib/i18n";
 import { displayOutcomeName, formatOutcomeName, groupHandicapPairs, HANDICAP_MARKET_KEYS } from "@/lib/market-labels";
-import { OutcomeSide, outcomeSide, sideTextClass } from "@/lib/outcome-tone";
+import { OutcomeSide, isTwoWayMarket, outcomeSide, sideTextClass } from "@/lib/outcome-tone";
 
 type FixtureOutcome = {
   id: string;
@@ -197,11 +197,14 @@ export default function FixtureMarkets({ game, markets }: { game: FixtureCtx; ma
    * competing sides and stay neutral (caller keeps the brand price color).
    */
   const gridSide = (m: FixtureMarket, o: FixtureOutcome, idx: number): OutcomeSide | null => {
+    // STRICT two-variable markets only — Goal Line / O&U, BTTS, DNB, Asian
+    // handicaps, parity, team totals. 1X2, double chance, correct score,
+    // HT/FT, player props and ranges keep the neutral brand price color.
+    if (!isTwoWayMarket(m.key, m.outcomes.map((x) => x.name))) return null;
     const s = outcomeSide({ label: o.label, name: o.name, home: game.homeName, away: game.awayName });
     if (s) return s;
-    const n = m.outcomes.length;
-    if (n === 2) return idx % 2 === 0 ? "first" : "second";
-    if (n === 3 && THREE_COL_KEYS.has(m.key)) return (["first", "draw", "second"] as const)[idx % 3];
+    // Unmapped clean 2-way board → column 1 emerald / column 2 sky.
+    if (m.outcomes.length === 2) return idx === 0 ? "first" : "second";
     return null;
   };
 

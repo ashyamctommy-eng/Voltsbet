@@ -7,7 +7,7 @@ import OddsButton from "@/components/OddsButton";
 import TeamLogo from "@/components/TeamLogo";
 import { liveContext } from "@/lib/kickoff";
 import { toMatchView } from "@/lib/match-view";
-import { outcomeSide, sideTextClass } from "@/lib/outcome-tone";
+import { isTwoWayMarket, outcomeSide, sideTextClass } from "@/lib/outcome-tone";
 import { flagForLeague, countryForLeague } from "@/lib/league-flags";
 
 type MarketLite = {
@@ -126,6 +126,14 @@ export default function MatchCard({
     candidates.find((m) => m.key === "h2h" || m.key === "MATCH_RESULT") ??
     candidates[0];
   const odds = mainMarket?.outcomes.filter((o) => o.status === "ACTIVE").slice(0, 3) ?? [];
+  // Color coding is reserved for two-variable markets (Goal Line/BTTS/DNB/
+  // Asian handicaps…): 1X2 and other 3+-way boards stay neutral.
+  const twoWay = mainMarket
+    ? isTwoWayMarket(
+        mainMarket.key,
+        mainMarket.outcomes.filter((o) => o.status === "ACTIVE").map((o) => o.name),
+      )
+    : false;
   const ctx = liveContext(game.status, game.clock, game.period);
 
   const isOneXTwo = mainMarket?.key === "MATCH_RESULT" || mainMarket?.key === "h2h";
@@ -196,9 +204,11 @@ export default function MatchCard({
             className={`mt-2 grid gap-2 ${odds.length === 2 ? "grid-cols-2" : "grid-cols-3"} [&_.odds-btn]:h-9 [&_.odds-btn]:w-full [&_.odds-btn]:flex-none [&_.odds-btn]:text-xs`}
           >
             {outcomeRows.map((row, i) => {
-              const tone = sideTextClass(
-                outcomeSide({ label: row.label, name: row.leg, home: view.homeTeam, away: view.awayTeam })
-              );
+              const tone = twoWay
+                ? sideTextClass(
+                    outcomeSide({ label: row.label, name: row.leg, home: view.homeTeam, away: view.awayTeam }),
+                  )
+                : null;
               return (
                 <div key={i} className="flex flex-col gap-1">
                   <span
@@ -224,6 +234,7 @@ export default function MatchCard({
                       odds={Number(row.outcome.odds)}
                       gameStatus={game.status}
                       live={isLive}
+                      twoWay={twoWay}
                     />
                   ) : (
                     <span
