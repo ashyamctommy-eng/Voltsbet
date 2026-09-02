@@ -23,6 +23,7 @@ type AccountData = {
 
 type PendingDeposit = {
   id: string; paymentAddress?: string; cryptoCurrency?: string; amount: number; expiresAt?: string;
+  network?: string | null;
   method?: string; checkoutRequestId?: string; status?: string;
 };
 
@@ -31,7 +32,51 @@ const COIN_META: Record<string, { symbol: string; gradient: string; dp: number }
   ETH: { symbol: "Ξ", gradient: "linear-gradient(135deg,#627eea,#3f53b0)", dp: 4 },
   USDT: { symbol: "₮", gradient: "linear-gradient(135deg,#26a17b,#1c7a5e)", dp: 2 },
   USDC: { symbol: "$", gradient: "linear-gradient(135deg,#2775ca,#1c5390)", dp: 2 },
+  BNB: { symbol: "◆", gradient: "linear-gradient(135deg,#f3ba2f,#c98a00)", dp: 2 },
+  TRX: { symbol: "◈", gradient: "linear-gradient(135deg,#eb0029,#a3001d)", dp: 2 },
+  LTC: { symbol: "Ł", gradient: "linear-gradient(135deg,#345d9d,#23406e)", dp: 4 },
+  SOL: { symbol: "◎", gradient: "linear-gradient(135deg,#9945ff,#14f195)", dp: 2 },
+  XRP: { symbol: "✕", gradient: "linear-gradient(135deg,#23292f,#1a1e22)", dp: 2 },
+  DOGE: { symbol: "Ð", gradient: "linear-gradient(135deg,#c2a633,#8a7424)", dp: 2 },
+  TON: { symbol: "💎", gradient: "linear-gradient(135deg,#0098ea,#0074b3)", dp: 2 },
 };
+
+/** Network token (as stored on the deposit) → human chain name. */
+const NETWORK_CHAIN: Record<string, string> = {
+  TRC20: "Tron (TRC20)",
+  ERC20: "Ethereum (ERC20)",
+  BSC: "BNB Chain (BEP20)",
+  SOL: "Solana",
+  TON: "TON",
+  BASE: "Base",
+  MATIC: "Polygon",
+  OP: "Optimism",
+  OPBNB: "opBNB",
+  ARB: "Arbitrum",
+  ARC20: "Arbitrum",
+  CELO: "Celo",
+  ALGO: "Algorand",
+};
+
+/** Fallback for native coins (no network token): the coin's own chain. */
+const COIN_CHAIN: Record<string, string> = {
+  BTC: "Bitcoin",
+  ETH: "Ethereum (ERC20)",
+  TRX: "TRON",
+  LTC: "Litecoin",
+  SOL: "Solana",
+  XRP: "XRP Ledger",
+  DOGE: "Dogecoin",
+  TON: "TON",
+  ADA: "Cardano",
+  BNB: "BNB Chain (BEP20)",
+};
+
+function chainLabel(coin?: string, network?: string | null): string {
+  const key = (coin ?? "").toUpperCase();
+  if (network) return NETWORK_CHAIN[network] ?? network;
+  return COIN_CHAIN[key] ?? (key || "—");
+}
 
 const STATUS_PILL: Record<string, string> = {
   AWAITING_PAYMENT: "bg-amber-500/15 text-amber-400",
@@ -393,6 +438,11 @@ export default function DepositPage() {
                   </button>
                 </div>
                 {pending.expiresAt && <Countdown expiresAt={pending.expiresAt} />}
+                {effectiveMethod === "CRYPTO" && (
+                  <div className="mt-2 text-[11px] font-bold uppercase tracking-wide text-brand">
+                    Send on {chainLabel(pending.cryptoCurrency, pending.network)}
+                  </div>
+                )}
               </div>
             )}
 
@@ -403,7 +453,9 @@ export default function DepositPage() {
               </div>
               <div className="rounded-lg bg-card2 p-3">
                 <div className="text-xs text-ink3">{effectiveMethod === "MPESA" ? "Provider" : "Network"}</div>
-                <div className="mt-0.5 font-bold">{effectiveMethod === "MPESA" ? "M-Pesa" : pending.cryptoCurrency ?? "—"}</div>
+                <div className="mt-0.5 font-bold">
+                  {effectiveMethod === "MPESA" ? "M-Pesa" : chainLabel(pending.cryptoCurrency, pending.network)}
+                </div>
               </div>
             </div>
 
@@ -423,7 +475,7 @@ export default function DepositPage() {
           <div className="card p-5 text-sm text-ink2">
             <h4 className="font-bold text-ink">What happens next</h4>
             <ol className="mt-2 list-decimal space-y-1 pl-5">
-              <li>{effectiveMethod === "MPESA" ? "Enter your PIN on the M-Pesa prompt." : "Send the exact amount to the address above."}</li>
+              <li>{effectiveMethod === "MPESA" ? "Enter your PIN on the M-Pesa prompt." : `Send the exact amount of ${pending.cryptoCurrency ?? "crypto"} on ${chainLabel(pending.cryptoCurrency, pending.network)} to the address above.`}</li>
               <li>We verify the payment with the provider (on-chain / Safaricom callback).</li>
               <li>Your balance is credited automatically — no manual claims.</li>
             </ol>

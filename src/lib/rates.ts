@@ -16,7 +16,8 @@ import { setSetting, invalidateSettingsCache } from "./settings";
 import { invalidateCurrencyCache } from "./currency";
 
 const FX_URL = "https://open.er-api.com/v6/latest/KES";
-const CG_URL = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,tether,usd-coin&vs_currencies=usd";
+const CG_URL =
+  "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,tether,usd-coin,binancecoin,tron,litecoin,solana,ripple,dogecoin,the-open-network&vs_currencies=usd";
 
 /** CoinGecko id per settings.cryptoRates coin key. */
 const COIN_IDS: Record<string, string> = {
@@ -24,6 +25,13 @@ const COIN_IDS: Record<string, string> = {
   ETH: "ethereum",
   USDT: "tether",
   USDC: "usd-coin",
+  BNB: "binancecoin",
+  TRX: "tron",
+  LTC: "litecoin",
+  SOL: "solana",
+  XRP: "ripple",
+  DOGE: "dogecoin",
+  TON: "the-open-network",
 };
 
 const round = (n: number, dp = 6) => Math.round(n * 10 ** dp) / 10 ** dp;

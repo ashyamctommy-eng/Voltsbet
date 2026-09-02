@@ -17,6 +17,35 @@ import { ApiError } from "@/lib/api";
 
 const API = "https://api.nowpayments.io/v1";
 
+/**
+ * Coins with NO bare code on NOWPayments — a network suffix is mandatory.
+ * Verified live 2026-09-02: /v1/currencies lists `usdttrc20`/`bnbbsc` but no
+ * bare `usdt`/`bnb`. Sending a bare code for these fails or resolves
+ * unpredictably, so a default token is enforced below.
+ */
+export const NP_REQUIRED_NETWORK: Record<string, string> = { USDT: "TRC20", BNB: "BSC" };
+
+/**
+ * Map a coin + admin network token → the NOWPayments pay_currency code.
+ * - USDT + TRC20 → "usdttrc20", BNB + BSC → "bnbbsc"
+ * - Token empty and the coin has a bare code → coin only ("btc", "eth", "usdc")
+ * - Token empty but the coin REQUIRES one → NP_REQUIRED_NETWORK default
+ * Returns the resolved code plus the effective network token (null = bare/auto).
+ */
+export function npPayCurrency(
+  coin: string,
+  networkToken?: string | null
+): { code: string; network: string | null } {
+  const c = coin.trim().toUpperCase();
+  let token = (networkToken ?? "").trim().toUpperCase();
+  if (!token) token = NP_REQUIRED_NETWORK[c] || "";
+  // A token equal to the coin itself (e.g. {"BTC":"BTC"}) means "native chain"
+  // — collapse to the bare code instead of emitting "btcbtc". Same for tokens
+  // that only re-state the coin's own chain (ETH is ERC20; bare "eth" is it).
+  if (token === c) token = "";
+  return { code: token ? `${c.toLowerCase()}${token.toLowerCase()}` : c.toLowerCase(), network: token || null };
+}
+
 async function npFetch(path: string, opts: { method?: string; key: string; body?: unknown } = { method: "GET", key: "" }) {
   const res = await fetch(`${API}${path}`, {
     method: opts.method ?? "GET",

@@ -40,6 +40,10 @@ export type SiteSettings = {
   cryptoConfirmations: number;
   cryptoExpirationMinutes: number;
   cryptoCurrencies: string[];
+  /** coin → NOWPayments network token (e.g. USDT → "TRC20"). Empty/absent =
+   *  NOWPayments default (bare code). Tokens listed in NP_REQUIRED_NETWORK
+   *  (USDT, BNB) have NO bare code on NOWPayments, so they always resolve. */
+  cryptoNetworks: Record<string, string>;
   cryptoRates: Record<string, number>; // KES per 1 coin, for deposit estimates
   mpesaEnabled: boolean;
   mpesaWithdrawalsEnabled: boolean; // offer M-Pesa as a WITHDRAWAL method (env ENABLE_MPESA_WITHDRAWALS wins)
@@ -115,7 +119,11 @@ const DEFAULTS: SiteSettings = {
   cryptoMaxDeposit: 500000,
   cryptoConfirmations: 1,
   cryptoExpirationMinutes: 30,
-  cryptoCurrencies: ["BTC", "ETH", "USDT", "USDC"],
+  cryptoCurrencies: ["BTC", "ETH", "USDT", "USDC", "BNB", "TRX", "LTC", "SOL", "XRP", "DOGE", "TON"],
+  // USDT & BNB must carry a network suffix — NOWPayments has no bare code for
+  // them (verified live 2026-09-02: /v1/currencies lists usdttrc20, bnbbsc…).
+  // USDC/ETH/BTC and the native coins accept their bare code (NOWPayments auto).
+  cryptoNetworks: { USDT: "TRC20", BNB: "BSC" },
   cryptoRates: { BTC: 8500000, ETH: 430000, USDT: 129, USDC: 129 },
   mpesaEnabled: false,
   mpesaWithdrawalsEnabled: false,
@@ -196,6 +204,10 @@ export async function getSettings(): Promise<SiteSettings> {
   s.cryptoExpirationMinutes = Number(raw["crypto.expirationMinutes"] ?? s.cryptoExpirationMinutes);
   try { s.cryptoCurrencies = JSON.parse(raw["crypto.currencies"] ?? "[]"); } catch {}
   if (!s.cryptoCurrencies.length) s.cryptoCurrencies = DEFAULTS.cryptoCurrencies;
+  // Merge over the defaults so USDT/BNB stay pinned even when the admin never
+  // saved crypto.networks (or saved an empty object) — stored values win.
+  try { s.cryptoNetworks = JSON.parse(raw["crypto.networks"] ?? "{}"); } catch {}
+  s.cryptoNetworks = { ...DEFAULTS.cryptoNetworks, ...s.cryptoNetworks };
   try { s.cryptoRates = JSON.parse(raw["crypto.rates"] ?? "{}"); } catch {}
   if (!Object.keys(s.cryptoRates).length) s.cryptoRates = DEFAULTS.cryptoRates;
   // ENABLE_MPESA_PAYMENTS env wins when set (true|false) — the hard kill

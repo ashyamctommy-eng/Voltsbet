@@ -5,7 +5,7 @@ import { getSettings } from "@/lib/settings";
 import { isUserActionAllowed, userBlockReason } from "@/lib/statuses";
 import { currencyMap, convert, formatMoney } from "@/lib/currency";
 import { toCents } from "@/lib/wallet";
-import { npCreatePayment } from "@/lib/providers/nowpayments";
+import { npCreatePayment, npPayCurrency } from "@/lib/providers/nowpayments";
 import { palplusStkPush } from "@/lib/providers/palplus";
 import { mpesaStkPush, normalizeMpesaPhone, publicBaseUrl } from "@/lib/providers/mpesa";
 import { z } from "zod";
@@ -277,6 +277,13 @@ export const POST = handle(async (req: NextRequest) => {
 
   // Real provider configured (NOWPayments)? Get a real payment address.
   if (settings.cryptoProvider === "NOWPAYMENTS" && settings.cryptoApiKey) {
+    // Resolve the network-qualified pay_currency (e.g. USDT → usdttrc20).
+    // USDT/BNB have no bare code on NOWPayments — pinning the network here is
+    // what makes the deposit deterministic instead of provider-chosen.
+    const { code: payCurrency, network: networkToken } = npPayCurrency(
+      cryptoCurrency,
+      settings.cryptoNetworks?.[cryptoCurrency]
+    );
     // Create the deposit row FIRST and use its id as the provider order_id.
     // NOWPayments dedupes on order_id — before, order_id was user.id, so a
     // user's second deposit collided with the first and the webhook could
@@ -290,6 +297,7 @@ export const POST = handle(async (req: NextRequest) => {
         currencyCode: wallet.currencyCode,
         status: "AWAITING_PAYMENT",
         cryptoCurrency,
+        network: networkToken,
         metadata: JSON.stringify({}),
       },
     });
@@ -300,7 +308,7 @@ export const POST = handle(async (req: NextRequest) => {
       const np = await npCreatePayment({
         priceAmount: amount,
         priceCurrency: wallet.currencyCode,
-        payCurrency: cryptoCurrency,
+        payCurrency,
         orderId: deposit.id,
         ipnCallbackUrl: ipn,
       });
@@ -317,6 +325,7 @@ export const POST = handle(async (req: NextRequest) => {
           id: deposit.id,
           amount,
           cryptoCurrency,
+          network: networkToken,
           paymentAddress: np.pay_address,
           payAmount: np.pay_amount,
           payCurrency: np.pay_currency,
@@ -333,6 +342,7 @@ export const POST = handle(async (req: NextRequest) => {
   // Demo mode: generate a mock payment address (dev only).
   const mockAddress = `vb${(cryptoCurrency === "BTC" ? "bc1q" : "0x")}${Math.random().toString(16).slice(2, 12)}${user.id.slice(-6)}`;
   const expiresAt = new Date(Date.now() + settings.cryptoExpirationMinutes * 60_000);
+  const { network: demoNetwork } = npPayCurrency(cryptoCurrency, settings.cryptoNetworks?.[cryptoCurrency]);
 
   const deposit = await prisma.deposit.create({
     data: {
@@ -343,6 +353,7 @@ export const POST = handle(async (req: NextRequest) => {
       currencyCode: wallet.currencyCode,
       status: "AWAITING_PAYMENT",
       cryptoCurrency,
+      network: demoNetwork,
       paymentAddress: mockAddress,
       expiresAt,
       metadata: JSON.stringify({ demoMode: true }),
@@ -354,6 +365,7 @@ export const POST = handle(async (req: NextRequest) => {
       id: deposit.id,
       amount,
       cryptoCurrency,
+      network: demoNetwork,
       paymentAddress: mockAddress,
       expiresAt,
       status: deposit.status,
