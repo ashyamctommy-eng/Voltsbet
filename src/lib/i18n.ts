@@ -169,4 +169,32 @@ export function tMarket(name: string): string {
   return line ? `${base} ${line}` : base;
 }
 
+/**
+ * Translate the over/under word inside an outcome pick ("Over 2.5",
+ * "Arsenal Under 1.5") using the active language pack
+ * ("market.over"/"market.under"); lines and team prefixes pass through
+ * untranslated. Outcomes without an Over/Under word return unchanged.
+ */
+export function tOutcome(outcome: string): string {
+  const word = outcome.trim().match(/\b(Over|Under)\b/i)?.[1];
+  if (!word) return outcome;
+  const translated = word.toLowerCase() === "over" ? i18n.t("market.over") : i18n.t("market.under");
+  return outcome.replace(/\b(Over|Under)\b/i, translated);
+}
+
+/**
+ * Betslip market label: the translated market name, minus a numeric line
+ * the outcome pick already carries — avoids "Over/Under 2.5 · Over 2.5".
+ */
+export function selectionMarketLabel(market: string, outcome: string): string {
+  const label = tMarket(market);
+  const line = market.match(/(\d+(?:\.\d+)?)\s*$/)?.[1];
+  if (!line) return label;
+  const esc = line.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  if (new RegExp(`\\b${esc}\\b`).test(outcome)) {
+    return label.replace(/\s+\d+(?:\.\d+)?\s*$/, "").trim();
+  }
+  return label;
+}
+
 export default i18n;

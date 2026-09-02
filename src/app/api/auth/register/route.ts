@@ -47,8 +47,9 @@ export const POST = handle(async (req: NextRequest) => {
   if (uName) throw new ApiError(409, "This username is already taken.", "USERNAME_TAKEN");
   if (uPhone) throw new ApiError(409, "This phone number is already registered.", "PHONE_TAKEN");
 
-  const currency = await prisma.currency.findUnique({ where: { code: d.currency } });
-  const walletCurrency = currency?.active ? d.currency : "KES";
+  // Wallet base currencies are STRICTLY USD | KES — the account currency is
+  // assigned at registration and never involves FX (no other codes minted).
+  const walletCurrency = d.currency === "USD" || d.currency === "KES" ? d.currency : "KES";
   const language = await prisma.language.findUnique({ where: { code: d.language } });
   const langCode = language?.active ? d.language : "en";
 

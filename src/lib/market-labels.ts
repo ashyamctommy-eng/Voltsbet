@@ -34,6 +34,8 @@ export const HANDICAP_MARKET_KEYS = new Set([
 const LEGACY_MARKET_NAMES: Record<string, string> = {
   Spread: "Handicap",
   "Alternate Spreads": "Alternate Handicaps",
+  "Alternate Totals": "Goal Line",
+  "Alternate Goals": "Goal Line",
   "1st Half - Spread": "1st Half Handicap",
   "2nd Half - Spread": "2nd Half Handicap",
 };
@@ -77,6 +79,52 @@ export function formatOutcomeName(name: string, marketKey: string): string {
   // drop the trailing ".0" on whole lines.
   const line = raw ?? (point > 0 ? `+${point}` : `${point}`);
   return `${team} (${line})`;
+}
+
+/**
+ * Market keys whose every outcome belongs to ONE team. When the stored
+ * outcome name has no team context ("Over 1.5" instead of "Arsenal Over
+ * 1.5"), the team name is prefixed at display time so plain odds buttons
+ * never render context-less across the match accordions.
+ */
+const TEAM_SCOPED_KEYS: Record<string, "home" | "away"> = {
+  TEAM_TOTALS_HOME: "home",
+  TEAM_TOTALS_AWAY: "away",
+  TEAM_TOTALS_1H: "home",
+  TEAM_TOTALS_2H: "home",
+};
+
+/**
+ * Prefix the relevant team name on team-scoped markets whose outcome name
+ * lacks it (legacy/derived rows) — used on compact surfaces (betslip) that
+ * don't want the full handicap formatting.
+ */
+export function teamContext(
+  name: string,
+  marketKey: string,
+  homeName: string,
+  awayName: string,
+): string {
+  const scope = TEAM_SCOPED_KEYS[marketKey];
+  if (!scope) return name;
+  const team = scope === "home" ? homeName : awayName;
+  const lower = name.toLowerCase();
+  if (lower.includes(homeName.toLowerCase()) || lower.includes(awayName.toLowerCase())) return name;
+  return `${team} ${name}`;
+}
+
+/**
+ * Display an outcome name in its fixture context: formats handicap lines,
+ * prefixes the relevant team name on team-scoped markets whose stored name
+ * lacks it (legacy/derived rows), and passes everything else through.
+ */
+export function displayOutcomeName(
+  name: string,
+  marketKey: string,
+  homeName: string,
+  awayName: string,
+): string {
+  return teamContext(formatOutcomeName(name, marketKey), marketKey, homeName, awayName);
 }
 
 export type HandicapPair = {

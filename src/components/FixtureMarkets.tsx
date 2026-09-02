@@ -6,7 +6,7 @@ import { IconStar, IconChevronDown } from "@/components/icons";
 import { fmtOdds } from "@/lib/odds";
 import { useTranslation } from "react-i18next";
 import { tMarket } from "@/lib/i18n";
-import { formatOutcomeName, groupHandicapPairs, HANDICAP_MARKET_KEYS } from "@/lib/market-labels";
+import { displayOutcomeName, formatOutcomeName, groupHandicapPairs, HANDICAP_MARKET_KEYS } from "@/lib/market-labels";
 
 type FixtureOutcome = {
   id: string;
@@ -313,7 +313,7 @@ export default function FixtureMarkets({ game, markets }: { game: FixtureCtx; ma
                         disabled={!active}
                         onClick={() => select(m, o)}
                         aria-pressed={selected}
-                        title={active ? `${formatOutcomeName(o.name, m.key)} @ ${fmtOdds(odds)}` : t("common.suspended")}
+                        title={active ? `${displayOutcomeName(o.name, m.key, game.homeName, game.awayName)} @ ${fmtOdds(odds)}` : t("common.suspended")}
                         className={`flex items-center justify-between gap-1 rounded-md px-2 py-2 text-left transition-all active:scale-[0.98] ${
                           selected
                             ? SELECTED_CLS
@@ -326,7 +326,7 @@ export default function FixtureMarkets({ game, markets }: { game: FixtureCtx; ma
                               {o.label}
                             </span>
                           )}
-                          <span className="truncate text-xs font-bold">{formatOutcomeName(o.name, m.key)}</span>
+                          <span className="truncate text-xs font-bold">{displayOutcomeName(o.name, m.key, game.homeName, game.awayName)}</span>
                         </span>
                         {active ? (
                           <span className="shrink-0 text-xs font-extrabold tabular-nums text-brand">

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { formatDateTime, fmtOdds } from "@/lib/odds";
+import { teamContext } from "@/lib/market-labels";
 import { IconChevronDown } from "@/components/icons";
 import type { DetailSelection } from "@/components/account/BetActions";
 
@@ -16,6 +17,32 @@ const TYPE_LABEL: Record<string, string> = {
   HT_RESULT: "Half-Time Result",
   HALF_TIME_RESULT: "Half-Time Result",
   DRAW_NO_BET: "Draw No Bet",
+  // Extended / derived families
+  ALTERNATE_TOTALS: "Goal Line",
+  ALTERNATE_SPREAD: "Handicap",
+  SPREAD: "Handicap",
+  SPREAD_1H: "1st Half Handicap",
+  SPREAD_2H: "2nd Half Handicap",
+  TEAM_TOTALS_HOME: "Home Team Totals",
+  TEAM_TOTALS_AWAY: "Away Team Totals",
+  CORRECT_SCORE: "Correct Score",
+  HT_FT: "Half-Time / Full-Time",
+  GOAL_PARITY: "Odd/Even",
+  CLEAN_SHEET: "Clean Sheet",
+  WIN_TO_NIL: "Win to Nil",
+  MULTI_GOALS: "Multi-Goals",
+  HIGHEST_SCORING_HALF: "Highest Scoring Half",
+  FIRST_HALF_BTTS: "1st Half BTTS",
+  EUROPEAN_HANDICAP: "European Handicap",
+  OVER_UNDER_1H: "1st Half Over/Under",
+  OVER_UNDER_2H: "2nd Half Over/Under",
+  TOTAL_CORNERS: "Total Corners",
+  TOTAL_BOOKINGS: "Total Cards/Bookings",
+  CORNERS_1X2: "Corners 1X2",
+  CORNERS_HANDICAP: "Handicap Corners",
+  CARDS_HANDICAP: "Handicap Cards",
+  TEAM_CORNERS: "Team Total Corners",
+  TO_QUALIFY: "To Qualify",
 };
 
 const RESULT_STYLE: Record<string, string> = {
@@ -76,7 +103,7 @@ export default function BetSelections({ selections }: { selections: DetailSelect
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-ink3">Pick</span>
                   <span className="text-right font-semibold">
-                    {s.outcome} <span className="text-brand">({fmtOdds(s.odds)})</span>
+                    {teamContext(s.outcome, s.marketKey, s.home, s.away)} <span className="text-brand">({fmtOdds(s.odds)})</span>
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-3">

@@ -280,14 +280,14 @@ export function deriveMarketsFrom1x2(
     ],
   });
 
-  // Alternate totals — O/U 0.5 … 5.5
+  // Alternate totals — O/U 0.5 … 5.5 (displayed as "Goal Line")
   const altTot: DerivedOutcome[] = [];
   for (let line = 0.5; line <= 5.5; line += 1) {
     const pOver = poissonTail(lh + la, Math.ceil(line));
     altTot.push({ name: `Over ${line}`, odds: priced(pOver, marginFor(overround, 12)) });
     altTot.push({ name: `Under ${line}`, odds: priced(1 - pOver, marginFor(overround, 12)) });
   }
-  markets.push({ key: "ALTERNATE_TOTALS", name: "Alternate Totals", sortOrder: 13, outcomes: altTot });
+  markets.push({ key: "ALTERNATE_TOTALS", name: "Goal Line", sortOrder: 13, outcomes: altTot });
 
   // Alternate spreads — home handicap −2.5 … +2.5 (half lines only, no
   // pushes). Home covers line h ⟺ diff ≥ round(0.5 − h).
@@ -300,18 +300,19 @@ export function deriveMarketsFrom1x2(
   }
   markets.push({ key: "ALTERNATE_SPREAD", name: "Alternate Handicaps", sortOrder: 14, outcomes: altSpr });
 
-  // Team totals — home & away O/U 0.5 … 3.5
-  const teamOutcomes = (lam: number, label: string): DerivedOutcome[] => {
+  // Team totals — home & away O/U 0.5 … 3.5, outcome names carry the team
+  // so plain buttons never render context-less ("Arsenal Over 1.5").
+  const teamOutcomes = (lam: number, teamName: string, label: string): DerivedOutcome[] => {
     const out: DerivedOutcome[] = [];
     for (let line = 0.5; line <= 3.5; line += 1) {
       const pOver = poissonTail(lam, Math.ceil(line));
-      out.push({ name: `Over ${line}`, label, odds: priced(pOver, marginFor(overround, 8)) });
-      out.push({ name: `Under ${line}`, label, odds: priced(1 - pOver, marginFor(overround, 8)) });
+      out.push({ name: `${teamName} Over ${line}`, label, odds: priced(pOver, marginFor(overround, 8)) });
+      out.push({ name: `${teamName} Under ${line}`, label, odds: priced(1 - pOver, marginFor(overround, 8)) });
     }
     return out;
   };
-  markets.push({ key: "TEAM_TOTALS_HOME", name: "Home Team Totals", sortOrder: 15, outcomes: teamOutcomes(lh, "1") });
-  markets.push({ key: "TEAM_TOTALS_AWAY", name: "Away Team Totals", sortOrder: 16, outcomes: teamOutcomes(la, "2") });
+  markets.push({ key: "TEAM_TOTALS_HOME", name: "Home Team Totals", sortOrder: 15, outcomes: teamOutcomes(lh, homeName, "1") });
+  markets.push({ key: "TEAM_TOTALS_AWAY", name: "Away Team Totals", sortOrder: 16, outcomes: teamOutcomes(la, awayName, "2") });
 
   // Half-time lines — 47% / 53% split of the FT expectation
   const lh1 = lh * HT_GOAL_SHARE;

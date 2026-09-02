@@ -107,9 +107,9 @@ export const LIST_MARKETS = ["h2h", "spreads", "totals"] as const;
  * leagues by default). Other sports are never affected by the extended keys.
  *
  * Quota: each extended key costs 1 credit per market per event on the
- * per-event pass (ODDS_API_EVENT_MARKET_LIMIT × leagues). 28 keys × 4 events
- * × 6 leagues ≈ 600–670 credits per sync worst case — comfortable on the
- * paid 20K tier at the default every-3-days cadence (~7K/mo), NOT on the
+ * per-event pass (ODDS_API_EVENT_MARKET_LIMIT × leagues). 26 keys × 4 events
+ * × 6 leagues ≈ 550–620 credits per sync worst case — comfortable on the
+ * paid 20K tier at the default every-3-days cadence (~6.5K/mo), NOT on the
  * free 500/mo tier. Trim via ODDS_API_MARKETS / ODDS_API_EVENT_MARKET_LIMIT.
  */
 export const ODDS_MARKETS = (
@@ -125,8 +125,6 @@ export const ODDS_MARKETS = (
     "correct_score",
     "alternate_spreads",
     "alternate_totals",
-    "team_totals",
-    "alternate_team_totals",
     "h2h_h1",
     "totals_h1",
     "spreads_h1",
@@ -170,7 +168,7 @@ const MARKET_MAP: {
   { key: "spreads_h1", local: "SPREAD_1H", name: "1st Half Handicap" },
   { key: "spreads_h2", local: "SPREAD_2H", name: "2nd Half Handicap" },
   { key: "alternate_spreads", local: "ALTERNATE_SPREAD", name: "Alternate Handicaps" },
-  { key: "alternate_totals", local: "ALTERNATE_TOTALS", name: "Alternate Totals" },
+  { key: "alternate_totals", local: "ALTERNATE_TOTALS", name: "Goal Line" },
   { key: "correct_score", local: "CORRECT_SCORE", name: "Correct Score" },
   { key: "btts", local: "BTTS", name: "Both Teams to Score" },
   { key: "double_chance", local: "DOUBLE_CHANCE", name: "Double Chance" },

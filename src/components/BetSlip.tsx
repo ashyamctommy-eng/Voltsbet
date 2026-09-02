@@ -2,11 +2,15 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useTranslation } from "react-i18next";
 import { useBetSlip } from "@/components/BetSlipContext";
 import { useToast } from "@/components/BetSlipContext";
 import { useCurrency } from "@/components/CurrencyProvider";
 import { apiFetch } from "@/lib/client";
 import { fmtOdds } from "@/lib/odds";
+import { currencyPrefix } from "@/lib/currency-format";
+import { selectionMarketLabel, tOutcome } from "@/lib/i18n";
+import { teamContext } from "@/lib/market-labels";
 import { IconX, IconTrash } from "@/components/icons";
 
 type PlaceResponse = {
@@ -25,6 +29,7 @@ type SlipAccount = {
 const QUICK_STAKES = [50, 100, 500, 1000];
 
 export default function BetSlip() {
+  const { t } = useTranslation();
   const { items, remove, clear, open, setOpen, mode, setMode, stake, setStake, totalOdds, potentialWin } = useBetSlip();
   const { push } = useToast();
   const [placing, setPlacing] = useState(false);
@@ -137,10 +142,8 @@ export default function BetSlip() {
         <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
           <div className="fade-in absolute inset-0 bg-black/70" onClick={() => setOddsChange(null)} />
           <div className="fade-in card relative w-full max-w-md p-6">
-            <h3 className="text-lg font-bold">Odds have changed</h3>
-            <p className="mt-1 text-sm text-ink2">
-              The following odds moved since you added them. Place your bet at the new odds?
-            </p>
+            <h3 className="text-lg font-bold">{t("betslip.oddsChanged")}</h3>
+            <p className="mt-1 text-sm text-ink2">{t("betslip.oddsChangedHint")}</p>
             <div className="mt-4 space-y-2">
               {oddsChange.changed.map((c) => (
                 <div key={c.outcomeId} className="flex items-center justify-between rounded-lg bg-card2 px-3 py-2 text-sm">
@@ -153,15 +156,15 @@ export default function BetSlip() {
               ))}
             </div>
             <div className="mt-4 flex items-center justify-between rounded-lg border border-line px-3 py-2 text-sm">
-              <span className="text-ink2">New total odds</span>
+              <span className="text-ink2">{t("betslip.newTotalOdds")}</span>
               <span className="font-bold text-green-400">{fmtOdds(oddsChange.totalOdds)}</span>
             </div>
             <div className="mt-5 flex gap-3">
               <button className="btn btn-ghost flex-1" onClick={() => setOddsChange(null)}>
-                Cancel
+                {t("betslip.cancel")}
               </button>
               <button className="btn btn-primary flex-1" onClick={() => { setOddsChange(null); place(true); }}>
-                Accept & Place Bet
+                {t("betslip.acceptAndPlace")}
               </button>
             </div>
           </div>
@@ -192,7 +195,16 @@ function SlipBody(props: {
   visible?: boolean;
 }) {
   const { items, mode, setMode, stake, setStake, totalOdds, potentialWin, remove, clear, place, placing, stakeNum, balance, minStake, account, onClose, visible } = props;
+  const { t } = useTranslation();
   const stakeRef = useRef<HTMLInputElement>(null);
+
+  // Money is ALWAYS the user's account (wallet) currency — USD or KES. The
+  // slip never converts to a display currency: the stake is wagered in the
+  // wallet currency, so every shown amount must match what is actually bet.
+  const { formatCurrency, defaultCode } = useCurrency();
+  const moneyCur = account?.wallet?.currencyCode ?? defaultCode;
+  const moneyPrefix = currencyPrefix(moneyCur);
+  const widePrefix = moneyPrefix.length >= 3;
 
   // Auto-focus the stake input the moment the slip opens — one less tap
   // between picking an outcome and placing the bet.
@@ -201,22 +213,17 @@ function SlipBody(props: {
     const t = setTimeout(() => stakeRef.current?.focus({ preventScroll: true }), 250);
     return () => clearTimeout(t);
   }, [visible]);
-  const { code: activeCur, formatCurrency, convertAmount, defaultCode } = useCurrency();
-  // The betslip shows EVERY figure in the global active currency (resolved
-  // as: admin force-default → user preference → IP auto-detect → USD).
-  // Balance converts from the wallet's holding currency; stake / potential
-  // win are entered/computed in the platform default currency.
-  const walletCur = account?.wallet?.currencyCode ?? defaultCode;
+
   const multiple = items.length > 1;
   const shown = mode === "SINGLE" ? items.slice(0, 1) : items;
 
   const canPlace = stakeNum > 0 && stakeNum >= minStake && stakeNum <= balance && !placing;
   const reason = stakeNum <= 0
-    ? "Enter your stake"
+    ? t("betslip.enterStakeHint")
     : stakeNum < minStake
-      ? `Minimum stake is ${formatCurrency(convertAmount(minStake, defaultCode, activeCur), activeCur)}`
+      ? t("betslip.minStake", { amount: formatCurrency(minStake, moneyCur) })
       : stakeNum > balance
-        ? "Insufficient balance"
+        ? t("betslip.insufficientBalance")
         : "";
 
   /** Quick stake increments (+50/+100/+500/+1000) — add to the current stake. */
@@ -230,17 +237,17 @@ function SlipBody(props: {
       {/* ── Header: Betslip · Clear All · ✕ ── */}
       <div className="sticky top-0 z-10 border-b border-line bg-panel-bg px-3 py-2">
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-extrabold">Betslip</h2>
+          <h2 className="text-base font-extrabold">{t("betslip.title")}</h2>
           <div className="flex items-center gap-3">
             {items.length > 0 && (
               <button className="text-xs font-semibold text-ink3 transition-colors hover:text-red-400" onClick={clear}>
-                Clear All
+                {t("betslip.clearAll")}
               </button>
             )}
             <button
               className="rounded-lg p-1 text-ink3 transition-colors hover:bg-hover-tint hover:text-ink"
               onClick={onClose}
-              aria-label="Close betslip"
+              aria-label={t("betslip.close")}
             >
               <IconX className="h-5 w-5" />
             </button>
@@ -252,13 +259,13 @@ function SlipBody(props: {
               className={`px-3 py-1.5 ${mode === "SINGLE" ? "bg-brand text-[#052e16]" : "text-ink2 hover:text-ink"}`}
               onClick={() => setMode("SINGLE")}
             >
-              Singles
+              {t("betslip.singles")}
             </button>
             <button
               className={`px-3 py-1.5 ${mode === "MULTIPLE" ? "bg-brand text-[#052e16]" : "text-ink2 hover:text-ink"}`}
               onClick={() => setMode("MULTIPLE")}
             >
-              Accumulator
+              {t("betslip.accumulator")}
             </button>
           </div>
         )}
@@ -269,10 +276,10 @@ function SlipBody(props: {
         {items.length === 0 ? (
           <div className="mt-8 text-center">
             <div className="text-3xl">🎯</div>
-            <p className="mt-3 text-sm text-ink3">Your bet slip is empty.</p>
-            <p className="mt-1 text-xs text-ink3">Tap on odds to add selections.</p>
+            <p className="mt-3 text-sm text-ink3">{t("betslip.empty")}</p>
+            <p className="mt-1 text-xs text-ink3">{t("betslip.emptyHint")}</p>
             <Link href="/sports" className="btn btn-ghost btn-sm mt-4" onClick={onClose}>
-              Browse sports
+              {t("betslip.browseSports")}
             </Link>
           </div>
         ) : (
@@ -286,19 +293,20 @@ function SlipBody(props: {
                       {item.home} vs {item.away}
                     </div>
                     <div className="mt-0.5 text-xs text-ink2">
-                      {item.market} · {item.outcome}
+                      {selectionMarketLabel(item.market, item.outcome)} ·{" "}
+                      {teamContext(tOutcome(item.outcome), item.marketKey ?? "", item.home, item.away)}
                     </div>
                   </div>
                   <button
                     className="rounded-lg p-1.5 text-ink3 transition-colors hover:bg-red-500/10 hover:text-red-400"
                     onClick={() => remove(item.outcomeId)}
-                    aria-label={`Remove ${item.home} vs ${item.away}`}
+                    aria-label={`${t("betslip.remove")} ${item.home} vs ${item.away}`}
                   >
                     <IconTrash className="h-4 w-4" />
                   </button>
                 </div>
                 <div className="mt-1.5 flex items-center justify-between border-t border-line pt-1.5">
-                  <span className="text-xs text-ink3">{item.label ? `${item.label} · ` : ""}Odds</span>
+                  <span className="text-xs text-ink3">{item.label ? `${item.label} · ` : ""}{t("betslip.odds")}</span>
                   <span
                     className={`rounded px-1.5 py-0.5 font-bold text-green-400 transition-colors ${
                       item.trend === "up" ? "odds-flash-up" : item.trend === "down" ? "odds-flash-down" : ""
@@ -318,36 +326,36 @@ function SlipBody(props: {
       {items.length > 0 && (
         <div className="sticky bottom-0 border-t border-line bg-panel-bg px-3 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-4">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-ink2">Total Odds</span>
+            <span className="text-ink2">{t("betslip.totalOdds")}</span>
             <span className="text-base font-bold text-green-400">{totalOdds ? fmtOdds(totalOdds) : "—"}</span>
           </div>
 
           <div className="mt-2">
             <div className="flex items-center justify-between">
-              <label className="label mb-1" htmlFor="slip-stake">Stake</label>
+              <label className="label mb-1" htmlFor="slip-stake">{t("betslip.stake")}</label>
               <span className="mb-1 text-[11px] text-ink3">
-                Balance: <b className="text-green-400">{account ? formatCurrency(convertAmount(balance, walletCur, activeCur), activeCur) : "—"}</b>
+                {t("betslip.balance")} <b className="text-green-400">{account ? formatCurrency(balance, moneyCur) : "—"}</b>
               </span>
             </div>
             <div className="relative">
-              {/* Currency prefix as a distinct left label — padded by code
-                  length so 3-letter codes (KES/USD) never overlap the value. */}
+              {/* Currency prefix as a distinct left label — padded by symbol
+                  length so codes/symbols never overlap the value. */}
               <span
                 className={`pointer-events-none absolute left-3 top-1/2 flex -translate-y-1/2 items-center rounded bg-hover-tint px-1.5 py-0.5 text-[11px] font-black tracking-wide text-ink2 ${
-                  activeCur.length >= 3 ? "w-9 justify-center" : ""
+                  widePrefix ? "w-9 justify-center" : ""
                 }`}
               >
-                {activeCur}
+                {moneyPrefix}
               </span>
               <input
                 id="slip-stake"
                 ref={stakeRef}
-                className={`input ${activeCur.length >= 3 ? "!pl-16" : "!pl-9"}`}
+                className={`input ${widePrefix ? "!pl-16" : "!pl-9"}`}
                 type="number"
                 min="1"
                 step="any"
                 inputMode="decimal"
-                placeholder="Enter stake"
+                placeholder={t("betslip.enterStake")}
                 value={stake}
                 onChange={(e) => setStake(e.target.value)}
               />
@@ -368,31 +376,31 @@ function SlipBody(props: {
                 className="rounded-lg border border-line2 px-2.5 py-1.5 text-xs font-bold text-ink2 transition-colors hover:border-ink3"
                 onClick={() => setStake(String(balance))}
               >
-                Max
+                {t("betslip.max")}
               </button>
             </div>
           </div>
 
           <div className="mt-2 flex items-center justify-between text-sm">
-            <span className="text-ink2">Potential Win</span>
+            <span className="text-ink2">{t("betslip.potentialWin")}</span>
             <span className="text-base font-bold text-green-400">
-              {potentialWin > 0 ? formatCurrency(convertAmount(potentialWin, defaultCode, activeCur), activeCur) : "—"}
+              {potentialWin > 0 ? formatCurrency(potentialWin, moneyCur) : "—"}
             </span>
           </div>
 
           {/* Full-width green Place Bet CTA */}
           <button className="mt-2.5 w-full rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 py-3 text-base font-black text-[#052e16] shadow-[0_6px_20px_rgba(0,230,118,0.35)] transition-transform active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none" disabled={!canPlace} onClick={place}>
-            {placing ? "Placing…" : `Place Bet${stakeNum > 0 ? ` · ${formatCurrency(convertAmount(potentialWin, defaultCode, activeCur), activeCur)}` : ""}`}
+            {placing ? t("betslip.placing") : `${t("betslip.placeBet")}${stakeNum > 0 ? ` · ${formatCurrency(potentialWin, moneyCur)}` : ""}`}
           </button>
           {reason ? (
             <p className="mt-3 text-center text-[11px] font-medium text-amber-400">{reason}</p>
           ) : (
             <p className="mt-3 text-center text-[11px] text-ink3">
               {mode === "MULTIPLE"
-                ? `${items.length}-fold accumulator`
+                ? t("betslip.accumulatorFold", { count: items.length })
                 : items.length > 1
-                  ? "Single: places the first selection as a single bet"
-                  : "Single bet"}
+                  ? t("betslip.singleFirst")
+                  : t("betslip.singleBet")}
             </p>
           )}
         </div>

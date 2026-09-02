@@ -15,19 +15,22 @@ export default function RegisterPage() {
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  /** Active currencies from the DB (data-driven dropdown) + platform default. */
+  /** Wallet currencies are strictly USD | KES (data-driven list filtered). */
   const [currencies, setCurrencies] = useState<{ code: string; name: string; symbol: string }[] | null>(null);
 
   const set = (k: string, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }));
 
-  // Load the DB currency list; pre-select the platform's default currency.
+  // Load the DB currency list (filtered to the USD|KES wallet set); pre-select
+  // the platform default when it is one of the two.
   useEffect(() => {
     const t = setTimeout(() => {
       void apiFetch<{ currencies: { code: string; name: string; symbol: string }[]; defaultCode: string }>("/api/public/currencies")
         .then((r) => {
           if (!r.ok || !r.data.currencies.length) return;
-          setCurrencies(r.data.currencies);
-          if (r.data.defaultCode) set("currency", r.data.defaultCode);
+          const wallets = r.data.currencies.filter((c) => c.code === "USD" || c.code === "KES");
+          if (!wallets.length) return;
+          setCurrencies(wallets);
+          if (r.data.defaultCode === "USD" || r.data.defaultCode === "KES") set("currency", r.data.defaultCode);
         });
     }, 0);
     return () => clearTimeout(t);
@@ -121,13 +124,6 @@ export default function RegisterPage() {
               {(currencies ?? [
                 { code: "KES", name: "Kenyan Shilling", symbol: "KSh" },
                 { code: "USD", name: "US Dollar", symbol: "$" },
-                { code: "EUR", name: "Euro", symbol: "€" },
-                { code: "GBP", name: "British Pound", symbol: "£" },
-                { code: "UGX", name: "Ugandan Shilling", symbol: "USh" },
-                { code: "TZS", name: "Tanzanian Shilling", symbol: "TSh" },
-                { code: "NGN", name: "Nigerian Naira", symbol: "₦" },
-                { code: "GHS", name: "Ghanaian Cedi", symbol: "GH₵" },
-                { code: "ZAR", name: "South African Rand", symbol: "R" },
               ]).map((c) => (
                 <option key={c.code} value={c.code}>{c.code} — {c.name}</option>
               ))}
