@@ -257,10 +257,25 @@ function normalizeOutcomeName(
 }
 
 /** Derive a totals-style display name from the outcomes (e.g. "Over/Under 2.5"). */
-function totalsName(outcomes: { name: string; price: number }[], fallback: string): string {
+function totalsName(outcomes: { name: string; price?: number | null }[], fallback: string): string {
   const over = outcomes.find((o) => o.name.toLowerCase().startsWith("over"));
   const line = over?.name.trim().replace(/^over\s+/i, "");
   return line ? `${fallback} ${line}` : fallback;
+}
+
+/**
+ * Sanitize provider outcome prices BEFORE the margin engine: drop any outcome
+ * with a missing/zero/non-numeric price (suspended lines are sometimes served
+ * as null/0). Without this, `1 / o.odds` yields NaN and the NaN price would
+ * crash the DB write (`odds.toFixed()` → Prisma Decimal) further down the
+ * sync — one suspended line could take the whole sync down.
+ */
+function pricedOutcomes(raw: { name: string; price?: number | null }[], marginPercent: number) {
+  const valid = raw
+    .filter((o) => typeof o.price === "number" && Number.isFinite(o.price) && o.price > 1)
+    .map((o) => ({ name: o.name, odds: o.price as number }));
+  if (!valid.length) return [];
+  return applyMarginGrid(valid, marginPercent);
 }
 
 /**
@@ -349,7 +364,16 @@ export class TheOddsApi implements OddsProvider {
       if (hit && Date.now() - hit.at < ODDS_CACHE_TTL_MS) {
         data = hit.data as typeof data; // served from cache — 0 API cost
       } else {
-        data = await this.requestOdds(sportKey, regions, listMarkets);
+        // Per-league fault isolation: a league that 500s/422s/rate-limits
+        // must never abort the other leagues' odds. Log + skip the league.
+        try {
+          data = await this.requestOdds(sportKey, regions, listMarkets);
+        } catch (e) {
+          console.warn(
+            `[odds-api] league ${sportKey} odds skipped: ${e instanceof Error ? e.message : String(e)}`
+          );
+          continue;
+        }
         oddsCache.set(cacheKey, { at: Date.now(), data });
       }
       const now = Date.now();
@@ -363,8 +387,8 @@ export class TheOddsApi implements OddsProvider {
         // Aggregate across bookmakers: for each requested market take the FIRST
         // book that offers it (bookmakers[0] alone silently drops markets).
         for (const spec of MARKET_MAP) {
-          const book = ev.bookmakers.find((b) => b.markets.some((m) => m.key === spec.key));
-          const m = book?.markets.find((m) => m.key === spec.key);
+          const book = ev.bookmakers.find((b) => b.markets?.some((m) => m.key === spec.key));
+          const m = book?.markets?.find((mk) => mk.key === spec.key);
           if (!m?.outcomes?.length) continue;
           const name =
             spec.local.startsWith("OVER_UNDER")
@@ -373,10 +397,7 @@ export class TheOddsApi implements OddsProvider {
           markets_.push({
             key: spec.local,
             name,
-            outcomes: applyMarginGrid(
-              m.outcomes.map((o) => ({ name: o.name, odds: o.price })),
-              (await getSettings()).oddsMarginPercent,
-            ),
+            outcomes: pricedOutcomes(m.outcomes, (await getSettings()).oddsMarginPercent),
           });
         }
         if (!markets_.length) continue; // books exist but no requested prices → skip
@@ -415,80 +436,106 @@ export class TheOddsApi implements OddsProvider {
     // where both books serve a market. Override via ODDS_API_EVENT_BOOKMAKERS.
     const bookmakers = process.env.ODDS_API_EVENT_BOOKMAKERS ?? "bovada,pinnacle";
     const out: ApiGame[] = [];
+    let skipped = 0;
     for (const ev of events) {
-      const cacheKey = `ev:${ev.eventId}:${bookmakers}:${extended.join(",")}`;
-      const hit = oddsCache.get(cacheKey);
-      let data: {
-        id: string; sport_key: string; commence_time: string; home_team: string; away_team: string;
-        bookmakers: { key: string; markets: { key: string; outcomes: { name: string; price: number }[] }[] }[];
-      }[];
-      if (hit && Date.now() - hit.at < ODDS_CACHE_TTL_MS) {
-        data = hit.data as typeof data;
-      } else {
-        // NOTE: /events/{id}/odds returns ONE event object (not an array).
-        // Graceful market degradation: if the API rejects some configured
-        // markets (422 INVALID_MARKET — e.g. a key added to ODDS_API_MARKETS
-        // that the provider doesn't serve), drop exactly those and retry
-        // once. A bad key must never take the whole sync down.
-        let requestMarkets = extended;
-        try {
-          const raw = (await this.get(
-            `/sports/${encodeURIComponent(ev.sportKey)}/events/${encodeURIComponent(ev.eventId)}/odds?bookmakers=${encodeURIComponent(bookmakers)}&markets=${requestMarkets.join(",")}&oddsFormat=decimal`
-          )) as (typeof data)[number] | null | (typeof data)[number][];
-          data = raw == null ? [] : Array.isArray(raw) ? raw : [raw];
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : "";
-          const m = msg.match(/Invalid markets: ([^\]]+)/i);
-          if (m) {
-            const invalid = new Set(m[1].split(",").map((x) => x.trim()));
-            requestMarkets = extended.filter((k) => !invalid.has(k));
-            if (!requestMarkets.length) throw e;
-            const raw = (await this.get(
-              `/sports/${encodeURIComponent(ev.sportKey)}/events/${encodeURIComponent(ev.eventId)}/odds?bookmakers=${encodeURIComponent(bookmakers)}&markets=${requestMarkets.join(",")}&oddsFormat=decimal`
+      // FAULT ISOLATION: the per-event pass is quota-expensive and runs over
+      // ~24 fixtures. A single event that 404s (kicked off / delisted),
+      // 422s on every configured market, returns an unexpected shape, or
+      // trips a transient provider error must NEVER take the whole sync
+      // down — skip it, log it, and keep pricing the rest. (Observed live
+      // 2026-09-01: soccer events served by /odds with ZERO bookmaker
+      // coverage on /events/{id}/odds — the blip that 500'd every sync.)
+      try {
+        const cacheKey = `ev:${ev.eventId}:${bookmakers}:${extended.join(",")}`;
+        const hit = oddsCache.get(cacheKey);
+        let data: {
+          id: string; sport_key: string; commence_time: string; home_team: string; away_team: string;
+          bookmakers?: { key: string; markets: { key: string; outcomes: { name: string; price?: number | null }[] }[] }[];
+        }[];
+        if (hit && Date.now() - hit.at < ODDS_CACHE_TTL_MS) {
+          data = hit.data as typeof data;
+        } else {
+          // NOTE: /events/{id}/odds returns ONE event object (not an array).
+          // Graceful market degradation: if the API rejects some configured
+          // markets (422 INVALID_MARKET — e.g. a key added to ODDS_API_MARKETS
+          // that the provider doesn't serve), drop exactly those and retry
+          // once. A bad key must never take the whole sync down.
+          let requestMarkets = extended;
+          const fetchOnce = async (ms: readonly string[]) =>
+            (await this.get(
+              `/sports/${encodeURIComponent(ev.sportKey)}/events/${encodeURIComponent(ev.eventId)}/odds?bookmakers=${encodeURIComponent(bookmakers)}&markets=${ms.join(",")}&oddsFormat=decimal`
             )) as (typeof data)[number] | null | (typeof data)[number][];
+          try {
+            const raw = await fetchOnce(requestMarkets);
             data = raw == null ? [] : Array.isArray(raw) ? raw : [raw];
-          } else {
-            throw e;
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : "";
+            const m = msg.match(/Invalid markets: ([^\]]+)/i);
+            if (m) {
+              const invalid = new Set(m[1].split(",").map((x) => x.trim()));
+              requestMarkets = extended.filter((k) => !invalid.has(k));
+              if (!requestMarkets.length) {
+                // Every configured market is invalid for this event — the
+                // event is unpriceable, not a fatal error.
+                console.warn(`[odds-api] ${ev.sportKey} ${ev.eventId}: all markets invalid for event — skipping`);
+                oddsCache.set(cacheKey, { at: Date.now(), data: [] });
+                skipped++;
+                continue;
+              }
+              const raw = await fetchOnce(requestMarkets);
+              data = raw == null ? [] : Array.isArray(raw) ? raw : [raw];
+            } else {
+              throw e; // caught by the per-event isolation below
+            }
           }
+          oddsCache.set(cacheKey, { at: Date.now(), data });
         }
-        oddsCache.set(cacheKey, { at: Date.now(), data });
-      }
-      if (!data?.length) continue; // no bookmaker served these markets → skip
+        if (!data?.length) continue; // no bookmaker served these markets → skip
 
-      const marketsOut: ApiGame["markets"] = [];
-      for (const spec of MARKET_MAP) {
-        if (!extended.includes(spec.key)) continue;
-        const book = data[0].bookmakers.find((b) => b.markets.some((m) => m.key === spec.key));
-        const m = book?.markets.find((m) => m.key === spec.key);
-        if (!m?.outcomes?.length) continue;
-        const name =
-          spec.local.startsWith("OVER_UNDER")
-            ? totalsName(m.outcomes, spec.name)
-            : spec.name;
-        // Margin first (names survive unchanged), then normalize names/labels
-        // to the local conventions the settlement engine expects.
-        const priced = applyMarginGrid(
-          m.outcomes.map((o) => ({ name: o.name, odds: o.price })),
-          (await getSettings()).oddsMarginPercent,
-        );
-        marketsOut.push({
-          key: spec.local,
-          name,
-          outcomes: priced.map((o) => {
-            const norm = normalizeOutcomeName(spec.local, o.name, ev.homeName, ev.awayName);
-            return { name: norm.name, label: norm.label, odds: o.odds };
-          }),
+        const marketsOut: ApiGame["markets"] = [];
+        for (const spec of MARKET_MAP) {
+          if (!extended.includes(spec.key)) continue;
+          const book = data[0].bookmakers?.find((b) => b.markets?.some((mk) => mk.key === spec.key));
+          const m = book?.markets?.find((mk) => mk.key === spec.key);
+          if (!m?.outcomes?.length) continue;
+          const name =
+            spec.local.startsWith("OVER_UNDER")
+              ? totalsName(m.outcomes, spec.name)
+              : spec.name;
+          // Margin first (names survive unchanged), then normalize names/labels
+          // to the local conventions the settlement engine expects. Invalid
+          // prices are dropped by pricedOutcomes before they reach the DB.
+          const priced = pricedOutcomes(m.outcomes, (await getSettings()).oddsMarginPercent);
+          if (!priced.length) continue;
+          marketsOut.push({
+            key: spec.local,
+            name,
+            outcomes: priced.map((o) => {
+              const norm = normalizeOutcomeName(spec.local, o.name, ev.homeName, ev.awayName);
+              return { name: norm.name, label: norm.label, odds: o.odds };
+            }),
+          });
+        }
+        if (!marketsOut.length) continue;
+        out.push({
+          externalId: ev.eventId,
+          sportKey: ev.sportKey,
+          homeName: ev.homeName,
+          awayName: ev.awayName,
+          startAt: new Date(data[0].commence_time),
+          markets: marketsOut,
         });
+      } catch (e) {
+        skipped++;
+        console.warn(
+          `[odds-api] event ${ev.sportKey}/${ev.eventId} skipped: ${
+            e instanceof Error ? e.message : String(e)
+          }`
+        );
       }
-      if (!marketsOut.length) continue;
-      out.push({
-        externalId: ev.eventId,
-        sportKey: ev.sportKey,
-        homeName: ev.homeName,
-        awayName: ev.awayName,
-        startAt: new Date(data[0].commence_time),
-        markets: marketsOut,
-      });
+    }
+    if (skipped > 0) {
+      console.warn(`[odds-api] per-event pass: ${skipped} of ${events.length} events skipped (see above)`);
     }
     return out;
   }
