@@ -85,6 +85,13 @@ export type SiteSettings = {
   cronSecret: string; // bearer token for /api/cron/* endpoints
 };
 
+/**
+ * The crypto.currencies default shipped before the 11-coin expansion
+ * (commit 53324a1). A stored value equal to this is treated as "never
+ * customized" and auto-upgraded to DEFAULTS.cryptoCurrencies at read time.
+ */
+const LEGACY_CRYPTO_CURRENCIES = ["BTC", "ETH", "USDT", "USDC"];
+
 const DEFAULTS: SiteSettings = {
   siteName: "UNIBET360",
   tagline: "Live the rush",
@@ -204,6 +211,16 @@ export async function getSettings(): Promise<SiteSettings> {
   s.cryptoExpirationMinutes = Number(raw["crypto.expirationMinutes"] ?? s.cryptoExpirationMinutes);
   try { s.cryptoCurrencies = JSON.parse(raw["crypto.currencies"] ?? "[]"); } catch {}
   if (!s.cryptoCurrencies.length) s.cryptoCurrencies = DEFAULTS.cryptoCurrencies;
+  // Auto-upgrade: a stored list that still equals the LEGACY 4-coin default
+  // (shipped before the 11-coin expansion) means the admin never customized
+  // it — promote to the extended default so the new majors appear without a
+  // manual settings/DB edit. A genuinely customized list is left untouched.
+  else if (
+    s.cryptoCurrencies.length === LEGACY_CRYPTO_CURRENCIES.length &&
+    LEGACY_CRYPTO_CURRENCIES.every((c) => s.cryptoCurrencies.includes(c))
+  ) {
+    s.cryptoCurrencies = DEFAULTS.cryptoCurrencies;
+  }
   // Merge over the defaults so USDT/BNB stay pinned even when the admin never
   // saved crypto.networks (or saved an empty object) — stored values win.
   try { s.cryptoNetworks = JSON.parse(raw["crypto.networks"] ?? "{}"); } catch {}
