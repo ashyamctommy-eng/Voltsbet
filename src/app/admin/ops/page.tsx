@@ -58,6 +58,12 @@ const OPS: Op[] = [
     type: "Cron",
   },
   {
+    name: "Settlement Review",
+    route: "/admin/games?status=FINISHED",
+    description: "Finished matches with unsettled outcomes auto-settle left behind — open a match and mark Won/Lost/Void per outcome.",
+    type: "Admin",
+  },
+  {
     name: "API Settings & Test",
     route: "/admin/api-settings",
     description: "The Odds API (v4) provider status + connection test — the single sports data source.",
@@ -189,6 +195,44 @@ export default async function OpsPage() {
         Budget watch: The Odds API free tier = 500 req/month; paid tiers raise this. Pre-match sync ~1 req/league,
         live scores ~1 req per active league per sweep (throttled).
       </p>
+
+      {/* Settlement explainer — derived + API-served markets */}
+      <div className="card mt-4 p-5 text-sm">
+        <h3 className="flex items-center gap-2 font-bold">
+          <IconCoins className="h-4 w-4 text-brand" />
+          Auto-settlement — derived &amp; API-served markets
+        </h3>
+        <div className="mt-2 space-y-1.5 text-xs leading-relaxed text-ink2">
+          <p>
+            <b className="text-ink">What auto-settles:</b> the Settlement Cron resolves every FINISHED game's
+            outcomes from the final score once the settlement delay (Admin → Website Settings →{" "}
+            <code className="rounded bg-hover-tint px-1">settlement.delayMinutes</code>, default 10) passes. Both
+            market sources share one resolver (<code className="rounded bg-hover-tint px-1">resolveOutcome</code>):
+            the <b className="text-ink">API-served</b> markets (h2h, totals, spreads/alternates, double chance, draw
+            no bet, BTTS, correct score, HT/FT …) and the <b className="text-ink">derived-engine</b> boards the sync
+            generates from them (double chance, draw no bet, clean sheet, win to nil, multi-goals, odd/even,
+            highest-scoring-half …) — same outcome-name conventions, same resolution. Bets are paid out automatically;
+            no manual step.
+          </p>
+          <p>
+            <b className="text-ink">What stays for admin review:</b> auto-settlement never guesses. Left unsettled
+            (Won/Lost/Void buttons on the match page):
+          </p>
+          <ul className="list-disc space-y-1 pl-5">
+            <li><b className="text-ink">Half-time-dependent markets</b> when the /scores feed has no half-time score — HT/FT, 1st/2nd-half results and totals, 1st-half BTTS, highest-scoring-half. If the DB has half scores they settle automatically.</li>
+            <li><b className="text-ink">Corners / cards / player-prop markets</b> (total corners, corner handicaps, bookings, anytime scorer …) — the feed carries no corner/card/player stats, so decide from your external source.</li>
+            <li><b className="text-ink">Asian quarter-line splits</b> that land mixed (half-win/half-push) — not expressible in a single outcome; whole/half lines settle fine.</li>
+            <li>Unknown keys, unusual outcome names, live edges.</li>
+          </ul>
+          <p>
+            <b className="text-ink">How to settle manually:</b> Admin → Games → filter{" "}
+            <code className="rounded bg-hover-tint px-1">FINISHED</code> → open the match → each unsettled outcome
+            row shows <b className="text-ink">Won / Lost / Void</b> — pick the result and bets pay automatically.
+            Wrong call? Reopen the outcome and re-settle. The cron skips settled outcomes, so a leftover queue never
+            double-pays.
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

@@ -392,7 +392,11 @@ export class TheOddsApi implements OddsProvider {
     const games: ApiGame[] = [];
     // Free tier serves US-region bookmakers only (regions=us); paid plans add
     // eu/uk/au. Configure via ODDS_API_REGIONS. Odds come as decimals either way.
-    const regions = process.env.ODDS_API_REGIONS ?? "us";
+    // Default = eu,us union: eu is the ONLY region with Pinnacle (the deepest
+    // soccer book) and us adds Bovada + the US majors — a missing env var must
+    // never silently drop Pinnacle (verified live 2026-09-02: eu 22 books /
+    // us 10 / eu,us 34 on EPL). Costs 6 credits/league/list instead of 3.
+    const regions = process.env.ODDS_API_REGIONS ?? "eu,us";
     // The list endpoint 422s on anything beyond the featured markets — the
     // extended set (btts, correct_score, …) is fetched per event instead.
     const listMarkets = markets.filter((m) => (LIST_MARKETS as readonly string[]).includes(m));

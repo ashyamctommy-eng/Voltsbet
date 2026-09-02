@@ -19,7 +19,7 @@ export const GET = handle(async (req: NextRequest) => {
       provider: "the-odds-api",
       keySet: !!key,
       keyMasked: key ? "••••" + key.slice(-4) : "",
-      regions: process.env.ODDS_API_REGIONS ?? "us",
+      regions: process.env.ODDS_API_REGIONS ?? "eu,us",
       note: "Sports data is served exclusively by The Odds API (v4) — set ODDS_API_KEY in the server environment.",
     },
   });

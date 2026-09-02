@@ -124,7 +124,7 @@ src/app/api/admin/sync/route.ts manual trigger (admin button on Games page)
 
 ## Setup
 
-1. Set `ODDS_API_KEY` (and optionally `ODDS_API_REGIONS`; free tier = `us`,
+1. Set `ODDS_API_KEY` (and optionally `ODDS_API_REGIONS`; recommended paid value = `eu,us` — `eu` is the only region with Pinnacle, `us` adds Bovada + US majors; union ≈34 books on EPL. Free tier = `us`,
    paid = `us,eu`) in `.env` / Railway vars / VPS env.
 2. Map provider sport keys to local slugs in `SPORT_KEY_MAP` in `src/lib/sync.ts`
    (e.g. `soccer_epl → football`). Extend for the sports you offer.

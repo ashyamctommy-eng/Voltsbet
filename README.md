@@ -151,7 +151,7 @@ build — the compile itself still succeeds.
 | `CRON_SECRET` | ✅ | — | Guards `/api/cron/*` (`?secret=` or `x-cron-secret`) — `openssl rand -hex 32` |
 | `SEED_ADMIN_EMAIL` | seed | `admin@unibet360.test` | Super-admin email created by the seed |
 | `SEED_ADMIN_PASSWORD` | seed | — | **No production fallback** — seed skips admin if unset |
-| `ODDS_API_REGIONS` | — | `us` | Bookmaker regions — paid plans: `us,eu` (more books/leagues) |
+| `ODDS_API_REGIONS` | — | `eu,us` | Bookmaker regions — `eu` is the only region with Pinnacle (deepest soccer book), `us` adds Bovada + US majors. Union = 34 books on EPL (11 full h2h/spreads/totals). 6 credits/league/list. |
 | `ODDS_API_MARKETS` | — | `h2h,spreads,totals,btts,double_chance,draw_no_bet,correct_score` | List-endpoint markets + per-event extended markets; unsupported ones are auto-dropped |
 | `ODDS_API_FALLBACK_LEAGUES` | — | *(all active)* | Comma list of preferred feed leagues (e.g. `soccer_epl,soccer_spain_la_liga`); empty = all active soccer leagues |
 | `ODDS_API_FEED_MAX_LEAGUES` | — | `60` | Max leagues per feed refresh when no override above (1 request each) |
@@ -513,7 +513,7 @@ at install time.
 - [ ] Rotate all API keys shared during development (Odds API, Palpluss, any PATs)
 - [ ] Set `SEED_ADMIN_PASSWORD` / run `deploy/post-install.mjs` — no seeded admin default reaches production
 - [ ] Remove test routes if still present (`/api/test/*`, test preview pages)
-- [ ] Paid Odds API plan → `ODDS_API_REGIONS=us,eu`, sync 3–4×/day
+- [ ] Paid Odds API plan → `ODDS_API_REGIONS=eu,us`, sync 3–4×/day
 - [ ] Wire the 4 cron jobs (Admin → Cronjobs) or add the repo secrets for GitHub Actions
 - [ ] Palpluss: KYC done · default channel set · service + B2C wallets topped up · Test connection ✅
 - [ ] Verify Admin → Games populated before opening bets
