@@ -7,6 +7,7 @@ import { fmtOdds } from "@/lib/odds";
 import { useTranslation } from "react-i18next";
 import { tMarket } from "@/lib/i18n";
 import { displayOutcomeName, formatOutcomeName, groupHandicapPairs, HANDICAP_MARKET_KEYS } from "@/lib/market-labels";
+import { OutcomeSide, outcomeSide, sideTextClass } from "@/lib/outcome-tone";
 
 type FixtureOutcome = {
   id: string;
@@ -189,6 +190,21 @@ export default function FixtureMarkets({ game, markets }: { game: FixtureCtx; ma
   const cellGrid = (m: FixtureMarket) =>
     THREE_COL_KEYS.has(m.key) ? "grid-cols-3" : "grid-cols-2";
 
+  /**
+   * Competing-side token for a flat grid cell: semantic first (labels,
+   * team names, Over/Under, Yes/No, correct-score diff …), positional only
+   * for clean 2-way or 3-way structured markets. Player/range lists have no
+   * competing sides and stay neutral (caller keeps the brand price color).
+   */
+  const gridSide = (m: FixtureMarket, o: FixtureOutcome, idx: number): OutcomeSide | null => {
+    const s = outcomeSide({ label: o.label, name: o.name, home: game.homeName, away: game.awayName });
+    if (s) return s;
+    const n = m.outcomes.length;
+    if (n === 2) return idx % 2 === 0 ? "first" : "second";
+    if (n === 3 && THREE_COL_KEYS.has(m.key)) return (["first", "draw", "second"] as const)[idx % 3];
+    return null;
+  };
+
   return (
     <div className="overflow-hidden rounded-xl border border-line bg-card">
       {/* Category filter strip — rendered only when the category has markets */}
@@ -289,6 +305,7 @@ export default function FixtureMarkets({ game, markets }: { game: FixtureCtx; ma
                             key={`${pair.line}-${i}`}
                             outcome={side as FixtureOutcome}
                             market={m}
+                            toneClass={sideTextClass(i === 0 ? "first" : "second") ?? "text-brand"}
                             onSelect={select}
                             selectedIds={items.map((it) => it.outcomeId)}
                             t={t}
@@ -302,10 +319,11 @@ export default function FixtureMarkets({ game, markets }: { game: FixtureCtx; ma
                 </div>
               ) : (
                 <div className={`grid gap-1.5 p-2 ${cellGrid(m)}`}>
-                  {m.outcomes.map((o) => {
+                  {m.outcomes.map((o, idx) => {
                     const odds = Number(o.odds);
                     const active = o.status === "ACTIVE" && odds > 0;
                     const selected = items.some((i) => i.outcomeId === o.id);
+                    const toneCls = sideTextClass(gridSide(m, o, idx)) ?? "text-brand";
                     return (
                       <button
                         key={o.id}
@@ -329,7 +347,7 @@ export default function FixtureMarkets({ game, markets }: { game: FixtureCtx; ma
                           <span className="truncate text-xs font-bold">{displayOutcomeName(o.name, m.key, game.homeName, game.awayName)}</span>
                         </span>
                         {active ? (
-                          <span className="shrink-0 text-xs font-extrabold tabular-nums text-brand">
+                          <span className={`shrink-0 text-xs font-extrabold tabular-nums ${toneCls}`}>
                             {fmtOdds(odds)}
                           </span>
                         ) : (
@@ -351,12 +369,15 @@ export default function FixtureMarkets({ game, markets }: { game: FixtureCtx; ma
 function HandicapCell({
   outcome,
   market,
+  toneClass,
   onSelect,
   selectedIds,
   t,
 }: {
   outcome: FixtureOutcome;
   market: FixtureMarket;
+  /** Side color for this cell of the Home/Away handicap pair. */
+  toneClass: string;
   onSelect: (m: FixtureMarket, o: FixtureOutcome) => void;
   selectedIds: string[];
   t: (key: string) => string;
@@ -377,7 +398,7 @@ function HandicapCell({
     >
       <span className="min-w-0 truncate text-xs font-bold">{formatOutcomeName(outcome.name, market.key)}</span>
       {active ? (
-        <span className="shrink-0 text-xs font-extrabold tabular-nums text-brand">{fmtOdds(odds)}</span>
+        <span className={`shrink-0 text-xs font-extrabold tabular-nums ${toneClass}`}>{fmtOdds(odds)}</span>
       ) : (
         <span className="shrink-0 text-xs font-semibold text-ink3">-</span>
       )}

@@ -2,6 +2,7 @@
 
 import { useBetSlip, SlipItem } from "@/components/BetSlipContext";
 import { fmtOdds } from "@/lib/odds";
+import { outcomeSide, sideTextClass } from "@/lib/outcome-tone";
 
 type Props = {
   outcomeId: string;
@@ -31,6 +32,14 @@ export default function OddsButton(props: Props) {
     props.gameStatus !== "SCHEDULED" && props.gameStatus !== "LIVE" && props.gameStatus !== "HALF_TIME";
   const disabled = suspended || unavailable;
 
+  // Competing-side color token (Home/Under/Yes → emerald, Away/Over/No →
+  // sky, Draw/X → amber). Applied to the price only while the button is
+  // selectable and NOT selected — the selected state keeps its high-contrast
+  // green fill with dark text (see .odds-btn.selected).
+  const tone = sideTextClass(
+    outcomeSide({ label: props.label, name: props.outcome, home: props.home, away: props.away })
+  );
+
   const item: SlipItem = {
     outcomeId: props.outcomeId,
     gameId: props.gameId,
@@ -47,6 +56,8 @@ export default function OddsButton(props: Props) {
     gameStatus: props.gameStatus,
     live: props.live,
   };
+
+  const canTone = !disabled && !selected && tone !== null;
 
   return (
     <button
@@ -67,7 +78,7 @@ export default function OddsButton(props: Props) {
       aria-pressed={selected}
       title={disabled ? (unavailable ? "Price unavailable" : "Betting closed for this game") : `Add ${props.outcome} @ ${fmtOdds(props.odds)}`}
     >
-      {unavailable ? "-" : fmtOdds(props.odds)}
+      {unavailable ? "-" : canTone ? <span className={tone}>{fmtOdds(props.odds)}</span> : fmtOdds(props.odds)}
     </button>
   );
 }

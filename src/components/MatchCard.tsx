@@ -7,6 +7,7 @@ import OddsButton from "@/components/OddsButton";
 import TeamLogo from "@/components/TeamLogo";
 import { liveContext } from "@/lib/kickoff";
 import { toMatchView } from "@/lib/match-view";
+import { outcomeSide, sideTextClass } from "@/lib/outcome-tone";
 import { flagForLeague, countryForLeague } from "@/lib/league-flags";
 
 type MarketLite = {
@@ -194,38 +195,47 @@ export default function MatchCard({
           <div
             className={`mt-2 grid gap-2 ${odds.length === 2 ? "grid-cols-2" : "grid-cols-3"} [&_.odds-btn]:h-9 [&_.odds-btn]:w-full [&_.odds-btn]:flex-none [&_.odds-btn]:text-xs`}
           >
-            {outcomeRows.map((row, i) => (
-              <div key={i} className="flex flex-col gap-1">
-                <span className="truncate text-center text-[10px] font-bold uppercase tracking-wide text-ink3">
-                  {row.label ?? shortOutcomeLabel(row.leg)}
-                </span>
-                {row.outcome ? (
-                  <OddsButton
-                    outcomeId={row.outcome.id}
-                    gameId={game.id}
-                    sport={game.sport.name}
-                    competition={view.leagueName}
-                    home={view.homeTeam}
-                    away={view.awayTeam}
-                    startAt={game.startAt.toISOString()}
-                    market={mainMarket.name}
-                    marketKey={mainMarket.key}
-                    outcome={row.outcome.name}
-                    label={row.label}
-                    odds={Number(row.outcome.odds)}
-                    gameStatus={game.status}
-                    live={isLive}
-                  />
-                ) : (
+            {outcomeRows.map((row, i) => {
+              const tone = sideTextClass(
+                outcomeSide({ label: row.label, name: row.leg, home: view.homeTeam, away: view.awayTeam })
+              );
+              return (
+                <div key={i} className="flex flex-col gap-1">
                   <span
-                    className="flex h-9 w-full items-center justify-center rounded-lg bg-card2 text-xs font-bold text-ink3"
-                    title={t("match.priceUnavailable")}
+                    className={`truncate text-center text-[10px] font-bold uppercase tracking-wide ${
+                      tone ?? "text-ink3"
+                    }`}
                   >
-                    -
+                    {row.label ?? shortOutcomeLabel(row.leg)}
                   </span>
-                )}
-              </div>
-            ))}
+                  {row.outcome ? (
+                    <OddsButton
+                      outcomeId={row.outcome.id}
+                      gameId={game.id}
+                      sport={game.sport.name}
+                      competition={view.leagueName}
+                      home={view.homeTeam}
+                      away={view.awayTeam}
+                      startAt={game.startAt.toISOString()}
+                      market={mainMarket.name}
+                      marketKey={mainMarket.key}
+                      outcome={row.outcome.name}
+                      label={row.label}
+                      odds={Number(row.outcome.odds)}
+                      gameStatus={game.status}
+                      live={isLive}
+                    />
+                  ) : (
+                    <span
+                      className="flex h-9 w-full items-center justify-center rounded-lg bg-card2 text-xs font-bold text-ink3"
+                      title={t("match.priceUnavailable")}
+                    >
+                      -
+                    </span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       ) : !isFinished ? (
