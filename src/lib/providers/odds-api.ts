@@ -264,6 +264,49 @@ function totalsName(outcomes: { name: string; price?: number | null }[], fallbac
 }
 
 /**
+ * Markets whose line lives in the outcome's `point` field, NOT its name —
+ * The Odds API v4 serves e.g. name "Over" + point 2.5 (eu books: bovada,
+ * pinnacle). Without stamping, every alternate-totals outcome is stored as
+ * bare "Over"/"Under" (lines lost → display/settlement garbage) and every
+ * alternate-spread outcome as the bare team name.
+ */
+const LINE_TOTAL_LOCALS = new Set([
+  "OVER_UNDER", "OVER_UNDER_1H", "OVER_UNDER_2H", "ALTERNATE_TOTALS",
+  "TOTAL_CORNERS", "TOTAL_BOOKINGS", "TEAM_CORNERS",
+]);
+const LINE_SPREAD_LOCALS = new Set([
+  "SPREAD", "SPREAD_1H", "SPREAD_2H", "ALTERNATE_SPREAD",
+  "CORNERS_HANDICAP", "CARDS_HANDICAP",
+]);
+
+/** Format a numeric line: ints stay ints, fractions keep their digits. */
+function fmtLine(point: number): string {
+  return Number.isInteger(point) ? String(point) : String(point);
+}
+
+/**
+ * Stamp the provider `point` onto an outcome name so stored names carry the
+ * line the settlement + bet slip expect ("Over 2.5", "Ipswich Town -0.5").
+ * Outcomes without a usable point (or markets without lines) pass through.
+ */
+export function stampPointName(localKey: string, name: string, point?: number | null): string {
+  if (typeof point !== "number" || !Number.isFinite(point)) return name;
+  if (LINE_TOTAL_LOCALS.has(localKey)) {
+    const n = name.trim().toLowerCase();
+    const side = n.startsWith("over") ? "Over" : n.startsWith("under") ? "Under" : name.trim();
+    return `${side} ${fmtLine(point)}`;
+  }
+  if (LINE_SPREAD_LOCALS.has(localKey)) {
+    // Handicap sign convention: negative lines carry "-", positive get "+"
+    // (0 is a pick'em and prints bare). European decimal display.
+    const sign = point > 0 ? "+" : "";
+    const team = name.trim();
+    return `${team} ${sign}${fmtLine(point)}`.trim();
+  }
+  return name;
+}
+
+/**
  * Sanitize provider outcome prices BEFORE the margin engine: drop any outcome
  * with a missing/zero/non-numeric price (suspended lines are sometimes served
  * as null/0). Without this, `1 / o.odds` yields NaN and the NaN price would
@@ -326,7 +369,7 @@ export class TheOddsApi implements OddsProvider {
         `/sports/${encodeURIComponent(sportKey)}/odds?regions=${regions}&markets=${ms.join(",")}&oddsFormat=decimal`
       )) as {
         id: string; commence_time: string; home_team: string; away_team: string;
-        bookmakers: { markets: { key: string; outcomes: { name: string; price: number }[] }[] }[];
+        bookmakers: { markets: { key: string; outcomes: { name: string; price: number; point?: number | null }[] }[] }[];
       }[];
 
     try {
@@ -359,7 +402,7 @@ export class TheOddsApi implements OddsProvider {
       const hit = oddsCache.get(cacheKey);
       let data: {
         id: string; commence_time: string; home_team: string; away_team: string;
-        bookmakers: { markets: { key: string; outcomes: { name: string; price: number }[] }[] }[];
+        bookmakers: { markets: { key: string; outcomes: { name: string; price: number; point?: number | null }[] }[] }[];
       }[];
       if (hit && Date.now() - hit.at < ODDS_CACHE_TTL_MS) {
         data = hit.data as typeof data; // served from cache — 0 API cost
@@ -397,7 +440,13 @@ export class TheOddsApi implements OddsProvider {
           markets_.push({
             key: spec.local,
             name,
-            outcomes: pricedOutcomes(m.outcomes, (await getSettings()).oddsMarginPercent),
+            // Stamp the provider `point` onto totals/spread names ("Over 2.5",
+            // "Team -0.5") — without it every line of a market is a duplicate
+            // bare name on the eu/bovada feed.
+            outcomes: pricedOutcomes(
+              m.outcomes.map((o) => ({ name: stampPointName(spec.local, o.name, o.point), price: o.price })),
+              (await getSettings()).oddsMarginPercent,
+            ),
           });
         }
         if (!markets_.length) continue; // books exist but no requested prices → skip
@@ -450,7 +499,7 @@ export class TheOddsApi implements OddsProvider {
         const hit = oddsCache.get(cacheKey);
         let data: {
           id: string; sport_key: string; commence_time: string; home_team: string; away_team: string;
-          bookmakers?: { key: string; markets: { key: string; outcomes: { name: string; price?: number | null }[] }[] }[];
+          bookmakers?: { key: string; markets: { key: string; outcomes: { name: string; price?: number | null; point?: number | null }[] }[] }[];
         }[];
         if (hit && Date.now() - hit.at < ODDS_CACHE_TTL_MS) {
           data = hit.data as typeof data;
@@ -503,9 +552,13 @@ export class TheOddsApi implements OddsProvider {
               ? totalsName(m.outcomes, spec.name)
               : spec.name;
           // Margin first (names survive unchanged), then normalize names/labels
-          // to the local conventions the settlement engine expects. Invalid
-          // prices are dropped by pricedOutcomes before they reach the DB.
-          const priced = pricedOutcomes(m.outcomes, (await getSettings()).oddsMarginPercent);
+          // to the local conventions the settlement engine expects. The `point`
+          // field is stamped into totals/spread names first (see
+          // stampPointName) and invalid prices dropped before they reach the DB.
+          const priced = pricedOutcomes(
+            m.outcomes.map((o) => ({ name: stampPointName(spec.local, o.name, o.point), price: o.price })),
+            (await getSettings()).oddsMarginPercent,
+          );
           if (!priced.length) continue;
           marketsOut.push({
             key: spec.local,
