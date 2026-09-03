@@ -35,6 +35,77 @@ const dec = (n: string | number) => n.toString();
 // fresh upcoming fixtures instead of stale historical kickoffs in the admin
 // list and feeds.
 
+
+/**
+ * Idempotent super-admin ensure — safe across redeploys with a CHANGED
+ * SEED_ADMIN_EMAIL while the derived username already exists (the classic
+ * P2002 crash: upsert by email only, username unique collides on create).
+ * Resolution order:
+ *   1. row with the configured email            → adopt username/role/password
+ *   2. an admin row owning the derived username → adopt the new email
+ *   3. otherwise                                → create (username deduped)
+ * Also rotates the password to SEED_ADMIN_PASSWORD on every seed run.
+ */
+async function ensureSuperAdmin(password: string) {
+  const email = SEED_ADMIN_EMAIL.trim().toLowerCase();
+  const derived = email.split("@")[0].slice(0, 20) || "unibet_admin";
+
+  const adminRoles = new Set(["SUPER_ADMIN", "ADMIN", "OPERATOR", "SUPPORT"]);
+
+  /** A username not owned by another row (candidate → suffixed until free). */
+  const freeUsername = async (candidate: string, excludeId?: string) => {
+    for (let i = 0; i < 50; i++) {
+      const c = i === 0 ? candidate : `${candidate}${i}`;
+      if (c.length > 20) continue;
+      const owner = await prisma.user.findUnique({ where: { username: c } });
+      if (!owner || owner.id === excludeId) return c;
+    }
+    return `${candidate.slice(0, 16)}${Date.now().toString(36).slice(-4)}`;
+  };
+
+  const byEmail = await prisma.user.findUnique({ where: { email } });
+  if (byEmail) {
+    const username = await freeUsername(derived, byEmail.id);
+    return prisma.user.update({
+      where: { id: byEmail.id },
+      data: {
+        username, // adopt the derived username when it is free
+        fullName: "UNIBET360 Admin",
+        passwordHash: await bcrypt.hash(password, BCRYPT_ROUNDS),
+        role: "SUPER_ADMIN", status: "ACTIVE", verified: true,
+        referralCode: byEmail.referralCode ?? "VOLT-ADMIN",
+      },
+    });
+  }
+
+  const byUsername = await prisma.user.findUnique({ where: { username: derived } });
+  if (byUsername && adminRoles.has(byUsername.role)) {
+    // The derived username belongs to an admin row seeded under an older
+    // default email — adopt the configured email onto it (keeps history).
+    return prisma.user.update({
+      where: { id: byUsername.id },
+      data: {
+        email,
+        fullName: "UNIBET360 Admin",
+        passwordHash: await bcrypt.hash(password, BCRYPT_ROUNDS),
+        role: "SUPER_ADMIN", status: "ACTIVE", verified: true,
+        referralCode: byUsername.referralCode ?? "VOLT-ADMIN",
+      },
+    });
+  }
+
+  // A CUSTOMER owns the derived username — create with a deduped one.
+  const username = await freeUsername(derived);
+  return prisma.user.create({
+    data: {
+      fullName: "UNIBET360 Admin", username, email, phone: "+254700000001",
+      passwordHash: await bcrypt.hash(password, BCRYPT_ROUNDS),
+      role: "SUPER_ADMIN", status: "ACTIVE", verified: true, country: "KE",
+      referralCode: "VOLT-ADMIN",
+    },
+  });
+}
+
 async function main() {
   console.log("Seeding UNIBET360...");
 
@@ -283,19 +354,7 @@ async function main() {
   // (deploy/post-install.mjs is the supported alternative that also
   // rotates an existing admin's credentials).
   const seedAdminPassword = IS_PROD ? SEED_ADMIN_PASSWORD : SEED_ADMIN_PASSWORD || "Admin123!";
-  const admin = seedAdminPassword
-    ? await prisma.user.upsert({
-        where: { email: SEED_ADMIN_EMAIL },
-        update: {},
-        create: {
-          fullName: "UNIBET360 Admin", username: SEED_ADMIN_EMAIL.split("@")[0],
-          email: SEED_ADMIN_EMAIL, phone: "+254700000001",
-          passwordHash: await bcrypt.hash(seedAdminPassword, BCRYPT_ROUNDS),
-          role: "SUPER_ADMIN", status: "ACTIVE", verified: true, country: "KE",
-          referralCode: "VOLT-ADMIN",
-        },
-      })
-    : null;
+  const admin = seedAdminPassword ? await ensureSuperAdmin(seedAdminPassword) : null;
   if (!admin) {
     console.warn("⚠️  Production: SEED_ADMIN_PASSWORD not set — skipped admin creation. Set SEED_ADMIN_EMAIL + SEED_ADMIN_PASSWORD, or run deploy/post-install.mjs.");
   }
