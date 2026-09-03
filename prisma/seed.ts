@@ -38,18 +38,22 @@ const dec = (n: string | number) => n.toString();
 
 /**
  * Idempotent super-admin ensure — safe across redeploys with a CHANGED
- * SEED_ADMIN_EMAIL while the derived username already exists (the classic
- * P2002 crash: upsert by email only, username unique collides on create).
- * Resolution order:
- *   1. row with the configured email            → adopt username/role/password
- *   2. an admin row owning the derived username → adopt the new email
- *   3. otherwise                                → create (username deduped)
- * Also rotates the password to SEED_ADMIN_PASSWORD on every seed run.
+ * SEED_ADMIN_EMAIL while the derived username (or seed phone) already
+ * exists in the DB. A naive upsert by email alone crashes on whatever other
+ * unique column the old admin row owns (username first, then phone — both
+ * P2002s seen live on Railway). Resolution order — adopt the FIRST row that
+ * matches our template, then rotate role/email/username/password onto it:
+ *   1. row with the configured email
+ *   2. an admin row owning the derived username
+ *   3. an admin row owning the seed phone  (+254700000001)
+ *   4. otherwise → create, with a deduped username AND phone so the create
+ *      itself can never trip a unique constraint.
+ * Password is re-hashed from SEED_ADMIN_PASSWORD on every run.
  */
 async function ensureSuperAdmin(password: string) {
   const email = SEED_ADMIN_EMAIL.trim().toLowerCase();
   const derived = email.split("@")[0].slice(0, 20) || "unibet_admin";
-
+  const seedPhone = "+254700000001";
   const adminRoles = new Set(["SUPER_ADMIN", "ADMIN", "OPERATOR", "SUPPORT"]);
 
   /** A username not owned by another row (candidate → suffixed until free). */
@@ -63,42 +67,61 @@ async function ensureSuperAdmin(password: string) {
     return `${candidate.slice(0, 16)}${Date.now().toString(36).slice(-4)}`;
   };
 
-  const byEmail = await prisma.user.findUnique({ where: { email } });
-  if (byEmail) {
-    const username = await freeUsername(derived, byEmail.id);
-    return prisma.user.update({
-      where: { id: byEmail.id },
+  /** A phone not owned by another row (rare — only reached when a CUSTOMER
+   *  somehow owns the seed phone). */
+  const freePhone = async (base: string) => {
+    for (let i = 0; i < 500; i++) {
+      const c = i === 0 ? base : `+2547${String(1 + i).padStart(8, "0")}`;
+      const owner = await prisma.user.findUnique({ where: { phone: c } });
+      if (!owner) return c;
+    }
+    return `+2547${Date.now().toString(10).slice(-9)}`;
+  };
+
+  /** Stamp the admin identity onto an existing row (keeps history/relations). */
+  const adopt = async (id: string, opts: { username?: string }) =>
+    prisma.user.update({
+      where: { id },
       data: {
-        username, // adopt the derived username when it is free
+        email,
+        ...(opts.username ? { username: opts.username } : {}),
         fullName: "UNIBET360 Admin",
         passwordHash: await bcrypt.hash(password, BCRYPT_ROUNDS),
         role: "SUPER_ADMIN", status: "ACTIVE", verified: true,
-        referralCode: byEmail.referralCode ?? "VOLT-ADMIN",
+        referralCode: "VOLT-ADMIN",
       },
     });
+
+  const byEmail = await prisma.user.findUnique({ where: { email } });
+  if (byEmail) {
+    // Row already carries the configured email — adopt the free derived
+    // username (unchanged when it is already free/owned by this row).
+    const username = await freeUsername(derived, byEmail.id);
+    return adopt(byEmail.id, { username });
   }
 
   const byUsername = await prisma.user.findUnique({ where: { username: derived } });
   if (byUsername && adminRoles.has(byUsername.role)) {
-    // The derived username belongs to an admin row seeded under an older
-    // default email — adopt the configured email onto it (keeps history).
-    return prisma.user.update({
-      where: { id: byUsername.id },
-      data: {
-        email,
-        fullName: "UNIBET360 Admin",
-        passwordHash: await bcrypt.hash(password, BCRYPT_ROUNDS),
-        role: "SUPER_ADMIN", status: "ACTIVE", verified: true,
-        referralCode: byUsername.referralCode ?? "VOLT-ADMIN",
-      },
-    });
+    // An admin row seeded under an older default email owns the derived
+    // username → adopt the configured email onto it.
+    return adopt(byUsername.id, {});
   }
 
-  // A CUSTOMER owns the derived username — create with a deduped one.
+  const byPhone = await prisma.user.findUnique({ where: { phone: seedPhone } });
+  if (byPhone && adminRoles.has(byPhone.role)) {
+    // An admin row created earlier (e.g. deploy/post-install.mjs) owns the
+    // seed phone but a different email/username → adopt it.
+    const username = await freeUsername(derived, byPhone.id);
+    return adopt(byPhone.id, { username });
+  }
+
+  // No adoptable row: create. Both unique fields are deduped so the create
+  // can never P2002, no matter what a busy DB already holds.
   const username = await freeUsername(derived);
+  const phone = await freePhone(seedPhone);
   return prisma.user.create({
     data: {
-      fullName: "UNIBET360 Admin", username, email, phone: "+254700000001",
+      fullName: "UNIBET360 Admin", username, email, phone,
       passwordHash: await bcrypt.hash(password, BCRYPT_ROUNDS),
       role: "SUPER_ADMIN", status: "ACTIVE", verified: true, country: "KE",
       referralCode: "VOLT-ADMIN",
