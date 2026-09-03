@@ -19,7 +19,8 @@
  * memory/2026-08-25.md for the full comparison.
  */
 import { prisma } from "@/lib/prisma";
-import { FEED_LEAGUES, LEAGUE_TITLES } from "@/lib/feed";
+import { LEAGUE_TITLES } from "@/lib/league-titles";
+import { FEED_LEAGUES } from "@/lib/feed";
 import { fetchOddsRetry } from "@/lib/odds-throttle";
 
 const API_KEY = process.env.ODDS_API_KEY ?? "";

@@ -19,7 +19,8 @@ import { TheOddsApi, OddsProvider, ApiGame, ODDS_MARKETS, LIST_MARKETS } from "@
 import { teamLogo } from "@/lib/team-logos";
 import { setSetting } from "@/lib/settings";
 import { deriveMarketsFrom1x2, DERIVED_MARKET_KEYS } from "@/lib/derived-markets";
-import { LEAGUE_TITLES, FEED_MAX_LEAGUES } from "@/lib/feed";
+import { LEAGUE_TITLES } from "@/lib/league-titles";
+import { FEED_MAX_LEAGUES } from "@/lib/feed";
 
 export const PROVIDERS: Record<string, () => OddsProvider> = {
   "the-odds-api": () => new TheOddsApi(), // the ONLY provider

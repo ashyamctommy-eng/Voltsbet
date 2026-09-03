@@ -10,7 +10,7 @@
  * with the BetsAPI deprecation; The Odds API (v4) is the single provider.
  */
 import { formatKickoff } from "./kickoff";
-import { LEAGUE_TITLES } from "./feed";
+import { LEAGUE_TITLES } from "./league-titles";
 
 /** The single view shape every match card renders. */
 export type MatchView = {

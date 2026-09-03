@@ -32,7 +32,7 @@ import { prisma } from "./prisma";
 import { getSettings } from "./settings";
 import { TheOddsApi } from "./providers/odds-api";
 import { resolveSportSlug, upsertInPlayOdds } from "./sync";
-import { LEAGUE_TITLES } from "./feed";
+import { LEAGUE_TITLES } from "./league-titles";
 
 let lastRefresh = 0;
 let lastOddsRefresh = 0;
