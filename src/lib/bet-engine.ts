@@ -165,7 +165,7 @@ export async function placeBet(user: User, input: PlaceBetInput) {
         // and settle-vs-place races.
         const marketIds = [...new Set(outcomes.map((o) => o.marketId))];
         if (marketIds.length > 0) {
-          await tx.$queryRaw`SELECT id FROM \`Market\` WHERE id IN (${Prisma.join(marketIds)}) FOR UPDATE`;
+          await tx.$queryRaw`SELECT id FROM "Market" WHERE id IN (${Prisma.join(marketIds)}) FOR UPDATE`; // SQL-standard quoted identifier (PostgreSQL prod; SQLite dev)
         }
 
         for (const o of outcomes) {

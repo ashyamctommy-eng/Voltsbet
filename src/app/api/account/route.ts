@@ -61,7 +61,9 @@ export const GET = handle(async () => {
           balance: Number(wallet.balance),
           bonusBalance: Number(wallet.bonusBalance),
           currencyCode: wallet.currencyCode,
-          balanceLabel: await formatMoney(balance, displayCur),
+          // Raw wallet currency — header, betslip and floating bar all read
+          // this label/code; never display-converted.
+          balanceLabel: await formatMoney(Number(wallet.balance), wallet.currencyCode),
           displayCurrencyCode: displayCur,
         }
       : null,

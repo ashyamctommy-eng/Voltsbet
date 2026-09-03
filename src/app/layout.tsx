@@ -3,7 +3,7 @@ import "./globals.css";
 import { getSettings } from "@/lib/settings";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { convert, formatMoney } from "@/lib/currency";
+import { formatMoney } from "@/lib/currency";
 import { BetSlipProvider, ToastProvider } from "@/components/BetSlipContext";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { CurrencyProvider } from "@/components/CurrencyProvider";
@@ -45,15 +45,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       prisma.wallet.findUnique({ where: { userId: user.id } }),
       prisma.notification.count({ where: { OR: [{ userId: user.id }, { userId: null }], read: false } }),
     ]);
-    // Wallet balance → user's display currency when set, else the platform's
-    // admin-configured default operating currency (settings.currencyDefault).
-    const displayCur = user.displayCurrencyCode ?? s.currencyDefault;
-    const balance = wallet ? await convert(Number(wallet.balance), wallet.currencyCode, displayCur) : 0;
+    // Wallet-currency policy: every balance surface (header, betslip, floating
+    // bar, wallet) shows the user's WALLET currency with its RAW balance —
+    // never a display-currency conversion. A converted header (e.g. a KES
+    // wallet shown as "$4") made the betslip look like it was "in another
+    // currency" when it was actually the only correct one.
+    const walletCur = wallet?.currencyCode ?? user.currencyCode ?? s.currencyDefault;
     headerUser = {
       username: user.username,
       role: user.role,
-      currencyCode: displayCur,
-      balanceLabel: await formatMoney(balance, displayCur, { compact: true }),
+      currencyCode: walletCur,
+      balanceLabel: await formatMoney(Number(wallet?.balance ?? 0), walletCur, { compact: true }),
       unreadNotifications: unread,
     };
   }
