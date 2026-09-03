@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getSettings } from "@/lib/settings";
 import UNIBET360Logo from "@/components/VoltBetLogo";
+import FooterBanner from "@/components/FooterBanner";
 import { IconTelegram, IconWhatsApp } from "@/components/icons";
 
 /** Developer contact — shown on every install so buyers can reach support.
@@ -11,7 +12,7 @@ const DEV_WHATSAPP = "https://wa.me/254717702563";
 export default async function Footer() {
   const s = await getSettings();
   return (
-    <footer className="mt-16 border-t border-line bg-panel-bg">
+    <footer className="mt-16 border-t border-line bg-panel-bg pb-24 md:pb-0">
       <div className="mx-auto grid max-w-[1600px] gap-8 px-4 py-10 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <UNIBET360Logo />
@@ -67,6 +68,7 @@ export default async function Footer() {
       <div className="border-t border-line py-4 text-center text-xs text-ink3">
         18+ · Play responsibly. Only for adults of legal age. © {new Date().getFullYear()} {s.siteName}
       </div>
+      <FooterBanner />
     </footer>
   );
 }

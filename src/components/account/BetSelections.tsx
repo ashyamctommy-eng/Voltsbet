@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { formatDateTime, fmtOdds } from "@/lib/odds";
 import { teamContext } from "@/lib/market-labels";
 import { IconChevronDown } from "@/components/icons";
@@ -51,8 +52,20 @@ const RESULT_STYLE: Record<string, string> = {
   VOID: "bg-hover-tint text-ink3",
 };
 
+/** Live-ish statuses — render a LIVE indicator instead of the kickoff date. */
+const LIVE_STATUSES = new Set(["LIVE", "IN_PLAY", "HALF_TIME"]);
+
+/** Rough elapsed minute from a live match's kickoff (no clock in bet history). */
+function liveElapsed(startAtIso: string): number {
+  const start = new Date(startAtIso).getTime();
+  if (!Number.isFinite(start)) return 0;
+  const mins = Math.floor((Date.now() - start) / 60_000);
+  return Math.max(0, Math.min(mins, 240));
+}
+
 /** Single selection card — collapsible: Home vs Away header + bet details. */
 export default function BetSelections({ selections }: { selections: DetailSelection[] }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState<Set<string>>(() => new Set(selections.map((s) => s.id)));
 
   const toggle = (id: string) =>
@@ -68,6 +81,7 @@ export default function BetSelections({ selections }: { selections: DetailSelect
       {selections.map((s) => {
         const expanded = open.has(s.id);
         const type = TYPE_LABEL[s.marketKey] ?? s.market;
+        const isLive = s.live || LIVE_STATUSES.has(s.status);
         return (
           <div key={s.id} className="card overflow-hidden">
             {/* Team header */}
@@ -93,28 +107,40 @@ export default function BetSelections({ selections }: { selections: DetailSelect
             {expanded && (
               <div className="space-y-2 border-t border-line px-4 py-3 text-sm">
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-ink3">Type</span>
+                  <span className="text-ink3">{t("bet.type")}</span>
                   <span className="font-semibold">{type}</span>
                 </div>
+                {isLive ? (
+                  // Live leg: never show the (now historical) kickoff date —
+                  // render a LIVE indicator with the elapsed minute instead.
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-ink3">{t("bet.status")}</span>
+                    <span className="flex items-center gap-1.5 font-bold text-red-400">
+                      <span className="live-dot h-2 w-2" />
+                      {t("bet.liveElapsed", { minute: liveElapsed(s.startAt) })}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-ink3">{t("bet.startsAt")}</span>
+                    <span className="font-semibold tabular-nums">{formatDateTime(new Date(s.startAt))}</span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-ink3">Starts at</span>
-                  <span className="font-semibold tabular-nums">{formatDateTime(new Date(s.startAt))}</span>
-                </div>
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-ink3">Pick</span>
+                  <span className="text-ink3">{t("bet.pick")}</span>
                   <span className="text-right font-semibold">
                     {teamContext(s.outcome, s.marketKey, s.home, s.away)} <span className="text-brand">({fmtOdds(s.odds)})</span>
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-ink3">Outcome</span>
+                  <span className="text-ink3">{t("bet.outcome")}</span>
                   {s.result ? (
                     <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wide ${RESULT_STYLE[s.result] ?? "bg-hover-tint text-ink3"}`}>
                       {s.result}
                     </span>
                   ) : (
                     <span className="rounded-full bg-hover-tint px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink3">
-                      Pending
+                      {t("bet.pending")}
                     </span>
                   )}
                 </div>

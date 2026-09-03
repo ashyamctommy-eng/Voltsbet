@@ -17,7 +17,9 @@ import {
   IconLive,
   IconWallet,
   IconUser,
+  IconBell,
 } from "@/components/icons";
+import { formatDateTime } from "@/lib/odds";
 
 export type HeaderUser = {
   username: string;
@@ -55,6 +57,11 @@ export default function Header({
   const { open: openDrawer } = useDrawer();
   const [menuOpen, setMenuOpen] = useState(false);
   const [walletOpen, setWalletOpen] = useState(false);
+  // Live notification feed (real unread count, marks read on open).
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifs, setNotifs] = useState<{ id: string; title: string; message: string; read: boolean; createdAt: string }[] | null>(null);
+  const [unread, setUnread] = useState(user?.unreadNotifications ?? 0);
+  const notifRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Category tabs — sports from the provider/DB, Live pinned last.
@@ -71,6 +78,11 @@ export default function Header({
   // route (e.g. /sports/football?view=upcoming) instead of jumping home —
   // the filter bar stays visible and active on every feed surface.
   const feedPath = pathname.startsWith("/sports/") ? pathname : "/";
+  // Browse chrome (sports category tabs, feed-view pills, search bars) belongs
+  // on the betting surfaces (home /sports/* /live /search …) — NOT on account
+  // or admin pages, where it crowds the header and pushes content down.
+  const showBrowseChrome =
+    !pathname.startsWith("/account") && !pathname.startsWith("/admin");
 
   // Close overlays on route change
   useEffect(() => {
@@ -81,10 +93,34 @@ export default function Header({
   useEffect(() => {
     function onClick(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) setNotifOpen(false);
     }
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
+
+  /** Open the notification feed: fetch latest, then mark everything read. */
+  async function toggleNotifs() {
+    if (notifOpen) {
+      setNotifOpen(false);
+      return;
+    }
+    setMenuOpen(false);
+    const res = await apiFetch<{ notifications: { id: string; title: string; message: string; read: boolean; createdAt: string }[] }>("/api/notifications");
+    if (!res.ok) return;
+    setNotifs(res.data.notifications);
+    setNotifOpen(true);
+    const anyUnread = res.data.notifications.some((n) => !n.read);
+    if (anyUnread) {
+      // Mark-all-read (POST without id) then reflect it locally — the badge
+      // and list stay in sync without a hard refresh.
+      const mark = await apiFetch("/api/notifications", { method: "POST", body: {} });
+      if (mark.ok) {
+        setUnread(0);
+        setNotifs((cur) => cur?.map((n) => ({ ...n, read: true })) ?? cur);
+      }
+    }
+  }
 
   const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
   const link = "rounded-lg px-3 py-2 text-sm font-medium text-ink2 transition-colors hover:text-ink";
@@ -130,9 +166,11 @@ export default function Header({
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
-          <div className="hidden md:block">
-            <SearchBox />
-          </div>
+          {showBrowseChrome && (
+            <div className="hidden md:block">
+              <SearchBox />
+            </div>
+          )}
 
           {user ? (
             <div className="flex items-center gap-1.5 sm:gap-2">
@@ -150,6 +188,52 @@ export default function Header({
               >
                 <IconWallet className="h-5 w-5" />
               </button>
+
+              {/* Notifications bell — live unread badge + dropdown */}
+              <div className="relative" ref={notifRef}>
+                <button
+                  onClick={() => { void toggleNotifs(); }}
+                  aria-label={t("common.notifications")}
+                  className="relative flex h-9 w-9 items-center justify-center rounded-full border border-line bg-card text-ink transition-colors hover:border-line2"
+                >
+                  <IconBell className="h-5 w-5" />
+                  {unread > 0 && (
+                    <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-bad px-1 text-[9px] font-bold text-white">
+                      {unread > 99 ? "99+" : unread}
+                    </span>
+                  )}
+                </button>
+                {notifOpen && (
+                  <div className="fade-in absolute right-0 top-full z-50 mt-2 w-[19rem] overflow-hidden rounded-xl border border-line bg-[var(--panel-bg,#121824)] shadow-2xl">
+                    <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
+                      <span className="text-sm font-bold">{t("common.notifications")}</span>
+                      <button
+                        className="text-[11px] font-semibold text-ink3 transition-colors hover:text-brand"
+                        onClick={() => { void toggleNotifs(); }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <div className="max-h-80 overflow-y-auto">
+                      {!notifs || notifs.length === 0 ? (
+                        <div className="px-4 py-6 text-center text-xs text-ink3">
+                          {t("common.noNotifications")}
+                        </div>
+                      ) : (
+                        notifs.slice(0, 15).map((n) => (
+                          <div key={n.id} className="border-b border-line/60 px-4 py-2.5 last:border-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="truncate text-xs font-bold text-ink">{n.title}</span>
+                              <span className="shrink-0 text-[10px] tabular-nums text-ink3">{formatDateTime(new Date(n.createdAt), { date: false })}</span>
+                            </div>
+                            {n.message && <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-ink2">{n.message}</p>}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Profile → account menu */}
               <div className="relative overflow-visible" ref={menuRef}>
@@ -211,6 +295,8 @@ export default function Header({
         </div>
       </div>
 
+      {showBrowseChrome && (
+      <>
       {/* ── Category scrollbar (provider-driven sports) ────────── */}
       <div className="border-t border-line bg-panel-bg/60">
         <div className="no-scrollbar mx-auto flex max-w-[1600px] items-stretch gap-1 overflow-x-auto px-2 sm:px-4">
@@ -261,10 +347,14 @@ export default function Header({
         </div>
       </div>
 
-      {/* ── Full-width search (mobile) ─────────────────────── */}
-      <div className="border-t border-line/60 px-3 py-2 md:hidden">
-        <MobileSearch />
-      </div>
+      {/* ── Full-width search (mobile) — hidden on account/admin ── */}
+      {showBrowseChrome && (
+        <div className="max-w-full overflow-x-hidden border-t border-line/60 px-3 py-2 md:hidden">
+          <MobileSearch />
+        </div>
+      )}
+      </>
+      )}
 
       {/* ── Deposit modal (wallet button) ──────────────────── */}
       {walletOpen && <DepositModal onClose={() => setWalletOpen(false)} />}

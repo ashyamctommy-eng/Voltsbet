@@ -40,7 +40,7 @@ export default async function LivePage() {
   const liveCount = liveGames.length;
 
   return (
-    <div className="mx-auto max-w-[1600px] px-4">
+    <div className="mx-auto w-full max-w-full overflow-x-hidden px-4">
       <div className="mt-6 flex items-center gap-2">
         <span className="live-dot h-3 w-3" />
         <h1 className="text-2xl font-extrabold">Live Betting</h1>

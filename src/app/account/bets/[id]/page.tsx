@@ -3,9 +3,22 @@ import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { formatDateTime } from "@/lib/odds";
+import { resources } from "@/lib/i18n-resources";
 import { IconArrowLeft } from "@/components/icons";
 import BetActions, { type DetailSelection } from "@/components/account/BetActions";
 import BetSelections from "@/components/account/BetSelections";
+
+
+/** Minimal server-side dictionary read (locale packs live in i18n-resources).
+ *  Falls back to English when the user's language lacks the key. */
+type Dict = Record<string, string>;
+const DICTS = resources as unknown as Record<string, { translation: Dict }>;
+function serverT(lang: string, key: string, params?: Record<string, string | number>): string {
+  const pack = (DICTS[lang] ?? DICTS.en).translation;
+  let out = pack[key] ?? DICTS.en.translation[key] ?? key;
+  if (params) for (const [k, v] of Object.entries(params)) out = out.replace(`{{${k}}}`, String(v));
+  return out;
+}
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +26,7 @@ export default async function BetDetailPage({ params }: { params: Promise<{ id: 
   const { id } = await params;
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/account/bets");
+  const L = user.languageCode ?? "en";
 
   const bet = await prisma.bet.findFirst({
     where: { id, userId: user.id },
@@ -60,18 +74,18 @@ export default async function BetDetailPage({ params }: { params: Promise<{ id: 
         <Link
           href="/account/bets"
           className="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-card text-ink2 transition-colors hover:text-ink"
-          aria-label="Back to My Bets"
+          aria-label={serverT(L, "bet.backToBets")}
         >
           <IconArrowLeft className="h-4 w-4" />
         </Link>
-        <h2 className="text-lg font-bold">BetID: {bet.code}</h2>
+        <h2 className="text-lg font-bold">{serverT(L, "bet.betIdLabel")}: {bet.code}</h2>
       </div>
 
       {/* Summary card */}
       <div className="card p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <div className="text-[11px] uppercase tracking-wider text-ink3">Bet ID</div>
+            <div className="text-[11px] uppercase tracking-wider text-ink3">{serverT(L, "bet.betIdLabel")}</div>
             <div className="text-base font-extrabold">#{bet.code}</div>
           </div>
           <span
@@ -90,17 +104,17 @@ export default async function BetDetailPage({ params }: { params: Promise<{ id: 
             {bet.status} ({settledCount}/{total})
           </span>
         </div>
-        <div className="mt-2 text-xs text-ink3">Placed {formatDateTime(bet.createdAt)}</div>
+        <div className="mt-2 text-xs text-ink3">{serverT(L, "bet.placedAt", { date: formatDateTime(bet.createdAt) })}</div>
       </div>
 
       {/* Metrics grid: Amount · Possible Payout · W/L/T */}
       <div className="grid grid-cols-3 gap-2.5">
         <div className="card p-3.5 text-center">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-ink3">Amount</div>
+          <div className="text-[10px] font-bold uppercase tracking-wider text-ink3">{serverT(L, "bet.amount")}</div>
           <div className="mt-1 text-lg font-extrabold tabular-nums">{Number(bet.stake).toLocaleString()}</div>
         </div>
         <div className="card p-3.5 text-center">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-ink3">Possible Payout</div>
+          <div className="text-[10px] font-bold uppercase tracking-wider text-ink3">{serverT(L, "bet.possiblePayout")}</div>
           <div className="mt-1 text-lg font-extrabold tabular-nums text-green-400">
             {Number(bet.potentialWin).toLocaleString()}
           </div>
@@ -108,17 +122,17 @@ export default async function BetDetailPage({ params }: { params: Promise<{ id: 
         <div className="card flex items-center justify-around p-3.5">
           <div className="text-center">
             <div className="text-lg font-extrabold tabular-nums text-green-400">{won}</div>
-            <div className="text-[10px] font-bold uppercase tracking-wider text-ink3">W</div>
+            <div className="text-[10px] font-bold uppercase tracking-wider text-ink3">{serverT(L, "bet.w")}</div>
           </div>
           <div className="h-8 w-px bg-line" />
           <div className="text-center">
             <div className="text-lg font-extrabold tabular-nums text-red-400">{lost}</div>
-            <div className="text-[10px] font-bold uppercase tracking-wider text-ink3">L</div>
+            <div className="text-[10px] font-bold uppercase tracking-wider text-ink3">{serverT(L, "bet.l")}</div>
           </div>
           <div className="h-8 w-px bg-line" />
           <div className="text-center">
             <div className="text-lg font-extrabold tabular-nums text-ink2">{tied}</div>
-            <div className="text-[10px] font-bold uppercase tracking-wider text-ink3">T</div>
+            <div className="text-[10px] font-bold uppercase tracking-wider text-ink3">{serverT(L, "bet.t")}</div>
           </div>
         </div>
       </div>

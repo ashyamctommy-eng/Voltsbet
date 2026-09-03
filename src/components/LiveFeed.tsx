@@ -73,12 +73,12 @@ export default function LiveFeed({
 
   return (
     <>
-      <div className="flex items-center gap-2 text-[11px] font-semibold text-ink3">
+      <div className="relative z-40 flex w-full max-w-full items-center gap-2 text-[11px] font-semibold text-ink3">
         <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-red-400" />
         Live — updates automatically every {refreshSeconds}s
       </div>
 
-      <div className="mt-4">
+      <div className="mt-4 w-full max-w-full overflow-x-hidden">
         {live.length === 0 ? (
           fallback && fallback.length > 0 ? (
             <div>

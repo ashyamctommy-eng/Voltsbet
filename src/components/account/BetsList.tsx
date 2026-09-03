@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useTranslation } from "react-i18next";
 import { formatDateTime } from "@/lib/odds";
 import CashOutButton from "@/components/account/CashOutButton";
 
@@ -22,15 +23,8 @@ export type BetsListItem = {
   settledCount: number;
 };
 
-const FILTERS = [
-  { id: "all", label: "All" },
-  { id: "open", label: "Open" },
-  { id: "closed", label: "Closed" },
-  { id: "settled", label: "Settled" },
-  { id: "won", label: "Won" },
-  { id: "lost", label: "Lost" },
-] as const;
-type FilterId = (typeof FILTERS)[number]["id"];
+const FILTERS = ["all", "open", "closed", "settled", "won", "lost"] as const;
+type FilterId = (typeof FILTERS)[number];
 
 const STATUS_COLOR: Record<string, string> = {
   OPEN: "bg-brand/15 text-brand",
@@ -42,6 +36,7 @@ const STATUS_COLOR: Record<string, string> = {
 
 /** My Bets — status-filter dropdown + Betika-style ticket cards. */
 export default function BetsList({ bets }: { bets: BetsListItem[] }) {
+  const { t } = useTranslation();
   const [filter, setFilter] = useState<FilterId>("all");
   const [open, setOpen] = useState(false);
 
@@ -62,7 +57,7 @@ export default function BetsList({ bets }: { bets: BetsListItem[] }) {
     }
   }, [bets, filter]);
 
-  const active = FILTERS.find((f) => f.id === filter)!;
+  const activeLabel = t(`bet.filter.${filter}`);
 
   return (
     <div className="space-y-4">
@@ -74,7 +69,7 @@ export default function BetsList({ bets }: { bets: BetsListItem[] }) {
           aria-expanded={open}
           className="flex items-center gap-2 rounded-full border border-line bg-card px-4 py-2 text-sm font-bold text-ink transition-colors hover:border-line2"
         >
-          {active.label}
+          {activeLabel}
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5 text-ink3" aria-hidden>
             <path d="m6 9 6 6 6-6" />
           </svg>
@@ -83,20 +78,20 @@ export default function BetsList({ bets }: { bets: BetsListItem[] }) {
           <>
             <div className="fixed inset-0 z-[90]" onClick={() => setOpen(false)} />
             <div role="listbox" className="absolute left-0 top-full z-[95] mt-1.5 w-40 overflow-hidden rounded-xl border border-line bg-card p-1 shadow-2xl">
-              {FILTERS.map((f) => (
+              {FILTERS.map((fid) => (
                 <button
-                  key={f.id}
+                  key={fid}
                   role="option"
-                  aria-selected={f.id === filter}
+                  aria-selected={fid === filter}
                   onClick={() => {
-                    setFilter(f.id);
+                    setFilter(fid);
                     setOpen(false);
                   }}
                   className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-hover-tint ${
-                    f.id === filter ? "text-brand" : "text-ink2 hover:text-ink"
+                    fid === filter ? "text-brand" : "text-ink2 hover:text-ink"
                   }`}
                 >
-                  {f.label}
+                  {t(`bet.filter.${fid}`)}
                 </button>
               ))}
             </div>
@@ -106,8 +101,8 @@ export default function BetsList({ bets }: { bets: BetsListItem[] }) {
 
       {filtered.length === 0 ? (
         <div className="card p-10 text-center text-sm text-ink3">
-          No {filter === "all" ? "" : active.label.toLowerCase() + " "}bets yet.{" "}
-          <Link href="/sports" className="text-brand hover:underline">Browse sports →</Link>
+          {filter === "all" ? t("bet.noBets") : t("bet.noBetsFiltered", { filter: t(`bet.filter.${filter}`) })}{" "}
+          <Link href="/sports" className="text-brand hover:underline">{t("bet.browseSports")}</Link>
         </div>
       ) : (
         <div className="space-y-3">
@@ -133,7 +128,9 @@ export default function BetsList({ bets }: { bets: BetsListItem[] }) {
                 {/* Bonus badge + selections count */}
                 <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
                   <span className="rounded-full bg-card2 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink2">
-                    {bet.type === "MULTIPLE" ? `${bet.selectionCount}-fold Acca` : "Single"}
+                    {bet.type === "MULTIPLE"
+                      ? t("bet.accaFold", { count: bet.selectionCount })
+                      : t("bet.single")}
                   </span>
                   {tier && (
                     <span className="rounded-full bg-amber-500/15 px-2.5 py-0.5 text-[10px] font-black text-amber-400">
@@ -142,7 +139,7 @@ export default function BetsList({ bets }: { bets: BetsListItem[] }) {
                   )}
                   {bet.settledCount > 0 && (
                     <span className="rounded-full bg-hover-tint px-2.5 py-0.5 text-[10px] font-semibold text-ink3">
-                      {bet.settledCount}/{bet.selectionCount} settled
+                      {t("bet.settledProgress", { settled: bet.settledCount, total: bet.selectionCount })}
                     </span>
                   )}
                 </div>
@@ -150,7 +147,7 @@ export default function BetsList({ bets }: { bets: BetsListItem[] }) {
                 {/* Stake / potential */}
                 <div className="mt-3 flex items-end justify-between gap-3 border-t border-line pt-2.5">
                   <div className="text-xs text-ink2">
-                    Stake
+                    {t("bet.stake")}
                     <div className="text-sm font-bold text-ink tabular-nums">
                       {Number(bet.stake).toLocaleString()}
                     </div>
@@ -158,7 +155,13 @@ export default function BetsList({ bets }: { bets: BetsListItem[] }) {
                   <div className="flex items-center gap-2">
                     <CashOutButton betId={bet.id} code={bet.code} status={bet.status} />
                     <div className="text-right text-xs text-ink2">
-                      {bet.status === "WON" ? "Return" : bet.status === "VOID" ? "Refunded" : bet.status === "CASHED_OUT" ? "Cashed out" : "Potential Payout"}
+                      {bet.status === "WON"
+                        ? t("bet.return")
+                        : bet.status === "VOID"
+                          ? t("bet.refunded")
+                          : bet.status === "CASHED_OUT"
+                            ? t("bet.cashedOut")
+                            : t("bet.potentialPayout")}
                       <div className={`text-sm font-extrabold tabular-nums ${bet.status === "WON" ? "text-green-400" : "text-green-400"}`}>
                         {Number(bet.potentialWin).toLocaleString()}
                       </div>
