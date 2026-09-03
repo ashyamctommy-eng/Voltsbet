@@ -60,18 +60,6 @@ export default function BetSlip() {
     };
   }, [open, items.length]);
 
-  const slipBody = useMemo(
-    () => ({
-      items, mode, setMode, stake, setStake, totalOdds, potentialWin,
-      remove, clear, place: () => place(false), placing,
-      stakeNum, balance, minStake: account?.minStake ?? 50,
-      account, authed,
-      goDeposit,
-    }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [items, mode, stake, totalOdds, potentialWin, placing, account, authed]
-  );
-
   /**
    * Insufficient-balance / guest auth redirect (spec: smart betslip deposit
    * flow). Selections are NOT lost: BetSlipProvider caches them in
@@ -85,6 +73,18 @@ export default function BetSlip() {
     const dest = "/account/deposit";
     router.push(authed ? dest : `/register?redirect=${encodeURIComponent(dest)}`);
   };
+
+  const slipBody = useMemo(
+    () => ({
+      items, mode, setMode, stake, setStake, totalOdds, potentialWin,
+      remove, clear, place: () => place(false), placing,
+      stakeNum, balance, minStake: account?.minStake ?? 50,
+      account, authed,
+      goDeposit,
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [items, mode, stake, totalOdds, potentialWin, placing, account, authed]
+  );
 
   async function place(accept: boolean) {
     if (items.length === 0) return;
