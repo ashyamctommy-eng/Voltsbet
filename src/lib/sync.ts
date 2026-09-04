@@ -300,21 +300,60 @@ export async function syncGames(providerId?: string) {
   }
 
   let created = 0, updated = 0;
-  for (const { game, sportId, existing } of plan) {
-    const payload = await buildPayload(game, sportId, liveTitles, existing ?? undefined);
 
-    let gameId: string;
-    if (existing) {
-      await prisma.game.update({ where: { id: existing.id }, data: payload.game });
-      gameId = existing.id;
-      updated++;
-    } else {
-      const createdGame = await prisma.game.create({
-        data: { ...payload.game, externalId: game.externalId, source: "API" },
-      });
-      gameId = createdGame.id;
-      created++;
-    }
+  // ── Bulk import with duplicate skipping ─────────────────────
+  // Individual prisma.game.create() calls race when two syncs overlap (cron +
+  // manual "Sync API" click): both see no row, both create, the second dies on
+  // the externalId unique constraint → whole sync 500s. Stage everything,
+  // insert the batch with createMany(skipDuplicates: true), then re-resolve
+  // the row ids before touching markets.
+  const staged = await Promise.all(
+    plan.map(async ({ game, sportId, existing }) => {
+      const payload = await buildPayload(game, sportId, liveTitles, existing ?? undefined);
+      return {
+        game,
+        sportId,
+        externalId: game.externalId,
+        existing,
+        payload: payload.game,
+      };
+    })
+  );
+
+  // Update rows the feed already owns (unchanged architecture — idempotent).
+  const gameIdByExternalId = new Map<string, string>();
+  for (const { externalId, existing, payload } of staged) {
+    if (!existing) continue;
+    await prisma.game.update({ where: { id: existing.id }, data: payload });
+    gameIdByExternalId.set(externalId, existing.id);
+    updated++;
+  }
+
+  // Bulk-create brand-new games, skipping any externalId a concurrent sync
+  // (or an earlier aborted run) already inserted.
+  const fresh = staged.filter((s) => !s.existing);
+  if (fresh.length > 0) {
+    const insert = await prisma.game.createMany({
+      data: fresh.map(({ externalId, payload }) => ({ ...payload, externalId, source: "API" })),
+      skipDuplicates: true,
+    });
+    created = insert.count;
+    // Resolve the new row ids (createMany does not return them). A race loser
+    // — externalId inserted by the concurrent run between our prefetch and
+    // now — simply isn't in the map yet; its markets are picked up by the
+    // next sync instead of crashing this one.
+    const resolved = await prisma.game.findMany({
+      where: { externalId: { in: fresh.map((f) => f.externalId) } },
+      select: { id: true, externalId: true },
+    });
+    for (const r of resolved) gameIdByExternalId.set(r.externalId!, r.id);
+  }
+
+  // Markets/odds for every staged game (existing + newly created) — resolved
+  // ids only; unresolved race losers skip quietly until the next run.
+  for (const { game, externalId } of staged) {
+    const gameId = gameIdByExternalId.get(externalId);
+    if (!gameId) continue;
     await upsertMarkets(gameId, game, marketsByGame.get(gameId) ?? []);
   }
 
