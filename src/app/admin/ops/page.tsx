@@ -204,7 +204,7 @@ export default async function OpsPage() {
         </h3>
         <div className="mt-2 space-y-1.5 text-xs leading-relaxed text-ink2">
           <p>
-            <b className="text-ink">What auto-settles:</b> the Settlement Cron resolves every FINISHED game's
+            <b className="text-ink">What auto-settles:</b> the Settlement Cron resolves every FINISHED game&apos;s
             outcomes from the final score once the settlement delay (Admin → Website Settings →{" "}
             <code className="rounded bg-hover-tint px-1">settlement.delayMinutes</code>, default 10) passes. Both
             market sources share one resolver (<code className="rounded bg-hover-tint px-1">resolveOutcome</code>):

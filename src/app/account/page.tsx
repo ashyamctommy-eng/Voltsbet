@@ -40,6 +40,7 @@ export default async function AccountDashboardPage() {
       bettingLockReason={bettingLockReason}
       balanceLabel={balanceLabel}
       bonusLabel={bonusLabel}
+      hasDeposited={user.hasDeposited}
       walletCur={walletCur}
       userStatus={user.status}
       verified={user.verified}

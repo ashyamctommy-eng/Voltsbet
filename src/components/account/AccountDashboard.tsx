@@ -10,6 +10,8 @@ export type AccountDashboardProps = {
   bettingLockReason: string | null;
   balanceLabel: string;
   bonusLabel: string | null;
+  /** First successful deposit completed → bonus balance unlocked for betting. */
+  hasDeposited: boolean;
   walletCur: string;
   userStatus: string;
   verified: boolean;
@@ -47,6 +49,7 @@ export default function AccountDashboard(props: AccountDashboardProps) {
     bettingLockReason,
     balanceLabel,
     bonusLabel,
+    hasDeposited,
     walletCur,
     userStatus,
     verified,
@@ -71,6 +74,13 @@ export default function AccountDashboard(props: AccountDashboardProps) {
         <div className="mt-1 text-3xl font-extrabold text-green-400">{balanceLabel}</div>
         {bonusLabel && (
           <div className="mt-1 text-xs text-ink3">{t("dashboard.bonus_balance", { label: bonusLabel })}</div>
+        )}
+        {bonusLabel && !hasDeposited && (
+          <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-600 dark:text-amber-300">
+            {t("dashboard.bonus_locked_hint", {
+              defaultValue: "Locked - make your first deposit to unlock it for betting",
+            })}
+          </div>
         )}
         <div className="mt-5 flex gap-3">
           <Link href="/account/deposit" className="btn btn-primary btn-sm">+ {t("common.deposit")}</Link>
