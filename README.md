@@ -41,14 +41,17 @@ betting, multi-language, RBAC and audit logging. Deploy on **Railway** or any **
 | Check | Result |
 |---|---|
 | `pnpm exec tsc --noEmit` | ✅ Pass — zero TypeScript errors |
-| `pnpm run lint` | ✅ Pass — 0 errors (23 non-blocking warnings in seed/dev files) |
+| `pnpm run lint` | ✅ Pass — 0 errors (27 non-blocking warnings) |
+| `pnpm run test` | ✅ Pass — 64/64 vitest suites (wallet, settlement, odds, bonus-pool rules) |
 | `pnpm run build` | ✅ Pass — production Next.js compile succeeds |
 | `bash scripts/check-schema-sync.sh` | ✅ Postgres + MySQL schemas in sync |
 
-Latest release line: **platform upgrade** — multi-sport sync (football,
-basketball, tennis, esports), admin custom-market creator, horizontal match
-cards, Palpluss M-Pesa gateway with manual payout pipeline, automated FX/crypto
-rates, voucher + wallet hardening (`d399aa0` → `446ad1c` → `84d434b`).
+Latest release line: **bonus & wallet UX batch** — registration-bonus system
+(admin toggle + amount, deposit-locked bonus balance, header **Balance +
+Bonus** block, bonus-first staking with source-aware refunds), crypto deposit
+QR codes + SVG trust badges, withdrawal limit validation, touch-scroll footer
+partner/payment logos, developer contact moved to the admin panel only
+(`d17eb63` → `a0af5e1` → `d82ebfc`).
 
 ---
 
@@ -60,6 +63,18 @@ with full markets, **live betting** with scores/clocks, bet slip (singles +
 accumulators, odds-change confirmation, cash-out, parlay reduction), search,
 results, promotions, responsible gambling, **voucher deposits**, WhatsApp +
 Telegram widgets, mobile bottom-nav + desktop three-column layout.
+
+**Wallet & bonuses** — the header shows **Balance + Bonus** side by side in the
+wallet currency (mobile keeps a compact deposit button). A configurable
+**registration bonus** (Admin → Website Settings → Registration Bonus) is
+credited to a separate bonus balance at signup and is **deposit-locked**: it
+cannot be staked or withdrawn until the player's first successful deposit
+(crypto, M-Pesa or voucher) unlocks it — after that, stakes spend bonus funds
+first and voided/cancelled bets refund to the same pools. Bonus funds are never
+withdrawable.
+
+**Deposit UX** — QR-code crypto deposits (scan or copy the address), SVG trust
+badges (instant / secure / no fees), and server-verified voucher redemption.
 
 **Betting engine** (server-side) — validates user status, game/market/outcome
 state, odds drift, stake limits, payout caps, wallet balance; debits atomically
@@ -74,9 +89,14 @@ markets/outcomes + inline odds, **custom market builder** (manual markets that
 sync never overwrites), settlement UI, users, deposits + withdrawals (with the
 manual payout queue), **Vouchers** (bulk generate, batches, export/print),
 currencies (+ market-rate sync), languages, promotions/banners, website
-settings (branding, limits, crypto, **Palpluss M-Pesa**), **API Settings**
+settings (branding, limits, crypto, **Palpluss M-Pesa**, **registration
+bonus**), **API Settings**
 (Odds API status + test), **Cronjobs** (scheduler config generator), audit logs,
 on-demand sync.
+
+Withdrawal requests are validated against the real balance only — bonus funds
+are excluded — with inline "Insufficient withdrawable balance" errors and a
+disabled submit button when the amount exceeds available funds.
 
 **Payments** — NOWPayments (crypto) · **M-Pesa via Palpluss** (STK deposits +
 B2C payouts, optional `?secret=`-authenticated webhooks) · prepaid vouchers.
@@ -532,7 +552,9 @@ at install time.
 | [`docs/HANDOVER.md`](docs/HANDOVER.md) | Client handover checklist |
 | [`docs/ACCOUNTS-CHECKLIST.md`](docs/ACCOUNTS-CHECKLIST.md) | Admin accounts & security checklist |
 
-**Developer contact**
+**Developer contact** — shown only inside the **Admin panel sidebar** (never on
+public pages, keeping the site white-label for end users). Links live in
+`src/app/admin/layout.tsx`.
 
 - Telegram: [t.me/Poriot_ke](https://t.me/Poriot_ke)
 - WhatsApp: [wa.me/254717702563](https://wa.me/254717702563)
