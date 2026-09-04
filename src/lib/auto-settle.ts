@@ -16,7 +16,7 @@ const SYSTEM_ACTOR = { id: "system", username: "system" } as const;
 
 type Result = "WON" | "LOST" | "VOID" | null; // null = cannot determine → skip
 
-export async function autoSettleFinishedGames(): Promise<{ settled: string[]; skipped: string[] }> {
+export async function autoSettleFinishedGames(): Promise<{ settled: string[]; skipped: string[]; betsSettled: number }> {
   const settings = await getSettings();
   const delayMs = settings.settlementDelayMinutes * 60_000;
   const cutoff = new Date(Date.now() - delayMs);
@@ -37,6 +37,9 @@ export async function autoSettleFinishedGames(): Promise<{ settled: string[]; sk
 
   const settled: string[] = [];
   const skipped: string[] = [];
+  // Unique bet codes touched by this run (settleOutcome resolves the bets
+  // whose selections all settled) — surfaced to admins as "X bets settled".
+  const settledBetCodes = new Set<string>();
 
   for (const game of games) {
     for (const market of game.markets) {
@@ -47,7 +50,10 @@ export async function autoSettleFinishedGames(): Promise<{ settled: string[]; sk
         const result = resolveOutcome(game, market.key, outcome.name, outcome.label);
         if (!result) continue; // null = undecidable → leave for admin review
         try {
-          await settleOutcome(SYSTEM_ACTOR, outcome.id, result);
+          const done = await settleOutcome(SYSTEM_ACTOR, outcome.id, result);
+          if (done && "affected" in done && Array.isArray(done.affected)) {
+            for (const code of done.affected) settledBetCodes.add(code);
+          }
           settled.push(`${game.homeName} vs ${game.awayName} · ${market.name} · ${outcome.name}`);
         } catch (e) {
           // ALREADY_SETTLED is the normal race (another run / admin settled it
@@ -67,7 +73,7 @@ export async function autoSettleFinishedGames(): Promise<{ settled: string[]; sk
     }
   }
 
-  return { settled, skipped };
+  return { settled, skipped, betsSettled: settledBetCodes.size };
 }
 
 /** Map a final score to a market result: "H" | "A" | "D" | null. */

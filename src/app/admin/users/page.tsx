@@ -103,9 +103,11 @@ export default function AdminUsers() {
 
       {/* Add User modal — create a real (non-demo) account */}
       {creating && (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
-          <div className="fade-in absolute inset-0 bg-black/70" onClick={() => setCreating(false)} />
-          <form onSubmit={createUser} className="fade-in card max-h-[90vh] w-full max-w-lg overflow-y-auto p-6">
+        <>
+          {/* Backdrop — UNDER the dialog layer */}
+          <div className="fade-in fixed inset-0 z-40 bg-black/60 pointer-events-auto" onClick={() => setCreating(false)} />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+          <form onSubmit={createUser} className="fade-in card pointer-events-auto max-h-[90vh] w-full max-w-lg overflow-y-auto p-6">
             <div className="flex items-start justify-between">
               <div>
                 <h3 className="text-lg font-bold">Add User</h3>
@@ -172,14 +174,17 @@ export default function AdminUsers() {
               </button>
             </div>
           </form>
-        </div>
+          </div>
+        </>
       )}
 
       {/* User detail modal */}
       {selected && (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
-          <div className="fade-in absolute inset-0 bg-black/70" onClick={() => setSelected(null)} />
-          <div className="fade-in card w-full max-w-lg p-6">
+        <>
+          {/* Backdrop — UNDER the dialog layer */}
+          <div className="fade-in fixed inset-0 z-40 bg-black/60 pointer-events-auto" onClick={() => setSelected(null)} />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+          <div className="fade-in card pointer-events-auto w-full max-w-lg p-6">
             <div className="flex items-start justify-between">
               <div>
                 <h3 className="text-lg font-bold">{selected.fullName} <span className="text-ink3">@{selected.username}</span></h3>
@@ -197,7 +202,8 @@ export default function AdminUsers() {
               All status changes are audited and the user is notified.
             </div>
           </div>
-        </div>
+          </div>
+        </>
       )}
     </div>
   );

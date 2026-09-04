@@ -34,6 +34,7 @@ export default function AdminGames() {
   const [games, setGames] = useState<Game[]>([]);
   const [status, setStatus] = useState("");
   const [syncing, setSyncing] = useState(false);
+  const [settling, setSettling] = useState(false);
   const [lastSync, setLastSync] = useState<SyncResult | null>(null);
 
   useEffect(() => {
@@ -45,6 +46,20 @@ export default function AdminGames() {
     const url = `/api/admin/games${status ? `?status=${status}` : ""}`;
     const r = await apiFetch<{ games: Game[] }>(url);
     if (r.ok) setGames(r.data.games);
+  }
+
+  /** ⚡ Manual bulk settlement — runs the auto-settle engine on demand
+   *  (FINISHED games past the delay; unresolved outcomes stay for review). */
+  async function settleBets() {
+    setSettling(true);
+    const r = await apiFetch<{ settled: string[]; skipped: string[]; betsSettled: number; message: string }>(
+      "/api/admin/settle",
+      { method: "POST", body: {} },
+    );
+    setSettling(false);
+    if (!r.ok) return push("error", r.error.message);
+    push("success", r.data.message || `${r.data.betsSettled} bet(s) settled successfully`);
+    load();
   }
 
   async function syncNow() {
@@ -63,6 +78,9 @@ export default function AdminGames() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-bold">Games</h2>
         <div className="flex items-center gap-3">
+          <button className="btn btn-ghost btn-sm" onClick={settleBets} disabled={settling} title="Settle all finished games now (auto-settle engine)">
+            {settling ? "Settling…" : "⚡ Settle Bets"}
+          </button>
           <button className="btn btn-ghost btn-sm" onClick={syncNow} disabled={syncing} title="Pull games/odds from the configured sports API">
             {syncing ? "Syncing…" : "⟳ Sync API"}
           </button>
