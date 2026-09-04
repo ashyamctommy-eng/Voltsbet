@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/client";
 import { useToast } from "@/components/BetSlipContext";
 import VoucherDeposit from "@/components/account/VoucherDeposit";
+import { Zap, ShieldCheck, CheckCircle2 } from "lucide-react";
 
 type AccountData = {
   user: { status: string; currencyCode: string };
@@ -383,17 +384,21 @@ export default function DepositPage() {
             <p className="text-center text-[11px] text-ink3">
               {effectiveMethod === "MPESA"
                 ? "You'll get an M-Pesa PIN prompt on your phone. Confirm it to complete the deposit."
-                : "Demo mode: use “Simulate provider confirmation” to test the crypto flow without keys."}
+                : null}
             </p>
           </form>
 
           {/* Trust badges */}
           <div className="grid grid-cols-3 gap-2 text-center">
-            {[["⚡", "Instant credit", "after confirmation"], ["🔒", "Secure", "verified server-side"], ["🛡️", "No fees", "deposit with confidence"]].map(([icon, t, s]) => (
-              <div key={t} className="card p-3">
-                <div className="text-lg">{icon}</div>
-                <div className="mt-1 text-xs font-bold">{t}</div>
-                <div className="text-[10px] text-ink3">{s}</div>
+            {[
+              { Icon: Zap, title: "Instant credit", sub: "after confirmation" },
+              { Icon: ShieldCheck, title: "Secure", sub: "verified server-side" },
+              { Icon: CheckCircle2, title: "No fees", sub: "deposit with confidence" },
+            ].map(({ Icon, title, sub }) => (
+              <div key={title} className="card p-3">
+                <Icon className="mx-auto h-5 w-5 text-brand" />
+                <div className="mt-1.5 text-xs font-bold">{title}</div>
+                <div className="text-[10px] text-ink3">{sub}</div>
               </div>
             ))}
           </div>
@@ -459,11 +464,6 @@ export default function DepositPage() {
               </div>
             </div>
 
-            {effectiveMethod === "CRYPTO" && !pending.paymentAddress?.startsWith("vb") && (
-              <p className="text-center text-[11px] text-ink3">
-                This is a live provider address — we credit your balance automatically via webhook.
-              </p>
-            )}
             {effectiveMethod === "CRYPTO" && pending.paymentAddress?.startsWith("vb") && (
               <button className="btn btn-accent w-full" onClick={simulateConfirm} disabled={checking}>
                 {checking ? "Confirming…" : "Simulate provider confirmation (demo)"}

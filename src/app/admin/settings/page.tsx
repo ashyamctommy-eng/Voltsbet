@@ -74,6 +74,25 @@ const GROUPS: { title: string; anchor: string; icon: React.ReactNode; fields: Fi
     ],
   },
   {
+    title: "Registration Bonus",
+    anchor: "signup-bonus",
+    icon: <IconGift2 className="h-4 w-4" />,
+    fields: [
+      {
+        key: "signupBonus.enabled",
+        label: "Registration bonus enabled",
+        type: "toggle",
+        hint: "Credit a welcome bonus to every new account's bonus balance at signup",
+      },
+      {
+        key: "signupBonus.amount",
+        label: "Registration bonus amount",
+        type: "number",
+        hint: "In the wallet currency chosen at registration (e.g. 4000 KES or 50 USD). The bonus is locked — it cannot be staked or withdrawn — until the player's first successful deposit (crypto, M-Pesa or voucher).",
+      },
+    ],
+  },
+  {
     title: "Automation",
     anchor: "automation",
     icon: <IconGear className="h-4 w-4" />,

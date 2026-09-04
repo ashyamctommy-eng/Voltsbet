@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/client";
 import { useToast } from "@/components/BetSlipContext";
+import { ShieldCheck } from "lucide-react";
 
 type VoucherResult = {
   amount: number;
@@ -109,7 +110,10 @@ export default function VoucherDeposit({ onSuccess }: { onSuccess?: () => void }
           {busy ? "Redeeming…" : "Redeem Voucher"}
         </button>
 
-        <p className="text-center text-[11px] text-ink3">🔒 Secure, server-verified voucher redemption</p>
+        <p className="flex items-center justify-center gap-1.5 text-center text-[11px] text-ink3">
+          <ShieldCheck className="h-4 w-4 text-emerald-400" />
+          Secure, server-verified voucher redemption
+        </p>
       </form>
 
       {/* Result */}

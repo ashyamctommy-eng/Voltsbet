@@ -54,6 +54,7 @@ export const GET = handle(async () => {
       displayCurrencyCode: displayCur,
       status: user.status,
       verified: user.verified,
+      hasDeposited: user.hasDeposited,
       createdAt: user.createdAt,
     },
     wallet: wallet

@@ -56,6 +56,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       role: user.role,
       currencyCode: walletCur,
       balanceLabel: await formatMoney(Number(wallet?.balance ?? 0), walletCur, { compact: true }),
+      bonusLabel: await formatMoney(Number(wallet?.bonusBalance ?? 0), walletCur, { compact: true }),
+      hasDeposited: user.hasDeposited,
       unreadNotifications: unread,
     };
   }

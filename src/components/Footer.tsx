@@ -2,12 +2,6 @@ import Link from "next/link";
 import { getSettings } from "@/lib/settings";
 import UNIBET360Logo from "@/components/VoltBetLogo";
 import FooterBanner from "@/components/FooterBanner";
-import { IconTelegram, IconWhatsApp } from "@/components/icons";
-
-/** Developer contact — shown on every install so buyers can reach support.
- *  Replace/remove for pure white-label deployments. */
-const DEV_TELEGRAM = "https://t.me/Poriot_ke";
-const DEV_WHATSAPP = "https://wa.me/254717702563";
 
 export default async function Footer() {
   const s = await getSettings();
@@ -42,26 +36,6 @@ export default async function Footer() {
             <li><Link href="/responsible-gambling" className="hover:text-ink">Responsible Gambling</Link></li>
             <li><Link href="/terms" className="hover:text-ink">Terms & Conditions</Link></li>
             {s.supportEmail && <li><a href={`mailto:${s.supportEmail}`} className="hover:text-ink">{s.supportEmail}</a></li>}
-            <li>
-              <a
-                href={DEV_TELEGRAM}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 hover:text-ink"
-              >
-                <IconTelegram className="h-4 w-4 text-sky-400" /> Developer — Telegram
-              </a>
-            </li>
-            <li>
-              <a
-                href={DEV_WHATSAPP}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 hover:text-ink"
-              >
-                <IconWhatsApp className="h-4 w-4 text-green-400" /> Developer — WhatsApp
-              </a>
-            </li>
           </ul>
         </div>
       </div>

@@ -27,13 +27,17 @@ export default function WithdrawPage() {
 
   // Fallback guard (render-time, no effects): M-Pesa toggled off → crypto.
   const effectiveMethod = (methods.includes(method) ? method : methods[0]) as "CRYPTO" | "MPESA" ?? "CRYPTO";
+  // Withdrawable = real balance only — bonus balance is never withdrawable.
   const max = profile?.wallet?.balance ?? 0;
+  const amtNum = amount ? parseFloat(amount) : NaN;
+  const exceedsAvailable = Number.isFinite(amtNum) && amtNum > max;
+  const noWithdrawable = max <= 0;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     const amt = parseFloat(amount);
     if (!amt || amt <= 0) return push("error", "Enter a valid amount");
-    if (amt > max) return push("error", "Amount exceeds your available balance");
+    if (amt > max) return push("error", "Insufficient withdrawable balance");
     setLoading(true);
     const res = await apiFetch<{ withdrawal: { trackingId?: string } }>("/api/account/withdraw", {
       method: "POST",
@@ -95,10 +99,27 @@ export default function WithdrawPage() {
       <form onSubmit={submit} className="card space-y-4 p-6">
         <div>
           <label className="label" htmlFor="w-amount">Amount</label>
-          <input id="w-amount" className="input" type="number" min="1" step="any" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Enter amount" required />
-          <button type="button" className="mt-1.5 text-xs text-brand hover:underline" onClick={() => setAmount(String(max))}>
-            Withdraw max
-          </button>
+          <input
+            id="w-amount"
+            className={`input ${exceedsAvailable || noWithdrawable ? "!border-red-500/60" : ""}`}
+            type="number"
+            min="1"
+            step="any"
+            inputMode="decimal"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder={noWithdrawable ? "No withdrawable funds" : "Enter amount"}
+            required
+          />
+          {exceedsAvailable || noWithdrawable ? (
+            <p className="mt-1 text-xs font-semibold text-red-400" role="alert">
+              Insufficient withdrawable balance
+            </p>
+          ) : (
+            <button type="button" className="mt-1.5 text-xs text-brand hover:underline" onClick={() => setAmount(String(max))}>
+              Withdraw max
+            </button>
+          )}
         </div>
         <div>
           <label className="label" htmlFor="w-dest">
@@ -118,8 +139,8 @@ export default function WithdrawPage() {
             <p className="mt-1.5 text-xs text-ink3">Payouts are sent from our Paybill via B2C. You may be required to verify identity first.</p>
           )}
         </div>
-        <button className="btn btn-primary w-full py-3" disabled={loading}>
-          {loading ? "Requesting…" : "Request Withdrawal"}
+        <button className="btn btn-primary w-full py-3" disabled={loading || exceedsAvailable || noWithdrawable}>
+          {loading ? "Requesting…" : noWithdrawable ? "No withdrawable funds" : "Request Withdrawal"}
         </button>
         {trackingId && (
           <p className="rounded-lg border border-brand/40 bg-brand/10 px-3 py-2 text-center text-sm font-bold text-brand">

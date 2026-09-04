@@ -28,6 +28,7 @@ model User {
   role         String    @default("CUSTOMER") // CUSTOMER | SUPER_ADMIN | SPORTS_MANAGER | FINANCE_MANAGER | SUPPORT_MANAGER | CONTENT_MANAGER
   status       String    @default("ACTIVE")   // status-engine key (type=USER)
   verified     Boolean   @default(false)
+  hasDeposited Boolean   @default(false) // first successful deposit unlocks bonus-balance rules
   referralCode String?   @unique // the user's OWN share code (generated at registration)
   referredByCode String? // the code this user entered when signing up (who referred them)
   failedLogins Int       @default(0)
@@ -223,6 +224,7 @@ model Bet {
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   type         String   @default("SINGLE") // SINGLE | MULTIPLE
   stake        Decimal
+  bonusStake   Decimal  @default(0) // portion of stake funded from bonusBalance (0 until bonus unlocked)
   totalOdds    Decimal
   potentialWin Decimal
   status       String   @default("OPEN") // status-engine key (type=BET): OPEN | WON | LOST | VOID

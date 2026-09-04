@@ -4,6 +4,7 @@ import { ApiError } from "./api";
 import { getSettings } from "./settings";
 import { isUserActionAllowed } from "./statuses";
 import { creditWallet, toCents } from "./wallet";
+import { unlockDepositFlag } from "./first-deposit";
 import { currencyMap, convert } from "./currency";
 import type { User } from "@prisma/client";
 
@@ -284,6 +285,10 @@ export async function redeemVoucher(
       reference: ref,
       currencyCode: creditCurrency,
     });
+
+    // Voucher redemption counts as a first deposit — unlocks bonus-balance
+    // rules for the signup bonus (idempotent no-op on later redemptions).
+    await unlockDepositFlag(tx, user.id);
 
     const redemption = await tx.voucherRedemption.create({
       data: {

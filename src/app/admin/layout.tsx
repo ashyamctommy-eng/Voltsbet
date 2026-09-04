@@ -19,8 +19,14 @@ import {
   IconPlug,
   IconController,
   IconClock,
+  IconTelegram,
+  IconWhatsApp,
 } from "@/components/icons";
 import AdminBroadcastButton from "@/components/admin/BroadcastDrawer";
+
+/** Developer contact — Admin-only (hidden from public user views). */
+const DEV_TELEGRAM = "https://t.me/Poriot_ke";
+const DEV_WHATSAPP = "https://wa.me/254717702563";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
@@ -75,6 +81,25 @@ export default async function AdminLayout({ children }: { children: React.ReactN
                 </span>
               </Link>
             ))}
+            <div className="border-t border-line pt-3">
+              <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-ink3">Developer</div>
+              <a
+                href={DEV_TELEGRAM}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-ink2 transition-colors hover:bg-hover-tint hover:text-ink"
+              >
+                <IconTelegram className="h-4 w-4 text-sky-400" /> Telegram
+              </a>
+              <a
+                href={DEV_WHATSAPP}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-ink2 transition-colors hover:bg-hover-tint hover:text-ink"
+              >
+                <IconWhatsApp className="h-4 w-4 text-green-400" /> WhatsApp
+              </a>
+            </div>
           </nav>
         </aside>
 
@@ -85,6 +110,22 @@ export default async function AdminLayout({ children }: { children: React.ReactN
                 {n.label}
               </Link>
             ))}
+            <a
+              href={DEV_TELEGRAM}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="shrink-0 rounded-full border border-line px-3 py-1.5 text-xs font-semibold text-sky-400"
+            >
+              Developer — Telegram
+            </a>
+            <a
+              href={DEV_WHATSAPP}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="shrink-0 rounded-full border border-line px-3 py-1.5 text-xs font-semibold text-green-400"
+            >
+              Developer — WhatsApp
+            </a>
           </div>
           {children}
         </div>

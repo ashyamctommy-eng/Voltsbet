@@ -4,7 +4,9 @@ import { handle, ok, ApiError } from "@/lib/api";
 import { hashPassword, createSession } from "@/lib/auth";
 import { generateReferralCode } from "@/lib/referral";
 import { prisma } from "@/lib/prisma";
+import { getSettings } from "@/lib/settings";
 import { rateLimit } from "@/lib/rate-limit";
+import { toCents } from "@/lib/wallet";
 
 const schema = z.object({
   fullName: z.string().min(2, "Enter your full name").max(80),
@@ -52,23 +54,54 @@ export const POST = handle(async (req: NextRequest) => {
   const walletCurrency = d.currency === "USD" || d.currency === "KES" ? d.currency : "KES";
   const language = await prisma.language.findUnique({ where: { code: d.language } });
   const langCode = language?.active ? d.language : "en";
+  const settings = await getSettings();
+  const signupBonusAmount = settings.signupBonusEnabled ? settings.signupBonusAmount : 0;
 
-  const user = await prisma.user.create({
-    data: {
-      fullName: d.fullName.trim(),
-      username,
-      email,
-      phone: d.phone,
-      passwordHash: await hashPassword(d.password),
-      country: d.country,
-      languageCode: langCode,
-      currencyCode: walletCurrency,
-      // own unique share code + the referrer's code they entered (if any)
-      referralCode: generateReferralCode(),
-      referredByCode: d.referralCode.trim() ? d.referralCode.trim().toUpperCase() : null,
-      wallet: { create: { balance: "0", currencyCode: walletCurrency } },
-    },
+  const user = await prisma.$transaction(async (tx) => {
+    // Registration bonus: credited to the BONUS pool at signup when enabled.
+    // It is locked — not stakeable/withdrawable — until the user's first
+    // successful deposit flips hasDeposited (see lib/deposits + lib/vouchers).
+    const signupBonus = toCents(signupBonusAmount > 0 ? signupBonusAmount : 0);
+    const created = await tx.user.create({
+      data: {
+        fullName: d.fullName.trim(),
+        username,
+        email,
+        phone: d.phone,
+        passwordHash: await hashPassword(d.password),
+        country: d.country,
+        languageCode: langCode,
+        currencyCode: walletCurrency,
+        // own unique share code + the referrer's code they entered (if any)
+        referralCode: generateReferralCode(),
+        referredByCode: d.referralCode.trim() ? d.referralCode.trim().toUpperCase() : null,
+        wallet: {
+          create: {
+            balance: "0",
+            bonusBalance: signupBonus > 0 ? signupBonus.toFixed(2) : "0",
+            currencyCode: walletCurrency,
+          },
+        },
+      },
+    });
+    if (signupBonus > 0) {
+      await tx.transaction.create({
+        data: {
+          userId: created.id,
+          type: "BONUS",
+          method: "SIGNUP",
+          amount: signupBonus.toFixed(2),
+          currencyCode: walletCurrency,
+          prevBalance: "0",
+          newBalance: signupBonus.toFixed(2),
+          reason: "Registration bonus (bonus balance)",
+        },
+      });
+    }
+    return created;
   });
+
+  const bonusCredited = signupBonusAmount > 0;
 
   await createSession(user.id, {
     ip,
@@ -81,7 +114,9 @@ export const POST = handle(async (req: NextRequest) => {
       userId: user.id,
       type: "GENERAL",
       title: "Welcome to UNIBET360! 🎉",
-      message: "Thanks for joining. Claim your 100% welcome bonus today.",
+      message: bonusCredited
+        ? `Your welcome bonus of ${toCents(signupBonusAmount)} ${walletCurrency} has been added to your bonus balance. Make your first deposit to unlock it for betting.`
+        : "Thanks for joining UNIBET360. Deposit and start betting — fast odds, live betting, instant crypto deposits.",
     },
   });
 

@@ -52,6 +52,7 @@ const {
   awardReferralBonusIfFirstDeposit,
   depositFindUnique,
   depositUpdateMany,
+  userUpdateMany,
   notificationCreate,
   prismaMock,
 } = vi.hoisted(() => {
@@ -59,14 +60,17 @@ const {
   const awardReferralBonusIfFirstDeposit = vi.fn(async () => null);
   const depositFindUnique = vi.fn();
   const depositUpdateMany = vi.fn();
+  const userUpdateMany = vi.fn();
   const notificationCreate = vi.fn();
 
   const prismaMock: {
     deposit: { findUnique: typeof depositFindUnique; updateMany: typeof depositUpdateMany };
+    user: { updateMany: typeof userUpdateMany };
     notification: { create: typeof notificationCreate };
     $transaction: ReturnType<typeof vi.fn>;
   } = {
     deposit: { findUnique: depositFindUnique, updateMany: depositUpdateMany },
+    user: { updateMany: userUpdateMany },
     notification: { create: notificationCreate },
     $transaction: vi.fn(),
   };
@@ -78,6 +82,7 @@ const {
     awardReferralBonusIfFirstDeposit,
     depositFindUnique,
     depositUpdateMany,
+    userUpdateMany,
     notificationCreate,
     prismaMock,
   };
@@ -102,6 +107,7 @@ vi.mock("@/lib/api", () => {
 beforeEach(() => {
   vi.clearAllMocks();
   depositUpdateMany.mockResolvedValue({ count: 1 });
+  userUpdateMany.mockResolvedValue({ count: 1 });
   notificationCreate.mockResolvedValue({ id: "n_1" });
   prismaMock.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) => fn(prismaMock));
 });

@@ -71,7 +71,7 @@ export default function RegisterPage() {
     <div className="mx-auto max-w-2xl px-4 py-12">
       <div className="card p-8">
         <h1 className="text-2xl font-extrabold">Create your account</h1>
-        <p className="mt-1 text-sm text-ink2">Join UNIBET360 and get a 100% welcome bonus on your first deposit.</p>
+        <p className="mt-1 text-sm text-ink2">Join UNIBET360 — fast odds, live betting and instant crypto deposits.</p>
 
         <form onSubmit={submit} className="mt-6 grid gap-4 sm:grid-cols-2">
           {error && (

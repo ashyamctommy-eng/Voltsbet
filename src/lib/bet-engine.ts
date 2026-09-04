@@ -3,7 +3,7 @@ import { prisma } from "./prisma";
 import { ApiError } from "./api";
 import { getSettings } from "./settings";
 import { isUserActionAllowed } from "./statuses";
-import { debitWallet } from "./wallet";
+import { debitWallet, debitBonusWallet, availableBankroll, splitStakeFunds } from "./wallet";
 import type { User } from "@prisma/client";
 
 const BETTABLE_GAME_STATUSES = ["SCHEDULED", "LIVE", "HALF_TIME"];
@@ -242,12 +242,42 @@ export async function placeBet(user: User, input: PlaceBetInput) {
         // 7. Wallet check + atomic debit. Velocity caps are re-checked under
         //    the tx so two concurrent placements can't both slip under them.
         await checkVelocityCaps(tx);
+        const wallet = await tx.wallet.findUnique({ where: { userId: user.id } });
+        if (!wallet) throw new ApiError(500, "Wallet not found.", "NO_WALLET");
+
+        // Bonus-balance rules: bonusBalance is excluded from the bankroll
+        // until the user's first successful deposit (hasDeposited). Once
+        // unlocked, stakes are funded bonus-first (split tracked on the Bet
+        // row so void/cancel refunds return to the same pools).
+        const bonusUnlocked = user.hasDeposited === true;
+        const bankroll = availableBankroll(Number(wallet.balance), Number(wallet.bonusBalance), bonusUnlocked);
+        if (input.stake > bankroll) {
+          const hasLockedBonus = Number(wallet.bonusBalance) > 0 && !bonusUnlocked;
+          throw new ApiError(
+            400,
+            hasLockedBonus
+              ? "Insufficient balance. Make your first deposit to unlock your bonus balance for betting."
+              : "Insufficient balance.",
+            "INSUFFICIENT_BALANCE"
+          );
+        }
+        const funds = splitStakeFunds(Number(wallet.balance), Number(wallet.bonusBalance), input.stake, bonusUnlocked);
+
         const code = betCode();
-        await debitWallet(tx, user.id, input.stake, {
-          type: "BET_STAKE",
-          reason: `Bet stake ${code}`,
-          reference: code,
-        });
+        if (funds.fromBalance > 0) {
+          await debitWallet(tx, user.id, funds.fromBalance, {
+            type: "BET_STAKE",
+            reason: `Bet stake ${code}`,
+            reference: code,
+          });
+        }
+        if (funds.fromBonus > 0) {
+          await debitBonusWallet(tx, user.id, funds.fromBonus, {
+            type: "BET_STAKE",
+            reason: `Bet stake ${code}`,
+            reference: code,
+          });
+        }
 
         return await tx.bet.create({
           data: {
@@ -256,6 +286,7 @@ export async function placeBet(user: User, input: PlaceBetInput) {
             userId: user.id,
             type: input.type,
             stake: input.stake.toFixed(2),
+            bonusStake: funds.fromBonus.toFixed(2),
             totalOdds: totalOdds.toFixed(2),
             potentialWin: potentialWin.toFixed(2),
             status: "OPEN",

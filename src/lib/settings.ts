@@ -77,6 +77,11 @@ export type SiteSettings = {
   referralBonusPercent: number; // % of referee's first deposit credited to referrer
   referralBonusCap: number; // max bonus per referee
   referralMinDeposit: number; // referee deposit must be >= this to trigger
+  // Signup (registration) bonus — credited to the user's bonusBalance at
+  // account creation when signupBonusEnabled. The bonus is locked (not
+  // stakeable / withdrawable) until the user's first successful deposit.
+  signupBonusEnabled: boolean;
+  signupBonusAmount: number; // in the wallet currency chosen at registration (USD | KES)
   // Responsible gambling — per-user daily velocity caps (rolling 24h)
   dailyStakeLimit: number; // max total STAKED per user per 24h (0 = unlimited)
   dailyLossLimit: number; // max net LOSS per user per 24h (0 = unlimited)
@@ -159,6 +164,8 @@ const DEFAULTS: SiteSettings = {
   referralBonusPercent: 10,
   referralBonusCap: 500,
   referralMinDeposit: 0,
+  signupBonusEnabled: false,
+  signupBonusAmount: 0,
   dailyStakeLimit: 0,
   dailyLossLimit: 0,
   settlementDelayMinutes: 10,
@@ -268,6 +275,8 @@ export async function getSettings(): Promise<SiteSettings> {
   s.referralBonusPercent = Number(raw["referral.bonusPercent"] ?? s.referralBonusPercent);
   s.referralBonusCap = Number(raw["referral.bonusCap"] ?? s.referralBonusCap);
   s.referralMinDeposit = Number(raw["referral.minDeposit"] ?? s.referralMinDeposit);
+  s.signupBonusEnabled = raw["signupBonus.enabled"] === "true";
+  s.signupBonusAmount = Number(raw["signupBonus.amount"] ?? s.signupBonusAmount) || 0;
   s.dailyStakeLimit = Number(raw["betting.dailyStakeLimit"] ?? s.dailyStakeLimit);
   s.dailyLossLimit = Number(raw["betting.dailyLossLimit"] ?? s.dailyLossLimit);
   s.settlementDelayMinutes = Number(raw["settlement.delayMinutes"] ?? s.settlementDelayMinutes);

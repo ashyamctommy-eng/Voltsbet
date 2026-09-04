@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { ApiError } from "@/lib/api";
 import { awardReferralBonusIfFirstDeposit } from "@/lib/referral";
 import { creditWallet } from "@/lib/wallet";
+import { unlockDepositFlag } from "@/lib/first-deposit";
 
 /**
  * Shared payment-confirmation logic. Every provider (demo webhook,
@@ -78,6 +79,10 @@ export async function confirmDeposit(
 
     // First-deposit referral reward for whoever referred this user
     await awardReferralBonusIfFirstDeposit(tx, deposit);
+
+    // Deposit-lock: the user's first successful deposit unlocks bonus-balance
+    // rules (idempotent no-op on later deposits).
+    await unlockDepositFlag(tx, deposit.userId);
 
     return { amount };
   });

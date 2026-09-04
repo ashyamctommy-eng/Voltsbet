@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { handle, ok, requireUser, verifyCsrf, ApiError } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { BET_CANCEL_WINDOW_MS } from "@/lib/bet-engine";
-import { creditWallet } from "@/lib/wallet";
+import { refundBetStake } from "@/lib/wallet";
 
 /**
  * Cancel an OPEN bet inside the cancellation window — voids the bet, marks
@@ -34,11 +34,7 @@ export const POST = handle(async (req: NextRequest, ctx: { params: Promise<{ id:
     if (claimed.count === 0) {
       throw new ApiError(400, "This bet can no longer be cancelled — it has already settled.", "NOT_CANCELLABLE");
     }
-    await creditWallet(tx, user.id, stake, {
-      type: "BET_REFUND",
-      reason: `Bet cancelled ${bet.code}`,
-      reference: bet.code,
-    });
+    await refundBetStake(tx, user.id, stake, Number(bet.bonusStake ?? 0), bet.code, "Bet cancelled");
     await tx.betSelection.updateMany({ where: { betId: id }, data: { result: "VOID", settled: true } });
   });
 

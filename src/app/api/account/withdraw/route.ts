@@ -62,7 +62,7 @@ export const POST = handle(async (req: NextRequest) => {
     const wallet = await tx.wallet.findUnique({ where: { userId: user.id } });
     if (!wallet) throw new ApiError(500, "Wallet not found.", "NO_WALLET");
     if (Number(wallet.balance) < amount) {
-      throw new ApiError(400, "Insufficient balance for this withdrawal.", "INSUFFICIENT_BALANCE");
+      throw new ApiError(400, "Insufficient withdrawable balance.", "INSUFFICIENT_BALANCE");
     }
 
     const created = await tx.withdrawal.create({

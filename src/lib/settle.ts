@@ -1,6 +1,6 @@
 import { prisma } from "./prisma";
 import { ApiError, auditLog } from "./api";
-import { creditWallet, debitWallet, toCents } from "./wallet";
+import { creditWallet, debitWallet, toCents, refundBetStake } from "./wallet";
 export type SettleActor = { id: string; username: string };
 
 /**
@@ -122,11 +122,17 @@ export async function settleOutcome(admin: SettleActor, outcomeId: string, resul
 
         if (claimed.count > 0) {
           if (payout > 0 && payoutType) {
-            await creditWallet(tx, bet.userId, payout, {
-              type: payoutType,
-              reason: `${payoutType === "BET_WIN" ? "Bet won" : "Bet voided"} ${bet.code}`,
-              reference: bet.code,
-            });
+            if (payoutType === "BET_REFUND") {
+              // Voided bet: refund the stake to the pools it came from — the
+              // bonus-funded portion (bonusStake) returns to bonusBalance.
+              await refundBetStake(tx, bet.userId, Number(bet.stake), Number(bet.bonusStake ?? 0), bet.code, "Bet voided");
+            } else {
+              await creditWallet(tx, bet.userId, payout, {
+                type: payoutType,
+                reason: `Bet won ${bet.code}`,
+                reference: bet.code,
+              });
+            }
           }
           affected.push(bet.code);
 

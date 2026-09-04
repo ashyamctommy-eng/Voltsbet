@@ -21,11 +21,20 @@ import {
 } from "@/components/icons";
 import { formatDateTime } from "@/lib/odds";
 
+/** Numeric value of a compact money label like "KSh 1.2k" / "$400.00". */
+function labelAmount(label: string): number {
+  return parseFloat(label.replace(/^\S+\s/, "").replace(/[^0-9.]/g, "")) || 0;
+}
+
 export type HeaderUser = {
   username: string;
   role: string;
   currencyCode: string;
   balanceLabel: string;
+  /** Bonus pool label (Wallet.bonusBalance) — "$0.00" when none. */
+  bonusLabel: string;
+  /** First successful deposit completed → bonus balance unlocked for betting. */
+  hasDeposited: boolean;
   unreadNotifications: number;
 } | null;
 
@@ -174,17 +183,39 @@ export default function Header({
 
           {user ? (
             <div className="flex items-center gap-1.5 sm:gap-2">
-              {/* Balance pill */}
-              <div className="hidden items-center gap-1 rounded-full border border-line bg-card px-3 py-1.5 text-xs font-bold text-ink sm:flex">
-                <span className="text-ink3">{user.currencyCode}</span>
-                <span className="text-green-400">{user.balanceLabel.replace(/^\S+\s/, "")}</span>
-              </div>
-
-              {/* Wallet button → deposit modal */}
+              {/* Dual balance block → tap to deposit (replaces the wallet icon pill) */}
               <button
                 onClick={() => setWalletOpen(true)}
                 aria-label={t("nav.deposit")}
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-brand text-[#052e16] shadow-[0_4px_14px_rgba(0,230,118,0.35)] transition-transform hover:scale-105"
+                title={
+                  labelAmount(user.bonusLabel) > 0 && !user.hasDeposited
+                    ? "Bonus unlocks after your first deposit"
+                    : undefined
+                }
+                className="group hidden flex-col items-end rounded-2xl border border-line bg-card px-3 py-1 text-right transition-colors hover:border-line2 sm:flex"
+              >
+                <span className="flex items-center gap-1 text-[10px] font-semibold leading-none text-ink3">
+                  {t("common.balance", { defaultValue: "Balance" })}
+                  <span className="font-bold text-green-400">
+                    {user.currencyCode} {user.balanceLabel.replace(/^\S+\s/, "")}
+                  </span>
+                </span>
+                <span className="mt-0.5 flex items-center gap-1 text-[10px] font-semibold leading-none text-ink3">
+                  {t("common.bonus", { defaultValue: "Bonus" })}
+                  <span className={`font-bold ${labelAmount(user.bonusLabel) > 0 ? "text-amber-400" : "text-ink3"}`}>
+                    {user.currencyCode} {user.bonusLabel.replace(/^\S+\s/, "")}
+                  </span>
+                  {labelAmount(user.bonusLabel) > 0 && !user.hasDeposited && (
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-400" title="Locked until first deposit" />
+                  )}
+                </span>
+              </button>
+
+              {/* Mobile: compact wallet button → deposit modal (dual block is ≥sm) */}
+              <button
+                onClick={() => setWalletOpen(true)}
+                aria-label={t("nav.deposit")}
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-card text-brand transition-colors hover:border-line2 sm:hidden"
               >
                 <IconWallet className="h-5 w-5" />
               </button>
@@ -255,6 +286,17 @@ export default function Header({
                     <div className="border-b border-line px-4 py-3">
                       <div className="text-xs text-ink3">{t("common.balance")}</div>
                       <div className="text-lg font-extrabold text-green-400">{user.balanceLabel}</div>
+                      {labelAmount(user.bonusLabel) > 0 && (
+                        <div className="mt-0.5 flex items-center gap-1 text-[11px] text-ink3">
+                          <span>{t("common.bonus", { defaultValue: "Bonus" })}</span>
+                          <span className="font-bold text-amber-400">{user.bonusLabel}</span>
+                          {!user.hasDeposited && (
+                            <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase text-amber-400">
+                              Locked
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div className="py-1">
                       {[
