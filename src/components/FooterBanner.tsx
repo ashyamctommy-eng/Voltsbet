@@ -1,58 +1,68 @@
 /**
  * Global sponsor & payment-provider footer banner — a trust strip above the
- * copyright bar. Pure static markup (text badges; no external assets), so it
- * renders on every page and never blocks SSR.
+ * copyright bar. Two horizontal, touch-scrollable rows of local brand logos
+ * (from /public), so no external requests are made and it renders on every
+ * page without blocking SSR.
  *
- * Layout: dark green band → federation/sports icons row, payment row,
- * then the copyright line. Bottom padding keeps it clear of the fixed
- * mobile bottom navigation.
+ * Layout: dark green band → official sports partners logo row, payment
+ * providers logo row, then the copyright line. Bottom padding keeps it clear
+ * of the fixed mobile bottom navigation.
+ *
+ * Files are served as relative paths (e.g. `/fiba.svg`) straight from the
+ * /public directory — case-sensitive filenames.
  */
-const FEDERATIONS = ["UEFA", "UFC", "WTA", "FIBA", "NHL", "ATP", "ITF", "FIFA"];
-const PAYMENTS = [
-  "VISA",
-  "Mastercard",
-  "Apple Pay",
-  "Google Pay",
-  "Samsung Pay",
-  "Bitcoin",
-  "Ethereum",
-  "Tether",
-  "TRON",
-  "Skrill",
-  "Payeer",
+const SPORTS_PARTNERS = [
+  { src: "/fiba.svg", alt: "FIBA" },
+  { src: "/fifa.svg", alt: "FIFA" },
+  { src: "/ITF.svg", alt: "ITF" },
+  { src: "/uefa.svg", alt: "UEFA" },
+];
+
+const PAYMENT_PROVIDERS = [
+  { src: "/applepay.png", alt: "Apple Pay" },
+  { src: "/BTC.png", alt: "Bitcoin" },
+  { src: "/ETH.png", alt: "Ethereum" },
+  { src: "/mastercard.png", alt: "Mastercard" },
+  { src: "/payeer.png", alt: "Payeer" },
+  { src: "/piastrix.png", alt: "Piastrix" },
+  { src: "/skrill.png", alt: "Skrill" },
+  { src: "/TRON.png", alt: "TRON" },
+  { src: "/USDT.png", alt: "Tether (USDT)" },
 ];
 
 export default function FooterBanner() {
   return (
     <div className="border-t border-white/5 bg-[#0a2212] px-4 py-6 text-white/70 sm:px-6">
-      {/* Federation strip */}
       <div className="mx-auto max-w-[1600px]">
+        {/* Official sports partners — horizontal touch-scroll row */}
         <p className="mb-2 text-center text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-300/70">
           Official sports partners
         </p>
-        <div className="flex flex-wrap items-center justify-center gap-2">
-          {FEDERATIONS.map((f) => (
-            <span
-              key={f}
-              className="rounded-md border border-emerald-300/20 bg-emerald-300/5 px-3 py-1.5 text-xs font-black tracking-wide text-emerald-100/90"
-            >
-              {f}
-            </span>
+        <div className="flex overflow-x-auto flex-nowrap gap-5 items-center py-2 scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none]">
+          {SPORTS_PARTNERS.map((p) => (
+            <img
+              key={p.src}
+              src={p.src}
+              alt={p.alt}
+              loading="lazy"
+              className="flex-shrink-0 h-6 w-auto object-contain opacity-80 hover:opacity-100 transition-opacity"
+            />
           ))}
         </div>
 
-        {/* Payment providers strip */}
+        {/* Payment providers — horizontal touch-scroll row */}
         <p className="mb-2 mt-5 text-center text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-300/70">
           Payment providers
         </p>
-        <div className="flex flex-wrap items-center justify-center gap-2">
-          {PAYMENTS.map((p) => (
-            <span
-              key={p}
-              className="rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-white/80"
-            >
-              {p}
-            </span>
+        <div className="flex overflow-x-auto flex-nowrap gap-5 items-center py-2 scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none]">
+          {PAYMENT_PROVIDERS.map((p) => (
+            <img
+              key={p.src}
+              src={p.src}
+              alt={p.alt}
+              loading="lazy"
+              className="flex-shrink-0 h-6 w-auto object-contain opacity-80 hover:opacity-100 transition-opacity"
+            />
           ))}
         </div>
 
