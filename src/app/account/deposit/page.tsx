@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { apiFetch } from "@/lib/client";
+import { apiErrorText } from "@/lib/api-error-text";
 import { useToast } from "@/components/BetSlipContext";
 import VoucherDeposit from "@/components/account/VoucherDeposit";
 import { Zap, ShieldCheck, CheckCircle2 } from "lucide-react";
@@ -162,7 +163,7 @@ export default function DepositPage() {
         : { amount: amountNum, method: "CRYPTO", cryptoCurrency: crypto },
     });
     setLoading(false);
-    if (!res.ok) return push("error", res.error.message);
+    if (!res.ok) return push("error", apiErrorText(t, res.error.code, res.error.message));
     setPending(res.data.deposit);
     push("success", effectiveMethod === "MPESA" ? t("deposit.stkSent") : t("deposit.paymentCreated"));
   }
@@ -172,7 +173,7 @@ export default function DepositPage() {
     setChecking(true);
     const res = await apiFetch<{ deposit: { status: string } }>(`/api/account/deposits/${pending.id}`);
     setChecking(false);
-    if (!res.ok) return push("error", res.error.message);
+    if (!res.ok) return push("error", apiErrorText(t, res.error.code, res.error.message));
     if (res.data.deposit.status === "COMPLETED") {
       push("success", t("deposit.received"));
       setPending(null);
@@ -202,7 +203,7 @@ export default function DepositPage() {
       body: { deposit_id: pending.id, tx_hash: `demo-${Date.now().toString(16)}` },
     });
     setChecking(false);
-    if (!res.ok) return push("error", res.error.message);
+    if (!res.ok) return push("error", apiErrorText(t, res.error.code, res.error.message));
     push("success", t("deposit.confirmed"));
     setPending(null);
     setAmount("");

@@ -403,6 +403,16 @@ export const resources = {
       "deposit.recent": "Recent Deposits",
       "deposit.windowExpired": "Payment window expired \u2014 create a new deposit.",
       "deposit.expiresIn": "\u23f3 Expires in {{time}}",
+      "err.rateLimited": "Too many attempts. Try again later.",
+      "err.emailTaken": "An account with this email already exists.",
+      "err.usernameTaken": "This username is already taken.",
+      "err.phoneTaken": "This phone number is already registered.",
+      "err.badCredentials": "Invalid username/email or password.",
+      "err.accountLocked": "Too many failed attempts. Your account is temporarily locked. Try again later.",
+      "err.otpInvalid": "Invalid or expired verification code.",
+      "err.recaptchaFailed": "Bot check failed \u2014 please complete the reCAPTCHA and try again.",
+      "err.insufficient": "Insufficient balance.",
+      "err.noWallet": "Wallet not found. Please contact support.",
   },
   sw: {
     translation: {

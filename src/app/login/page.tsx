@@ -4,10 +4,13 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/client";
+import { useTranslation } from "react-i18next";
 import RecaptchaGate from "@/components/auth/RecaptchaGate";
+import { apiErrorText } from "@/lib/api-error-text";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
@@ -44,7 +47,7 @@ export default function LoginPage() {
     if (!res.ok) {
       // A failed OTP attempt keeps the OTP step visible so the user can retry
       if (res.error.code !== "OTP_INVALID") setOtpRequired(false);
-      setError(res.error.message);
+      setError(apiErrorText(t, res.error.code, res.error.message));
       bumpCaptchaReset();
       return;
     }

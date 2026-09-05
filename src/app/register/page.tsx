@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/client";
+import { apiErrorText } from "@/lib/api-error-text";
 import { LANGUAGES, LANG_KEY } from "@/lib/i18n-resources";
 import { useToast } from "@/components/BetSlipContext";
 import RecaptchaGate from "@/components/auth/RecaptchaGate";
@@ -78,7 +79,7 @@ export default function RegisterPage() {
     });
     setLoading(false);
     if (!res.ok) {
-      setError(res.error.message);
+      setError(apiErrorText(t, res.error.code, res.error.message));
       // The solved token is single-use — force a fresh widget + token.
       setCaptchaToken(null);
       setCaptchaReset((n) => n + 1);

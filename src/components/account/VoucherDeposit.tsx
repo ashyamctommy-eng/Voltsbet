@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { apiFetch } from "@/lib/client";
+import { apiErrorText } from "@/lib/api-error-text";
 import { useToast } from "@/components/BetSlipContext";
 import { ShieldCheck } from "lucide-react";
 
@@ -69,7 +70,7 @@ export default function VoucherDeposit({ onSuccess }: { onSuccess?: () => void }
     });
     setBusy(false);
     if (!res.ok) {
-      setError(res.error.message);
+      setError(apiErrorText(t, res.error.code, res.error.message));
       return;
     }
     setResult(res.data);

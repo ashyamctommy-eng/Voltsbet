@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { apiFetch } from "@/lib/client";
+import { apiErrorText } from "@/lib/api-error-text";
 import { useToast } from "@/components/BetSlipContext";
 
 type ProfileData = {
@@ -46,7 +47,7 @@ export default function WithdrawPage() {
       body: { amount: amt, method: effectiveMethod, destination },
     });
     setLoading(false);
-    if (!res.ok) return push("error", res.error.message);
+    if (!res.ok) return push("error", apiErrorText(t, res.error.code, res.error.message));
     const newId = res.data.withdrawal.trackingId ?? "";
     setTrackingId(newId);
     push(
