@@ -31,7 +31,13 @@ export function getStoredLang(): string {
       window.localStorage.removeItem(LEGACY_LANG_KEY);
     }
     const v = window.localStorage.getItem(LANG_KEY);
-    return v && Object.keys(resources).includes(v) ? v : "en";
+    if (v && Object.keys(resources).includes(v)) return v;
+    const cookieLang = document.cookie
+      .split("; ")
+      .find((c) => c.startsWith("NEXT_LOCALE="))
+      ?.split("=")[1];
+    const c = cookieLang ? decodeURIComponent(cookieLang) : null;
+    return c && Object.keys(resources).includes(c) ? c : "en";
   } catch {
     return "en";
   }
@@ -66,6 +72,11 @@ export async function changeLanguage(lang: string): Promise<void> {
   try {
     window.localStorage.setItem(LANG_KEY, lang);
     window.localStorage.removeItem(LEGACY_LANG_KEY);
+    // Belt & braces: keep a top-level cookie in sync so the choice survives
+    // any context that clears localStorage (and is readable server-side).
+    try {
+      document.cookie = `NEXT_LOCALE=${encodeURIComponent(lang)}; path=/; max-age=31536000; SameSite=Lax`;
+    } catch { /* ignore */ }
     syncHtmlLang(lang);
   } catch {
     /* private mode — ignore */

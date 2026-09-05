@@ -280,7 +280,6 @@ export const resources = {
       "dashboard.stake": "Stake",
       "dashboard.potential": "Potential",
       "nav.adminPanel": "Admin Panel",
-    },
       "withdraw.title": "Withdraw",
       "withdraw.available": "Available balance",
       "withdraw.methodCrypto": "Crypto",
@@ -436,6 +435,7 @@ export const resources = {
       "err.notCancellable": "This bet can no longer be cancelled \u2014 it has already settled.",
       "err.windowExpired": "The cancellation window has expired.",
       "err.depositLocked": "Deposits are currently disabled for your account.",
+    },
   },
   sw: {
     translation: {
