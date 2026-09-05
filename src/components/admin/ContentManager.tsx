@@ -13,6 +13,21 @@ type Field = {
 
 type Row = Record<string, unknown> & { id: string };
 
+/**
+ * Generic admin CRUD manager (used by Banners, etc.).
+ *
+ * Mode is an explicit `{ kind: "create" } | { kind: "edit", row } | null`
+ * union — never inferred from a sentinel id — so:
+ *  - "Edit" on a row ALWAYS populates the form from that row and saves via
+ *    PATCH `/endpoint/{id}` (updates the record, never duplicates it);
+ *  - "Add" ALWAYS saves via POST (creates a new record).
+ */
+type Mode = { kind: "create" } | { kind: "edit"; row: Row } | null;
+
+function blankForm(fields: Field[]): Record<string, unknown> {
+  return Object.fromEntries(fields.map((f) => [f.name, f.type === "checkbox" ? false : ""]));
+}
+
 export function ContentManager({
   endpoint, title, fields, columns,
 }: {
@@ -23,7 +38,7 @@ export function ContentManager({
 }) {
   const { push } = useToast();
   const [rows, setRows] = useState<Row[]>([]);
-  const [editing, setEditing] = useState<Row | null>(null);
+  const [mode, setMode] = useState<Mode>(null);
   const [form, setForm] = useState<Record<string, unknown>>({});
   const [loading, setLoading] = useState(false);
 
@@ -42,17 +57,38 @@ export function ContentManager({
     return () => clearTimeout(t);
   }, [load]);
 
+  function closeForm() {
+    setMode(null);
+    setForm({});
+  }
+
+  function startCreate() {
+    setMode({ kind: "create" });
+    setForm(blankForm(fields));
+  }
+
+  function startEdit(r: Row) {
+    // Populate the form with the selected row's stored values (Title,
+    // Destination URL, Sort Order, Active, Image, …) and enter UPDATE mode.
+    const f: Record<string, unknown> = {};
+    for (const field of fields) {
+      f[field.name] = r[field.name] ?? (field.type === "checkbox" ? false : "");
+    }
+    setMode({ kind: "edit", row: r });
+    setForm(f);
+  }
+
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const res = editing
-      ? await apiFetch(`${endpoint}/${editing.id}`, { method: "PATCH", body: form })
-      : await apiFetch(endpoint, { method: "POST", body: form });
+    const res =
+      mode?.kind === "edit"
+        ? await apiFetch(`${endpoint}/${mode.row.id}`, { method: "PATCH", body: form })
+        : await apiFetch(endpoint, { method: "POST", body: form });
     setLoading(false);
     if (!res.ok) return push("error", res.error.message);
-    push("success", editing ? `${title}: updated` : `${title}: created`);
-    setEditing(null);
-    setForm({});
+    push("success", mode?.kind === "edit" ? `${title}: updated` : `${title}: created`);
+    closeForm();
     load();
   }
 
@@ -64,32 +100,24 @@ export function ContentManager({
     load();
   }
 
-  function startEdit(r: Row) {
-    setEditing(r);
-    const f: Record<string, unknown> = {};
-    for (const field of fields) {
-      f[field.name] = r[field.name] ?? (field.type === "checkbox" ? false : "");
-    }
-    setForm(f);
-  }
-
   const inputCls = "input";
+  const isEditing = mode?.kind === "edit";
 
   return (
     <div className="space-y-5">
       <h2 className="text-lg font-bold">{title}</h2>
 
-      {!editing && (
-        <button className="btn btn-primary" onClick={() => { setEditing({ id: "" } as Row); setForm(Object.fromEntries(fields.map((f) => [f.name, f.type === "checkbox" ? false : ""]))); }}>
+      {!mode && (
+        <button className="btn btn-primary" onClick={startCreate}>
           + Add {title.slice(0, -1)}
         </button>
       )}
 
-      {editing && (
+      {mode && (
         <form onSubmit={save} className="card grid gap-3 p-5 sm:grid-cols-2">
           <div className="flex items-center justify-between sm:col-span-2">
-            <h3 className="font-bold">{editing.id ? "Edit" : "New"}</h3>
-            <button type="button" className="text-sm text-ink3 hover:text-ink" onClick={() => setEditing(null)}>Cancel</button>
+            <h3 className="font-bold">{isEditing ? "Edit" : "New"}</h3>
+            <button type="button" className="text-sm text-ink3 hover:text-ink" onClick={closeForm}>Cancel</button>
           </div>
           {fields.map((f) => (
             <div key={f.name} className={f.type === "textarea" || f.type === "checkbox" ? "sm:col-span-2" : ""}>
@@ -114,8 +142,11 @@ export function ContentManager({
               )}
             </div>
           ))}
-          <div className="sm:col-span-2">
-            <button className="btn btn-primary" disabled={loading}>{loading ? "Saving…" : "Save"}</button>
+          <div className="flex items-center gap-2 sm:col-span-2">
+            <button className="btn btn-primary" disabled={loading}>{loading ? "Saving…" : isEditing ? "Save Changes" : "Save"}</button>
+            {isEditing && (
+              <button type="button" className="btn btn-ghost" onClick={startCreate}>+ Add new instead</button>
+            )}
           </div>
         </form>
       )}

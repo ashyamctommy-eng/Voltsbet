@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/client";
 import { LANGUAGES } from "@/lib/i18n-resources";
 import { useToast } from "@/components/BetSlipContext";
+import RecaptchaGate from "@/components/auth/RecaptchaGate";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -16,6 +17,11 @@ export default function RegisterPage() {
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  // reCAPTCHA v2 — widget + single-use token. Enforced only when the site key
+  // is configured (NEXT_PUBLIC_RECAPTCHA_SITE_KEY inlined at build time).
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaReset, setCaptchaReset] = useState(0);
+  const captchaRequired = !!process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
   /** Wallet currencies are strictly USD | KES (data-driven list filtered). */
   const [currencies, setCurrencies] = useState<{ code: string; name: string; symbol: string }[] | null>(null);
 
@@ -48,11 +54,21 @@ export default function RegisterPage() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    if (captchaRequired && !captchaToken) {
+      setError("Please complete the reCAPTCHA to create your account.");
+      return;
+    }
     setLoading(true);
-    const res = await apiFetch("/api/auth/register", { method: "POST", body: form });
+    const res = await apiFetch("/api/auth/register", {
+      method: "POST",
+      body: { ...form, gRecaptchaToken: captchaToken ?? "" },
+    });
     setLoading(false);
     if (!res.ok) {
       setError(res.error.message);
+      // The solved token is single-use — force a fresh widget + token.
+      setCaptchaToken(null);
+      setCaptchaReset((n) => n + 1);
       return;
     }
     push("success", "Account created. Welcome to UNIBET360! 🎉");
@@ -157,7 +173,11 @@ export default function RegisterPage() {
             </span>
           </label>
 
-          <button className="btn btn-primary w-full py-3 sm:col-span-2" disabled={loading || !form.terms}>
+          <RecaptchaGate onChange={setCaptchaToken} resetSignal={captchaReset} />
+          <button
+            className="btn btn-primary w-full py-3 sm:col-span-2"
+            disabled={loading || !form.terms || (captchaRequired && !captchaToken)}
+          >
             {loading ? "Creating account…" : "Create Account"}
           </button>
         </form>

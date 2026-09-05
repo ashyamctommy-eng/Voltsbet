@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { rateLimit } from "@/lib/rate-limit";
 import { toCents } from "@/lib/wallet";
+import { requireRecaptcha } from "@/lib/recaptcha";
 
 const schema = z.object({
   fullName: z.string().min(2, "Enter your full name").max(80),
@@ -20,6 +21,7 @@ const schema = z.object({
   currency: z.string().optional().default("KES"),
   referralCode: z.string().optional().default(""),
   terms: z.boolean().refine((v) => v, "You must accept the terms and conditions"),
+  gRecaptchaToken: z.string().optional().default(""),
 }).refine((d) => d.password === d.confirmPassword, {
   message: "Passwords do not match",
   path: ["confirmPassword"],
@@ -36,6 +38,10 @@ export const POST = handle(async (req: NextRequest) => {
     throw new ApiError(400, parsed.error.issues[0].message, "VALIDATION");
   }
   const d = parsed.data;
+
+  // Bot protection: verify the reCAPTCHA token BEFORE any credential or
+  // uniqueness work (no-op when RECAPTCHA_SECRET_KEY is unset).
+  await requireRecaptcha(d.gRecaptchaToken);
 
   const email = d.email.toLowerCase().trim();
   const username = d.username.trim().toLowerCase();

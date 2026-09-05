@@ -197,6 +197,8 @@ build — the compile itself still succeeds.
 | `PALPLUS_BASE_URL` | — | `https://api.palpluss.com/v1` | Override for gateway mirrors (rarely needed) |
 | `SHOW_SEEDED_GAMES` | — | unset | **Leave unset in production** — reveals demo games |
 | `SEED_DEMO_USERS` | — | dev: true / prod: false | `true` seeds demo users in production |
+| `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` | — | — | reCAPTCHA v2 **site key** (public) — enables the "I'm not a robot" widget on `/register` + `/login` |
+| `RECAPTCHA_SECRET_KEY` | — | — | reCAPTCHA **secret key** — when set, the auth APIs verify every token via `google.com/recaptcha/api/siteverify` before processing credentials |
 
 **Palpluss M-Pesa credentials are NOT env vars** — they live in
 **Admin → Settings → M-Pesa (Palplus)** (stored encrypted/masked on read):

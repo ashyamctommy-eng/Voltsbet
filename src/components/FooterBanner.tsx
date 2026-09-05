@@ -4,9 +4,10 @@
  * (from /public), so no external requests are made and it renders on every
  * page without blocking SSR.
  *
- * Layout: dark green band → official sports partners logo row, payment
- * providers logo row, then the copyright line. Bottom padding keeps it clear
- * of the fixed mobile bottom navigation.
+ * Layout: neutral footer band (matches the parent footer background) →
+ * official sports partners logo row, payment providers logo row, then the
+ * copyright line. Bottom padding keeps it clear of the fixed mobile bottom
+ * navigation.
  *
  * Files are served as relative paths (e.g. `/fiba.svg`) straight from the
  * /public directory — case-sensitive filenames.
@@ -32,10 +33,10 @@ const PAYMENT_PROVIDERS = [
 
 export default function FooterBanner() {
   return (
-    <div className="border-t border-white/5 bg-[#0a2212] px-4 py-6 text-white/70 sm:px-6">
+    <div className="border-t border-line bg-panel-bg px-4 py-6 text-ink3 sm:px-6">
       <div className="mx-auto max-w-[1600px]">
         {/* Official sports partners — horizontal touch-scroll row */}
-        <p className="mb-2 text-center text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-300/70">
+        <p className="mb-2 text-center text-[10px] font-bold uppercase tracking-[0.2em] text-ink2">
           Official sports partners
         </p>
         <div className="flex overflow-x-auto flex-nowrap gap-5 items-center py-2 scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none]">
@@ -51,7 +52,7 @@ export default function FooterBanner() {
         </div>
 
         {/* Payment providers — horizontal touch-scroll row */}
-        <p className="mb-2 mt-5 text-center text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-300/70">
+        <p className="mb-2 mt-5 text-center text-[10px] font-bold uppercase tracking-[0.2em] text-ink2">
           Payment providers
         </p>
         <div className="flex overflow-x-auto flex-nowrap gap-5 items-center py-2 scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none]">
@@ -66,7 +67,7 @@ export default function FooterBanner() {
           ))}
         </div>
 
-        <p className="mt-5 text-center text-[11px] font-medium text-white/50">
+        <p className="mt-5 text-center text-[11px] font-medium text-ink3">
           Copyright © 2026. All rights reserved.
         </p>
       </div>

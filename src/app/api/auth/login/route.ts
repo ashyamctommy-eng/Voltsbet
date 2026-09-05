@@ -6,12 +6,14 @@ import { prisma } from "@/lib/prisma";
 import { rateLimit } from "@/lib/rate-limit";
 import { getSettings } from "@/lib/settings";
 import { issueTelegramOtp, verifyTelegramOtp } from "@/lib/telegram";
+import { requireRecaptcha } from "@/lib/recaptcha";
 
 const schema = z.object({
   identifier: z.string().min(1, "Enter your username or email"),
   password: z.string().min(1, "Enter your password"),
   remember: z.boolean().optional().default(false),
   otp: z.string().optional().default(""),
+  gRecaptchaToken: z.string().optional().default(""),
 });
 
 const MAX_FAILED = 5;
@@ -25,7 +27,11 @@ export const POST = handle(async (req: NextRequest) => {
   const body = await req.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success) throw new ApiError(400, parsed.error.issues[0].message, "VALIDATION");
-  const { identifier, password, remember, otp } = parsed.data;
+  const { identifier, password, remember, otp, gRecaptchaToken } = parsed.data;
+
+  // Bot protection on every auth attempt (credentials AND the OTP follow-up):
+  // tokens are single-use, so the second step carries a freshly solved one.
+  await requireRecaptcha(gRecaptchaToken);
 
   const id = identifier.toLowerCase().trim();
   const user = await prisma.user.findFirst({

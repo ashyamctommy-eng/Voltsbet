@@ -7,7 +7,6 @@ import { useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/client";
 import { useToast } from "@/components/BetSlipContext";
 import { useDrawer } from "@/components/DrawerProvider";
-import DepositModal from "@/components/DepositModal";
 import UNIBET360Logo from "@/components/VoltBetLogo";
 import { FEED_VIEWS, type FeedView } from "@/components/MatchFeed";
 import { useTranslation } from "react-i18next";
@@ -15,7 +14,6 @@ import {
   IconMenu,
   IconSearch,
   IconLive,
-  IconWallet,
   IconUser,
   IconBell,
 } from "@/components/icons";
@@ -65,7 +63,6 @@ export default function Header({
   const { t } = useTranslation();
   const { open: openDrawer } = useDrawer();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [walletOpen, setWalletOpen] = useState(false);
   // Live notification feed (real unread count, marks read on open).
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifs, setNotifs] = useState<{ id: string; title: string; message: string; read: boolean; createdAt: string }[] | null>(null);
@@ -183,16 +180,11 @@ export default function Header({
 
           {user ? (
             <div className="flex items-center gap-1.5 sm:gap-2">
-              {/* Dual balance block → tap to deposit (replaces the wallet icon pill) */}
-              <button
-                onClick={() => setWalletOpen(true)}
+              {/* Dual balance block (display only — Deposit lives in the
+                  account menu → /account/deposit) */}
+              <div
+                className="hidden flex-col items-end rounded-2xl border border-line bg-card px-3 py-1 text-right sm:flex"
                 aria-label={t("nav.deposit")}
-                title={
-                  labelAmount(user.bonusLabel) > 0 && !user.hasDeposited
-                    ? "Bonus unlocks after your first deposit"
-                    : undefined
-                }
-                className="group hidden flex-col items-end rounded-2xl border border-line bg-card px-3 py-1 text-right transition-colors hover:border-line2 sm:flex"
               >
                 <span className="flex items-center gap-1 text-[10px] font-semibold leading-none text-ink3">
                   {t("common.balance", { defaultValue: "Balance" })}
@@ -209,16 +201,7 @@ export default function Header({
                     <span className="h-1.5 w-1.5 rounded-full bg-amber-400" title="Locked until first deposit" />
                   )}
                 </span>
-              </button>
-
-              {/* Mobile: compact wallet button → deposit modal (dual block is ≥sm) */}
-              <button
-                onClick={() => setWalletOpen(true)}
-                aria-label={t("nav.deposit")}
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-card text-brand transition-colors hover:border-line2 sm:hidden"
-              >
-                <IconWallet className="h-5 w-5" />
-              </button>
+              </div>
 
               {/* Notifications bell — live unread badge + dropdown */}
               <div className="relative" ref={notifRef}>
@@ -398,8 +381,6 @@ export default function Header({
       </>
       )}
 
-      {/* ── Deposit modal (wallet button) ──────────────────── */}
-      {walletOpen && <DepositModal onClose={() => setWalletOpen(false)} />}
     </header>
   );
 }

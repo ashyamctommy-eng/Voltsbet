@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/client";
+import RecaptchaGate from "@/components/auth/RecaptchaGate";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -15,26 +16,43 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(false);
+  // reCAPTCHA v2 — widget + single-use token (enforced only when the site key
+  // is configured at build time).
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaReset, setCaptchaReset] = useState(0);
+  const captchaRequired = !!process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
+
+  function bumpCaptchaReset() {
+    setCaptchaToken(null);
+    setCaptchaReset((n) => n + 1);
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setNotice("");
+    if (captchaRequired && !captchaToken) {
+      setError("Please complete the reCAPTCHA to log in.");
+      return;
+    }
     setLoading(true);
     const res = await apiFetch<{ redirect: string; otpRequired?: boolean; message?: string }>("/api/auth/login", {
       method: "POST",
-      body: { identifier, password, remember, ...(otp ? { otp } : {}) },
+      body: { identifier, password, remember, gRecaptchaToken: captchaToken ?? "", ...(otp ? { otp } : {}) },
     });
     setLoading(false);
     if (!res.ok) {
       // A failed OTP attempt keeps the OTP step visible so the user can retry
       if (res.error.code !== "OTP_INVALID") setOtpRequired(false);
       setError(res.error.message);
+      bumpCaptchaReset();
       return;
     }
     if (res.data.otpRequired) {
       setOtpRequired(true);
       setNotice(res.data.message ?? "Enter the code we sent to your Telegram.");
+      // The solved token is spent — the OTP step shows a fresh widget.
+      bumpCaptchaReset();
       return;
     }
     // Smart auth redirect: ?redirect=/account/deposit (betslip insufficient-
@@ -49,6 +67,7 @@ export default function LoginPage() {
     setOtp("");
     setError("");
     setNotice("");
+    bumpCaptchaReset();
   }
 
   return (
@@ -78,7 +97,8 @@ export default function LoginPage() {
                 </label>
                 <a href="#" className="text-ink3 hover:text-ink" onClick={(e) => e.preventDefault()}>Forgot password?</a>
               </div>
-              <button className="btn btn-primary w-full py-3" disabled={loading}>
+              <RecaptchaGate onChange={setCaptchaToken} resetSignal={captchaReset} />
+              <button className="btn btn-primary w-full py-3" disabled={loading || (captchaRequired && !captchaToken)}>
                 {loading ? "Logging in…" : "Log In"}
               </button>
             </>
@@ -100,7 +120,11 @@ export default function LoginPage() {
                 />
                 <p className="mt-1.5 text-xs text-ink3">Check your Telegram DMs — the code is valid for 5 minutes.</p>
               </div>
-              <button className="btn btn-primary w-full py-3" disabled={loading || otp.length !== 6}>
+              <RecaptchaGate onChange={setCaptchaToken} resetSignal={captchaReset} />
+              <button
+                className="btn btn-primary w-full py-3"
+                disabled={loading || otp.length !== 6 || (captchaRequired && !captchaToken)}
+              >
                 {loading ? "Verifying…" : "Verify & Log In"}
               </button>
               <button type="button" className="w-full text-center text-sm text-ink3 hover:text-ink" onClick={resetOtpStep}>
