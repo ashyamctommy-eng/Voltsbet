@@ -35,6 +35,19 @@ export const COUNTRY_LANG_MAP: Record<string, LangCode> = {
   IQ: "ar", JO: "ar", LB: "ar", QA: "ar", KW: "ar", BH: "ar", OM: "ar",
   // Indonesia (world's 4th most populous — huge betting market)
   ID: "id",
+
+  // Batch 3 (2026-09-05) — default language per country (currencies batch):
+  // Central + South America → Spanish / Portuguese
+  BO: "es", PY: "es", SV: "es", HN: "es",
+  CV: "pt", ST: "pt",
+  // French territories & francophone partners → French
+  RE: "fr", GP: "fr", MQ: "fr", GF: "fr", PF: "fr", NC: "fr",
+  // Oceania → English (native tongues added below as first-class languages)
+  PG: "tpi", VU: "bi", FJ: "fj", TO: "to", WS: "sm",
+  // Caribbean + Guyana → English
+  BZ: "en", GD: "en", TT: "en", AG: "en", GY: "en",
+  // Seychelles → Seychellois Creole
+  SC: "crs",
 };
 
 /** Map an ISO country code to a supported language (default: English). */
@@ -61,10 +74,26 @@ export const LANGUAGES = [
   { code: "el", label: "EL", name: "Ελληνικά" },
   { code: "ar", label: "AR", name: "العربية" },
   { code: "id", label: "ID", name: "Indonesia" },
+  // Batch 3 (2026-09-05) — Pacific + creole markets
+  { code: "tpi", label: "TP", name: "Tok Pisin" },
+  { code: "bi", label: "BI", name: "Bislama" },
+  { code: "fj", label: "FJ", name: "Na Vosa Vakaviti" },
+  { code: "to", label: "TO", name: "lea faka-Tonga" },
+  { code: "sm", label: "SM", name: "Gagana Sāmoa" },
+  { code: "crs", label: "CR", name: "Kreol Seselwa" },
 ] as const;
 export type LangCode = (typeof LANGUAGES)[number]["code"];
 
 export const resources = {
+  // Batch 3 languages have no translation pack yet — empty bundles mean
+  // every key falls through to the English fallback (fallbackLng: "en"),
+  // so the UI always renders. Swap in real packs as they become available.
+  tpi: { translation: {} },
+  bi: { translation: {} },
+  fj: { translation: {} },
+  to: { translation: {} },
+  sm: { translation: {} },
+  crs: { translation: {} },
 
   en: {
     translation: {

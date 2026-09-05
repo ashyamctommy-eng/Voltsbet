@@ -215,6 +215,14 @@ async function main() {
     { code: "el", name: "Ελληνικά" },
     { code: "ar", name: "العربية" },
     { code: "id", name: "Indonesia" },
+    // Batch 3 (2026-09-05) — Pacific + creole markets (text falls back to
+    // English until translation packs are added)
+    { code: "tpi", name: "Tok Pisin" },
+    { code: "bi", name: "Bislama" },
+    { code: "fj", name: "Na Vosa Vakaviti" },
+    { code: "to", name: "lea faka-Tonga" },
+    { code: "sm", name: "Gagana Sāmoa" },
+    { code: "crs", name: "Kreol Seselwa" },
   ];
   for (const [i, l] of langs.entries()) {
     await prisma.language.upsert({

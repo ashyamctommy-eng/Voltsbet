@@ -4,16 +4,27 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/client";
-import { LANGUAGES } from "@/lib/i18n-resources";
+import { LANGUAGES, LANG_KEY } from "@/lib/i18n-resources";
 import { useToast } from "@/components/BetSlipContext";
 import RecaptchaGate from "@/components/auth/RecaptchaGate";
 
 export default function RegisterPage() {
   const router = useRouter();
   const { push } = useToast();
+  /** Language select starts from the geo-detected site language (stored in
+   *  localStorage by the site-wide i18n resolver) so registration continues
+   *  in the visitor's language — falls back to English. */
+  function initialLanguage(): string {
+    try {
+      const v = window.localStorage.getItem(LANG_KEY);
+      return v && LANGUAGES.some((l) => l.code === v) ? v : "en";
+    } catch {
+      return "en";
+    }
+  }
   const [form, setForm] = useState({
     fullName: "", username: "", email: "", phone: "", password: "", confirmPassword: "",
-    country: "KE", language: "en", currency: "KES", referralCode: "", terms: false,
+    country: "KE", language: initialLanguage(), currency: "KES", referralCode: "", terms: false,
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
