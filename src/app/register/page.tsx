@@ -138,6 +138,31 @@ export default function RegisterPage() {
               <option value="NL">Netherlands</option>
               <option value="ES">Spain</option>
               <option value="PT">Portugal</option>
+
+              <option value="PG">Papua New Guinea</option>
+              <option value="BO">Bolivia</option>
+              <option value="CV">Cape Verde</option>
+              <option value="ST">São Tomé & Príncipe</option>
+              <option value="RE">Réunion</option>
+              <option value="PY">Paraguay</option>
+              <option value="VU">Vanuatu</option>
+              <option value="TO">Tonga</option>
+              <option value="FJ">Fiji</option>
+              <option value="WS">Samoa</option>
+              <option value="PF">French Polynesia</option>
+              <option value="NC">New Caledonia</option>
+              <option value="SV">El Salvador</option>
+              <option value="BZ">Belize</option>
+              <option value="GD">Grenada</option>
+              <option value="HN">Honduras</option>
+              <option value="GP">Guadeloupe</option>
+              <option value="TT">Trinidad & Tobago</option>
+              <option value="AG">Antigua & Barbuda</option>
+              <option value="MQ">Martinique</option>
+              <option value="GF">French Guiana</option>
+              <option value="SC">Seychelles</option>
+              <option value="SR">Suriname</option>
+              <option value="GY">Guyana</option>
             </select>
           </div>
           <div>

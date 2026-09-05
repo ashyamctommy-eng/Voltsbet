@@ -48,6 +48,7 @@ const COUNTRY_CURRENCY: Record<string, string> = {
   TO: "TOP", TR: "TRY", TT: "TTD", TW: "TWD", TZ: "TZS", UA: "UAH", UG: "UGX",
   US: "USD", UY: "UYU", UZ: "UZS", VA: "EUR", VC: "XCD", VE: "VES", VN: "VND",
   VU: "VUV", WS: "WST", XK: "EUR", YE: "YER", ZA: "ZAR", ZM: "ZMW", ZW: "ZWL",
+  RE: "EUR", GF: "EUR", GP: "EUR", MQ: "EUR",
 };
 
 function forwardedIp(req: NextRequest): string | null {

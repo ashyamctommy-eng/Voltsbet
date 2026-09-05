@@ -167,6 +167,25 @@ async function main() {
     { code: "NGN", name: "Nigerian Naira", symbol: "₦", decimals: 2, rate: "0.081" },
     { code: "GHS", name: "Ghanaian Cedi", symbol: "GH₵", decimals: 2, rate: "9.9" },
     { code: "ZAR", name: "South African Rand", symbol: "R", decimals: 2, rate: "7.1" },
+    // Extended display/conversion set (seeded 2026-09-05 — rates = KES per 1
+    // unit, snapshot from open.er-api; the rate cron refreshes active codes).
+    { code: "PGK", name: "Papua New Guinean Kina", symbol: "K", decimals: 2, rate: "29.013259" },
+    { code: "BOB", name: "Bolivian Boliviano", symbol: "Bs.", decimals: 2, rate: "10.652690" },
+    { code: "CVE", name: "Cape Verdean Escudo", symbol: "$", decimals: 2, rate: "1.370791" },
+    { code: "STN", name: "São Tomé & Príncipe Dobra", symbol: "Db", decimals: 2, rate: "6.169412" },
+    { code: "PYG", name: "Paraguayan Guaraní", symbol: "₲", decimals: 0, rate: "0.021914" },
+    { code: "VUV", name: "Vanuatu Vatu", symbol: "VT", decimals: 0, rate: "1.090131" },
+    { code: "TOP", name: "Tongan Paʻanga", symbol: "T$", decimals: 2, rate: "54.212295" },
+    { code: "FJD", name: "Fijian Dollar", symbol: "FJ$", decimals: 2, rate: "59.203126" },
+    { code: "WST", name: "Samoan Tālā", symbol: "WS$", decimals: 2, rate: "47.814861" },
+    { code: "XPF", name: "CFP Franc", symbol: "₣", decimals: 0, rate: "1.266636" },
+    { code: "BZD", name: "Belize Dollar", symbol: "BZ$", decimals: 2, rate: "64.695607" },
+    { code: "XCD", name: "East Caribbean Dollar", symbol: "EC$", decimals: 2, rate: "47.922557" },
+    { code: "HNL", name: "Honduran Lempira", symbol: "L", decimals: 2, rate: "4.824485" },
+    { code: "TTD", name: "Trinidad & Tobago Dollar", symbol: "TT$", decimals: 2, rate: "19.117535" },
+    { code: "SCR", name: "Seychellois Rupee", symbol: "₨", decimals: 2, rate: "9.071200" },
+    { code: "SRD", name: "Surinamese Dollar", symbol: "Sr$", decimals: 2, rate: "3.409664" },
+    { code: "GYD", name: "Guyanese Dollar", symbol: "G$", decimals: 2, rate: "0.618430" },
   ];
   for (const c of currencies) {
     await prisma.currency.upsert({
