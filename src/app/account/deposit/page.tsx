@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { apiFetch } from "@/lib/client";
 import { useToast } from "@/components/BetSlipContext";
 import VoucherDeposit from "@/components/account/VoucherDeposit";
@@ -92,6 +93,7 @@ const STATUS_PILL: Record<string, string> = {
 
 export default function DepositPage() {
   const { push } = useToast();
+  const { t } = useTranslation();
   const [account, setAccount] = useState<AccountData | null>(null);
   const [method, setMethod] = useState<"CRYPTO" | "MPESA" | "VOUCHER">("CRYPTO");
   const [crypto, setCrypto] = useState("USDT");
@@ -162,7 +164,7 @@ export default function DepositPage() {
     setLoading(false);
     if (!res.ok) return push("error", res.error.message);
     setPending(res.data.deposit);
-    push("success", effectiveMethod === "MPESA" ? "STK push sent — check your phone 📱" : "Payment created — send the crypto to the address shown.");
+    push("success", effectiveMethod === "MPESA" ? t("deposit.stkSent") : t("deposit.paymentCreated"));
   }
 
   async function checkMpesaStatus() {
@@ -172,13 +174,13 @@ export default function DepositPage() {
     setChecking(false);
     if (!res.ok) return push("error", res.error.message);
     if (res.data.deposit.status === "COMPLETED") {
-      push("success", "✅ Payment received! Balance credited.");
+      push("success", t("deposit.received"));
       setPending(null);
       setAmount("");
       setPhone("");
       refresh();
     } else {
-      push("info", "Still waiting — complete the PIN prompt on your phone.");
+      push("info", t("deposit.waiting"));
     }
   }
 
@@ -188,7 +190,7 @@ export default function DepositPage() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      push("info", "Copy the address manually");
+      push("info", t("deposit.copyManual"));
     }
   }
 
@@ -201,7 +203,7 @@ export default function DepositPage() {
     });
     setChecking(false);
     if (!res.ok) return push("error", res.error.message);
-    push("success", "✅ Payment confirmed! Balance credited.");
+    push("success", t("deposit.confirmed"));
     setPending(null);
     setAmount("");
     refresh();
@@ -212,20 +214,20 @@ export default function DepositPage() {
   return (
     <div className="max-w-xl space-y-5">
       <div>
-        <h2 className="text-lg font-bold">Deposit</h2>
-        <p className="text-sm text-ink3">Instant, secure — your balance is credited automatically after payment is confirmed.</p>
+        <h2 className="text-lg font-bold">{t("nav.deposit")}</h2>
+        <p className="text-sm text-ink3">{t("deposit.subtitle")}</p>
       </div>
 
       {/* Method toggle */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {methods.includes("CRYPTO") && (
-          <MethodCard active={effectiveMethod === "CRYPTO"} icon="₿" title="Crypto" sub="BTC · ETH · USDT" onClick={() => { setMethod("CRYPTO"); setPending(null); }} />
+          <MethodCard active={effectiveMethod === "CRYPTO"} icon="₿" title={t("deposit.methodCrypto")} sub="BTC · ETH · USDT" onClick={() => { setMethod("CRYPTO"); setPending(null); }} />
         )}
         {methods.includes("MPESA") && (
-          <MethodCard active={effectiveMethod === "MPESA"} icon="📱" title="M-Pesa" sub="STK push · instant" onClick={() => { setMethod("MPESA"); setPending(null); }} />
+          <MethodCard active={effectiveMethod === "MPESA"} icon="📱" title={t("withdraw.methodMpesa")} sub={t("deposit.mpesaSub")} onClick={() => { setMethod("MPESA"); setPending(null); }} />
         )}
         {methods.includes("VOUCHER") && (
-          <MethodCard active={effectiveMethod === "VOUCHER"} icon="🎟️" title="Voucher" sub="redeem a code" onClick={() => { setMethod("VOUCHER"); setPending(null); }} />
+          <MethodCard active={effectiveMethod === "VOUCHER"} icon="🎟️" title={t("deposit.methodVoucher")} sub={t("deposit.voucherSub")} onClick={() => { setMethod("VOUCHER"); setPending(null); }} />
         )}
       </div>
 
@@ -237,9 +239,9 @@ export default function DepositPage() {
       {/* Stepper */}
       <div className="flex items-center gap-2 text-[11px] font-bold">
         {[
-          ["1", effectiveMethod === "MPESA" ? "Enter number" : "Choose coin"],
-          ["2", "Enter amount"],
-          ["3", "Send & confirm"],
+          ["1", effectiveMethod === "MPESA" ? t("deposit.stepEnterNumber") : t("deposit.stepChooseCoin")],
+          ["2", t("deposit.stepEnterAmount")],
+          ["3", t("deposit.stepSendConfirm")],
         ].map(([n, label], i) => (
           <div key={n} className="flex items-center gap-2">
             <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] ${step >= i ? "bg-brand text-[#052e16]" : "bg-card2 text-ink3"}`}>
@@ -253,7 +255,7 @@ export default function DepositPage() {
 
       {locked && (
         <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-200">
-          ⚠️ Deposits are limited while your account status is “{account?.user.status.replace("_", " ")}”. Contact support if you need help.
+          {t("deposit.locked", { status: account?.user.status.replace("_", " ") })}
         </div>
       )}
 
@@ -262,8 +264,8 @@ export default function DepositPage() {
           {/* Coin / phone selector */}
           <div className="card p-5">
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="font-bold">{effectiveMethod === "MPESA" ? "1 · Your M-Pesa number" : "1 · Choose coin"}</h3>
-              <span className="text-xs text-ink3">{effectiveMethod === "MPESA" ? "Lipa na M-Pesa" : "No deposit fees"}</span>
+              <h3 className="font-bold">{effectiveMethod === "MPESA" ? t("deposit.step1Mpesa") : t("deposit.step1Coin")}</h3>
+              <span className="text-xs text-ink3">{effectiveMethod === "MPESA" ? t("deposit.lipa") : t("deposit.noFees")}</span>
             </div>
             {effectiveMethod === "MPESA" ? (
               <div className="flex items-center gap-3">
@@ -304,9 +306,9 @@ export default function DepositPage() {
           {/* Amount */}
           <form onSubmit={createDeposit} className="card space-y-4 p-5">
             <div className="flex items-center justify-between">
-              <h3 className="font-bold">2 · Enter amount</h3>
+              <h3 className="font-bold">{t("deposit.step2Amount")}</h3>
               <span className="text-xs text-ink3">
-                Min {limits?.depositMin?.toLocaleString()} · Max {limits?.depositMax?.toLocaleString()}
+                {t("deposit.minMax", { min: limits?.depositMin?.toLocaleString() ?? "", max: limits?.depositMax?.toLocaleString() ?? "" })}
               </span>
             </div>
             <div>
@@ -329,7 +331,7 @@ export default function DepositPage() {
               </div>
               {effectiveMethod === "CRYPTO" && cryptoAmount !== null && (
                 <div className="mt-2 flex items-center justify-between rounded-lg bg-brand/5 px-3 py-2 text-sm">
-                  <span className="text-ink2">You&apos;ll send</span>
+                  <span className="text-ink2">{t("deposit.youWillSend")}</span>
                   <span className="font-bold text-brand">
                     ≈ {cryptoAmount.toFixed(COIN_META[crypto]?.dp ?? 4)} {crypto}
                   </span>
@@ -344,7 +346,7 @@ export default function DepositPage() {
                 const kesCharge = Math.round(amountNum * kesPerWallet * 100) / 100;
                 return (
                   <div className="mt-2 flex items-center justify-between rounded-lg bg-brand/5 px-3 py-2 text-sm">
-                    <span className="text-ink2">You&apos;ll be charged</span>
+                    <span className="text-ink2">{t("deposit.youWillBeCharged")}</span>
                     <span className="font-bold text-brand">≈ KSh {kesCharge.toLocaleString("en-US", { maximumFractionDigits: 2 })}</span>
                   </div>
                 );
@@ -365,35 +367,33 @@ export default function DepositPage() {
 
             <button className={`btn w-full py-3 ${effectiveMethod === "MPESA" ? "bg-[#1f3d2b] text-[#3ecf6e] hover:brightness-110" : "btn-primary"}`} disabled={loading || !valid}>
               {loading
-                ? "Processing…"
+                ? t("deposit.processing")
                 : effectiveMethod === "MPESA"
-                  ? "Pay with M-Pesa"
-                  : "Create Payment"}
+                  ? t("deposit.payMpesa")
+                  : t("deposit.createPayment")}
             </button>
             {amountNum > 0 && !valid && (
               <p className="text-center text-[11px] font-medium text-amber-400">
                 {amountNum < (limits?.depositMin ?? 0)
-                  ? `Minimum deposit is ${limits?.depositMin?.toLocaleString()}`
+                  ? t("deposit.errMin", { amount: limits?.depositMin?.toLocaleString() ?? "" })
                   : amountNum > (limits?.depositMax ?? 0)
-                    ? `Maximum deposit is ${limits?.depositMax?.toLocaleString()}`
+                    ? t("deposit.errMax", { amount: limits?.depositMax?.toLocaleString() ?? "" })
                     : effectiveMethod === "MPESA"
-                      ? "Enter a valid Kenyan phone number"
-                      : "Deposits are disabled for your account status"}
+                      ? t("deposit.errPhone")
+                      : t("deposit.errStatus")}
               </p>
             )}
             <p className="text-center text-[11px] text-ink3">
-              {effectiveMethod === "MPESA"
-                ? "You'll get an M-Pesa PIN prompt on your phone. Confirm it to complete the deposit."
-                : null}
+              {effectiveMethod === "MPESA" ? t("deposit.mpesaHint") : null}
             </p>
           </form>
 
           {/* Trust badges */}
           <div className="grid grid-cols-3 gap-2 text-center">
             {[
-              { Icon: Zap, title: "Instant credit", sub: "after confirmation" },
-              { Icon: ShieldCheck, title: "Secure", sub: "verified server-side" },
-              { Icon: CheckCircle2, title: "No fees", sub: "deposit with confidence" },
+              { Icon: Zap, title: t("deposit.badgeInstant"), sub: t("deposit.badgeInstantSub") },
+              { Icon: ShieldCheck, title: t("deposit.badgeSecure"), sub: t("deposit.badgeSecureSub") },
+              { Icon: CheckCircle2, title: t("deposit.badgeNoFees"), sub: t("deposit.badgeNoFeesSub") },
             ].map(({ Icon, title, sub }) => (
               <div key={title} className="card p-3">
                 <Icon className="mx-auto h-5 w-5 text-brand" />
@@ -410,27 +410,26 @@ export default function DepositPage() {
             <div className="flex items-center justify-between">
               <h3 className="font-bold">3 · {effectiveMethod === "MPESA" ? "Confirm on your phone" : "Send payment"}</h3>
               <span className="rounded-full bg-amber-500/15 px-2.5 py-1 text-[10px] font-bold uppercase text-amber-400">
-                {pending.status ?? "Awaiting Payment"}
+                {pending.status ?? t("deposit.awaiting")}
               </span>
             </div>
 
             {effectiveMethod === "MPESA" ? (
               <div className="rounded-xl border border-[#3ecf6e]/30 bg-[#1f3d2b]/30 p-5 text-center">
                 <div className="text-3xl">📱</div>
-                <p className="mt-2 font-semibold">Check your phone</p>
+                <p className="mt-2 font-semibold">{t("deposit.checkPhone")}</p>
                 <p className="mt-1 text-sm text-ink2">
-                  An M-Pesa PIN prompt for <b className="text-ink">{amountNum.toLocaleString()} KES</b> was sent to{" "}
-                  <b className="text-ink">{phone || "your number"}</b>. Enter your PIN to pay.
+                  {t("deposit.stkPrompt", { amount: amountNum.toLocaleString(), phone: phone || t("deposit.yourNumber") })}
                 </p>
-                <p className="mt-2 text-xs text-ink3">Your balance is credited the moment Safaricom confirms — no manual steps.</p>
+                <p className="mt-2 text-xs text-ink3">{t("deposit.stkAuto")}</p>
                 <button className="btn btn-primary mt-4 w-full" onClick={checkMpesaStatus} disabled={checking}>
-                  {checking ? "Checking…" : "I've paid — check status"}
+                  {checking ? t("deposit.checking") : t("deposit.checkStatus")}
                 </button>
               </div>
             ) : (
               <div className="rounded-xl border border-brand/40 bg-brand/5 p-4 text-center">
                 <div className="text-xs text-ink2">
-                  Send <b className="text-ink">{cryptoAmount ? `${cryptoAmount.toFixed(COIN_META[crypto]?.dp ?? 4)} ${crypto}` : ""}</b> to this address
+                  {cryptoAmount ? t("deposit.sendToAddress", { amount: cryptoAmount.toFixed(COIN_META[crypto]?.dp ?? 4), coin: crypto }) : ""}
                 </div>
                 <div className="mt-2 flex items-center gap-2 rounded-lg bg-card2 p-3">
                   <span className="min-w-0 flex-1 break-all text-left font-mono text-xs text-brand">{pending.paymentAddress}</span>
@@ -439,13 +438,26 @@ export default function DepositPage() {
                     onClick={copyAddress}
                     className={`shrink-0 rounded-lg px-2.5 py-1.5 text-[11px] font-bold ${copied ? "bg-green-600 text-white" : "bg-white/10 text-ink hover:bg-white/20"}`}
                   >
-                    {copied ? "✓ Copied" : "Copy"}
+                    {copied ? t("deposit.copied") : t("deposit.copy")}
                   </button>
                 </div>
+                {effectiveMethod === "CRYPTO" && pending.paymentAddress && (
+                  <div className="mt-3 flex flex-col items-center gap-1">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(pending.paymentAddress)}`}
+                      alt={t("deposit.qrAlt")}
+                      width={96}
+                      height={96}
+                      className="h-24 w-24 rounded-lg bg-white p-1.5"
+                    />
+                    <span className="text-[10px] text-ink3">{t("deposit.scanHint")}</span>
+                  </div>
+                )}
                 {pending.expiresAt && <Countdown expiresAt={pending.expiresAt} />}
                 {effectiveMethod === "CRYPTO" && (
                   <div className="mt-2 text-[11px] font-bold uppercase tracking-wide text-brand">
-                    Send on {chainLabel(pending.cryptoCurrency, pending.network)}
+                    {t("deposit.sendOn", { chain: chainLabel(pending.cryptoCurrency, pending.network) })}
                   </div>
                 )}
               </div>
@@ -453,31 +465,35 @@ export default function DepositPage() {
 
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div className="rounded-lg bg-card2 p-3">
-                <div className="text-xs text-ink3">Amount</div>
+                <div className="text-xs text-ink3">{t("deposit.detailAmount")}</div>
                 <div className="mt-0.5 font-bold">{pending.amount.toLocaleString()} {account?.wallet?.currencyCode}</div>
               </div>
               <div className="rounded-lg bg-card2 p-3">
-                <div className="text-xs text-ink3">{effectiveMethod === "MPESA" ? "Provider" : "Network"}</div>
+                <div className="text-xs text-ink3">{effectiveMethod === "MPESA" ? t("deposit.detailProvider") : t("deposit.detailNetwork")}</div>
                 <div className="mt-0.5 font-bold">
-                  {effectiveMethod === "MPESA" ? "M-Pesa" : chainLabel(pending.cryptoCurrency, pending.network)}
+                  {effectiveMethod === "MPESA" ? t("withdraw.methodMpesa") : chainLabel(pending.cryptoCurrency, pending.network)}
                 </div>
               </div>
             </div>
 
             {effectiveMethod === "CRYPTO" && pending.paymentAddress?.startsWith("vb") && (
               <button className="btn btn-accent w-full" onClick={simulateConfirm} disabled={checking}>
-                {checking ? "Confirming…" : "Simulate provider confirmation (demo)"}
+                {checking ? t("deposit.checking") : t("deposit.simulate")}
               </button>
             )}
-            <button className="btn btn-ghost w-full" onClick={() => setPending(null)}>Cancel</button>
+            <button className="btn btn-ghost w-full" onClick={() => setPending(null)}>{t("deposit.cancel")}</button>
           </div>
 
           <div className="card p-5 text-sm text-ink2">
-            <h4 className="font-bold text-ink">What happens next</h4>
+            <h4 className="font-bold text-ink">{t("deposit.whatNext")}</h4>
             <ol className="mt-2 list-decimal space-y-1 pl-5">
-              <li>{effectiveMethod === "MPESA" ? "Enter your PIN on the M-Pesa prompt." : `Send the exact amount of ${pending.cryptoCurrency ?? "crypto"} on ${chainLabel(pending.cryptoCurrency, pending.network)} to the address above.`}</li>
-              <li>We verify the payment with the provider (on-chain / Safaricom callback).</li>
-              <li>Your balance is credited automatically — no manual claims.</li>
+              <li>
+                {effectiveMethod === "MPESA"
+                  ? t("deposit.next1Mpesa")
+                  : t("deposit.next1Crypto", { coin: pending.cryptoCurrency ?? "crypto", chain: chainLabel(pending.cryptoCurrency, pending.network) })}
+              </li>
+              <li>{t("deposit.next2")}</li>
+              <li>{t("deposit.next3")}</li>
             </ol>
           </div>
         </div>
@@ -488,12 +504,12 @@ export default function DepositPage() {
       {/* Recent deposits */}
       {account && account.recentDeposits.length > 0 && (
         <div className="card divide-y divide-line">
-          <div className="px-4 py-3 font-bold">Recent Deposits</div>
+          <div className="px-4 py-3 font-bold">{t("deposit.recent")}</div>
           {account.recentDeposits.map((d) => (
             <div key={d.id} className="flex items-center justify-between px-4 py-2.5 text-sm">
               <div>
                 <span className="font-semibold">{d.amount.toLocaleString()} {d.currencyCode}</span>
-                <span className="ml-2 text-xs text-ink3">{d.method === "MPESA" ? "M-Pesa" : d.cryptoCurrency ?? d.currencyCode}</span>
+                <span className="ml-2 text-xs text-ink3">{d.method === "MPESA" ? t("withdraw.methodMpesa") : d.cryptoCurrency ?? d.currencyCode}</span>
               </div>
               <StatusPill status={d.status} />
             </div>
@@ -533,6 +549,7 @@ function StatusPill({ status }: { status: string }) {
 }
 
 function Countdown({ expiresAt }: { expiresAt: string }) {
+  const { t } = useTranslation();
   const [left, setLeft] = useState(0);
   useEffect(() => {
     const tick = () => setLeft(Math.max(0, new Date(expiresAt).getTime() - Date.now()));
@@ -547,7 +564,9 @@ function Countdown({ expiresAt }: { expiresAt: string }) {
 
   return (
     <div className={`mt-2 text-[11px] font-semibold ${expired ? "text-red-400" : "text-ink2"}`}>
-      {expired ? "Payment window expired — create a new deposit." : `⏳ Expires in ${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`}
+      {expired
+        ? t("deposit.windowExpired")
+        : t("deposit.expiresIn", { time: `${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}` })}
     </div>
   );
 }

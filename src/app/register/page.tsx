@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/client";
@@ -11,6 +12,7 @@ import RecaptchaGate from "@/components/auth/RecaptchaGate";
 export default function RegisterPage() {
   const router = useRouter();
   const { push } = useToast();
+  const { t } = useTranslation();
   /** Language select starts from the geo-detected site language (stored in
    *  localStorage by the site-wide i18n resolver) so registration continues
    *  in the visitor's language — falls back to English. */
@@ -66,7 +68,7 @@ export default function RegisterPage() {
     e.preventDefault();
     setError("");
     if (captchaRequired && !captchaToken) {
-      setError("Please complete the reCAPTCHA to create your account.");
+      setError(t("register.captchaRequired"));
       return;
     }
     setLoading(true);
@@ -82,7 +84,7 @@ export default function RegisterPage() {
       setCaptchaReset((n) => n + 1);
       return;
     }
-    push("success", "Account created. Welcome to UNIBET360! 🎉");
+    push("success", t("register.welcome"));
     // Smart auth redirect: ?redirect=/account/deposit (set when an
     // insufficient-balance guest was routed here from the betslip) sends the
     // new user straight to funding their wallet — selections survive via the
@@ -97,8 +99,8 @@ export default function RegisterPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-12">
       <div className="card p-8">
-        <h1 className="text-2xl font-extrabold">Create your account</h1>
-        <p className="mt-1 text-sm text-ink2">Join UNIBET360 — fast odds, live betting and instant crypto deposits.</p>
+        <h1 className="text-2xl font-extrabold">{t("register.title")}</h1>
+        <p className="mt-1 text-sm text-ink2">{t("register.subtitle")}</p>
 
         <form onSubmit={submit} className="mt-6 grid gap-4 sm:grid-cols-2">
           {error && (
@@ -106,35 +108,35 @@ export default function RegisterPage() {
           )}
 
           <div className="sm:col-span-2">
-            <label className="label" htmlFor="fullName">Full name</label>
+            <label className="label" htmlFor="fullName">{t("register.fullName")}</label>
             <input id="fullName" className={input} value={form.fullName} onChange={(e) => set("fullName", e.target.value)} required />
           </div>
 
           <div>
-            <label className="label" htmlFor="username">Username</label>
+            <label className="label" htmlFor="username">{t("register.username")}</label>
             <input id="username" className={input} value={form.username} onChange={(e) => set("username", e.target.value)} required minLength={3} maxLength={20} />
           </div>
           <div>
-            <label className="label" htmlFor="phone">Phone number</label>
+            <label className="label" htmlFor="phone">{t("register.phone")}</label>
             <input id="phone" className={input} value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="+254…" required />
           </div>
 
           <div className="sm:col-span-2">
-            <label className="label" htmlFor="email">Email</label>
+            <label className="label" htmlFor="email">{t("register.email")}</label>
             <input id="email" type="email" className={input} value={form.email} onChange={(e) => set("email", e.target.value)} required />
           </div>
 
           <div>
-            <label className="label" htmlFor="password">Password</label>
+            <label className="label" htmlFor="password">{t("register.password")}</label>
             <input id="password" type="password" className={input} value={form.password} onChange={(e) => set("password", e.target.value)} required minLength={8} />
           </div>
           <div>
-            <label className="label" htmlFor="confirmPassword">Confirm password</label>
+            <label className="label" htmlFor="confirmPassword">{t("register.confirmPassword")}</label>
             <input id="confirmPassword" type="password" className={input} value={form.confirmPassword} onChange={(e) => set("confirmPassword", e.target.value)} required />
           </div>
 
           <div>
-            <label className="label" htmlFor="country">Country</label>
+            <label className="label" htmlFor="country">{t("register.country")}</label>
             <select id="country" className={input} value={form.country} onChange={(e) => set("country", e.target.value)}>
               <option value="KE">Kenya</option>
               <option value="UG">Uganda</option>
@@ -177,7 +179,7 @@ export default function RegisterPage() {
             </select>
           </div>
           <div>
-            <label className="label" htmlFor="currency">Preferred Wallet Currency</label>
+            <label className="label" htmlFor="currency">{t("register.currency")}</label>
             <select id="currency" className={input} value={form.currency} onChange={(e) => set("currency", e.target.value)} required>
               {(currencies ?? [
                 { code: "KES", name: "Kenyan Shilling", symbol: "KSh" },
@@ -186,11 +188,11 @@ export default function RegisterPage() {
                 <option key={c.code} value={c.code}>{c.code} — {c.name}</option>
               ))}
             </select>
-            <p className="mt-1 text-[11px] text-ink3">Your wallet is created in this currency — balances, deposits and payouts display in it.</p>
+            <p className="mt-1 text-[11px] text-ink3">{t("register.walletHint")}</p>
           </div>
 
           <div>
-            <label className="label" htmlFor="language">Preferred language</label>
+            <label className="label" htmlFor="language">{t("register.language")}</label>
             <select id="language" className={input} value={form.language} onChange={(e) => set("language", e.target.value)}>
               {LANGUAGES.map((l) => (
                 <option key={l.code} value={l.code}>{l.name}</option>
@@ -198,14 +200,16 @@ export default function RegisterPage() {
             </select>
           </div>
           <div>
-            <label className="label" htmlFor="referral">Referral code (optional)</label>
+            <label className="label" htmlFor="referral">{t("register.referral")}</label>
             <input id="referral" className={input} value={form.referralCode} onChange={(e) => set("referralCode", e.target.value)} placeholder="e.g. VOLT-DEMO" />
           </div>
 
           <label className="flex cursor-pointer items-start gap-2 text-sm text-ink2 sm:col-span-2">
             <input type="checkbox" checked={form.terms} onChange={(e) => set("terms", e.target.checked)} className="mt-0.5 h-4 w-4 accent-[var(--vb-primary)]" required />
             <span>
-              I am 18+ and accept the <Link href="/terms" className="text-brand hover:underline">Terms & Conditions</Link> and responsible gambling policy.
+              {t("register.termsPrefix")}{" "}
+              <Link href="/terms" className="text-brand hover:underline">{t("register.termsLink")}</Link>{" "}
+              {t("register.termsSuffix")}
             </span>
           </label>
 
@@ -214,13 +218,13 @@ export default function RegisterPage() {
             className="btn btn-primary w-full py-3 sm:col-span-2"
             disabled={loading || !form.terms || (captchaRequired && !captchaToken)}
           >
-            {loading ? "Creating account…" : "Create Account"}
+            {loading ? t("register.submitting") : t("register.submit")}
           </button>
         </form>
 
         <p className="mt-5 text-center text-sm text-ink2">
-          Already have an account?{" "}
-          <Link href="/login" className="font-semibold text-brand hover:underline">Log in</Link>
+          {t("register.haveAccount")}{" "}
+          <Link href="/login" className="font-semibold text-brand hover:underline">{t("nav.login")}</Link>
         </p>
       </div>
     </div>

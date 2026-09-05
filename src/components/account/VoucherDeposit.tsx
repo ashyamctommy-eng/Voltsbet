@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { apiFetch } from "@/lib/client";
 import { useToast } from "@/components/BetSlipContext";
 import { ShieldCheck } from "lucide-react";
@@ -40,6 +41,7 @@ function formatCodeInput(raw: string): string {
  */
 export default function VoucherDeposit({ onSuccess }: { onSuccess?: () => void }) {
   const { push } = useToast();
+  const { t } = useTranslation();
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<VoucherResult | null>(null);
@@ -55,7 +57,7 @@ export default function VoucherDeposit({ onSuccess }: { onSuccess?: () => void }
   async function redeem(e: React.FormEvent) {
     e.preventDefault();
     if (code.replace(/-/g, "").length < 8) {
-      setError("Enter the full voucher code from your voucher.");
+      setError(t("voucher.errorFullCode"));
       return;
     }
     setBusy(true);
@@ -72,7 +74,7 @@ export default function VoucherDeposit({ onSuccess }: { onSuccess?: () => void }
     }
     setResult(res.data);
     setCode("");
-    push("success", `Voucher redeemed — ${res.data.amount} ${res.data.currency} credited.`);
+    push("success", t("voucher.redeemed", { amount: res.data.amount.toLocaleString(), currency: res.data.currency }));
     onSuccess?.();
     apiFetch<AccountData>("/api/account").then((r) => r.ok && setHistory(r.data.recentVoucherDeposits ?? []));
   }
@@ -82,14 +84,14 @@ export default function VoucherDeposit({ onSuccess }: { onSuccess?: () => void }
       {/* Redeem form */}
       <form onSubmit={redeem} className="card space-y-4 p-6">
         <div>
-          <h3 className="text-base font-bold">Deposit with Voucher</h3>
+          <h3 className="text-base font-bold">{t("voucher.title")}</h3>
           <p className="mt-0.5 text-xs text-ink3">
-            Enter your voucher code. The voucher&apos;s value is fixed — you cannot choose the amount.
+            {t("voucher.subtitle")}
           </p>
         </div>
 
         <label className="block">
-          <span className="text-xs font-bold text-ink2">Voucher code</span>
+          <span className="text-xs font-bold text-ink2">{t("voucher.code")}</span>
           <input
             className="input mt-1.5 w-full text-center font-mono text-lg font-bold tracking-[0.15em]"
             value={code}
@@ -98,7 +100,7 @@ export default function VoucherDeposit({ onSuccess }: { onSuccess?: () => void }
             autoComplete="off"
             spellCheck={false}
             maxLength={19}
-            aria-label="Voucher code"
+            aria-label={t("voucher.code")}
           />
         </label>
 
@@ -107,12 +109,12 @@ export default function VoucherDeposit({ onSuccess }: { onSuccess?: () => void }
           disabled={busy || code.replace(/-/g, "").length < 8}
           type="submit"
         >
-          {busy ? "Redeeming…" : "Redeem Voucher"}
+          {busy ? t("voucher.redeeming") : t("voucher.redeem")}
         </button>
 
         <p className="flex items-center justify-center gap-1.5 text-center text-[11px] text-ink3">
           <ShieldCheck className="h-4 w-4 text-emerald-400" />
-          Secure, server-verified voucher redemption
+          {t("voucher.secureNote")}
         </p>
       </form>
 
@@ -120,12 +122,14 @@ export default function VoucherDeposit({ onSuccess }: { onSuccess?: () => void }
       {result && (
         <div className="card border-green-500/30 bg-green-500/5 p-5 text-center">
           <div className="text-3xl">✅</div>
-          <div className="mt-1 text-sm font-bold text-green-400">Voucher Deposit Successful</div>
+          <div className="mt-1 text-sm font-bold text-green-400">{t("voucher.successTitle")}</div>
           <div className="mt-2 text-2xl font-extrabold tabular-nums">
             +{result.amount.toLocaleString()} {result.currency}
           </div>
-          <div className="mt-1 text-xs text-ink3">Transaction: {result.transactionId}</div>
-          <div className="text-xs text-ink2">New balance: {result.newBalance.toLocaleString()} {result.currency}</div>
+          <div className="mt-1 text-xs text-ink3">{t("voucher.transaction", { id: result.transactionId })}</div>
+          <div className="text-xs text-ink2">
+            {t("voucher.newBalance", { amount: result.newBalance.toLocaleString(), currency: result.currency })}
+          </div>
         </div>
       )}
 
@@ -136,23 +140,23 @@ export default function VoucherDeposit({ onSuccess }: { onSuccess?: () => void }
 
       {/* How it works */}
       <div className="card p-5 text-sm text-ink2">
-        <h4 className="font-bold text-ink">How voucher redemption works</h4>
+        <h4 className="font-bold text-ink">{t("voucher.howTitle")}</h4>
         <ol className="mt-2 list-decimal space-y-1 pl-5">
-          <li>Enter the code printed on your voucher (e.g. TTB-7K4P-92MX-51QZ).</li>
-          <li>We validate it server-side — status, expiry, currency and redemption limits.</li>
-          <li>The voucher&apos;s value is credited to your wallet instantly and atomically.</li>
-          <li>Each voucher can only be redeemed once, by one account.</li>
+          <li>{t("voucher.how1")}</li>
+          <li>{t("voucher.how2")}</li>
+          <li>{t("voucher.how3")}</li>
+          <li>{t("voucher.how4")}</li>
         </ol>
       </div>
 
       {/* History */}
       {history.length > 0 && (
         <div className="card divide-y divide-line">
-          <div className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-ink3">Voucher deposit history</div>
+          <div className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-ink3">{t("voucher.history")}</div>
           {history.map((h) => (
             <div key={h.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
               <div className="min-w-0">
-                <div className="font-semibold">Voucher Deposit</div>
+                <div className="font-semibold">{t("voucher.historyItem")}</div>
                 <div className="truncate text-xs text-ink3">
                   {new Date(h.redeemedAt).toLocaleString()}
                   {h.reference ? ` · ${h.reference}` : ""}

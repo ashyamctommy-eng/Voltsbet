@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { apiFetch } from "@/lib/client";
 import { useToast } from "@/components/BetSlipContext";
 
@@ -12,6 +13,7 @@ type ProfileData = {
 
 export default function WithdrawPage() {
   const { push } = useToast();
+  const { t } = useTranslation();
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [method, setMethod] = useState<"CRYPTO" | "MPESA">("CRYPTO");
   const [amount, setAmount] = useState("");
@@ -36,8 +38,8 @@ export default function WithdrawPage() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     const amt = parseFloat(amount);
-    if (!amt || amt <= 0) return push("error", "Enter a valid amount");
-    if (amt > max) return push("error", "Insufficient withdrawable balance");
+    if (!amt || amt <= 0) return push("error", t("withdraw.errorValidAmount"));
+    if (amt > max) return push("error", t("withdraw.insufficient"));
     setLoading(true);
     const res = await apiFetch<{ withdrawal: { trackingId?: string } }>("/api/account/withdraw", {
       method: "POST",
@@ -45,18 +47,24 @@ export default function WithdrawPage() {
     });
     setLoading(false);
     if (!res.ok) return push("error", res.error.message);
-    setTrackingId(res.data.withdrawal.trackingId ?? "");
-    push("success", `Withdrawal requested${res.data.withdrawal.trackingId ? ` — ${res.data.withdrawal.trackingId}` : ""}. The amount is reserved until review.`);
+    const newId = res.data.withdrawal.trackingId ?? "";
+    setTrackingId(newId);
+    push(
+      "success",
+      newId
+        ? t("withdraw.successWithId", { trackingId: newId })
+        : t("withdraw.success")
+    );
     setAmount("");
     setDestination("");
   }
 
   return (
     <div className="max-w-xl space-y-5">
-      <h2 className="text-lg font-bold">Withdraw</h2>
+      <h2 className="text-lg font-bold">{t("withdraw.title")}</h2>
 
       <div className="card flex items-center justify-between p-4">
-        <span className="text-sm text-ink2">Available balance</span>
+        <span className="text-sm text-ink2">{t("withdraw.available")}</span>
         <span className="font-extrabold text-green-400">
           {profile?.wallet ? `${Number(profile.wallet.balance).toLocaleString()} ${profile.wallet.currencyCode}` : "—"}
         </span>
@@ -74,7 +82,7 @@ export default function WithdrawPage() {
           >
             <span className={`flex h-9 w-9 items-center justify-center rounded-full text-base font-black ${effectiveMethod === "CRYPTO" ? "bg-brand text-[#052e16]" : "bg-card2 text-ink2"}`}>₿</span>
             <span>
-              <span className={`block text-sm font-bold ${effectiveMethod === "CRYPTO" ? "text-brand" : "text-ink"}`}>Crypto</span>
+              <span className={`block text-sm font-bold ${effectiveMethod === "CRYPTO" ? "text-brand" : "text-ink"}`}>{t("withdraw.methodCrypto")}</span>
               <span className="block text-[11px] text-ink3">BTC · ETH · USDT</span>
             </span>
           </button>
@@ -89,8 +97,8 @@ export default function WithdrawPage() {
           >
             <span className={`flex h-9 w-9 items-center justify-center rounded-full text-base font-black ${effectiveMethod === "MPESA" ? "bg-brand text-[#052e16]" : "bg-card2 text-ink2"}`}>📱</span>
             <span>
-              <span className={`block text-sm font-bold ${effectiveMethod === "MPESA" ? "text-brand" : "text-ink"}`}>M-Pesa</span>
-              <span className="block text-[11px] text-ink3">Instant to your number</span>
+              <span className={`block text-sm font-bold ${effectiveMethod === "MPESA" ? "text-brand" : "text-ink"}`}>{t("withdraw.methodMpesa")}</span>
+              <span className="block text-[11px] text-ink3">{t("withdraw.methodMpesaSub")}</span>
             </span>
           </button>
         )}
@@ -98,7 +106,7 @@ export default function WithdrawPage() {
 
       <form onSubmit={submit} className="card space-y-4 p-6">
         <div>
-          <label className="label" htmlFor="w-amount">Amount</label>
+          <label className="label" htmlFor="w-amount">{t("withdraw.amount")}</label>
           <input
             id="w-amount"
             className={`input ${exceedsAvailable || noWithdrawable ? "!border-red-500/60" : ""}`}
@@ -108,47 +116,47 @@ export default function WithdrawPage() {
             inputMode="decimal"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
-            placeholder={noWithdrawable ? "No withdrawable funds" : "Enter amount"}
+            placeholder={noWithdrawable ? t("withdraw.noFundsPlaceholder") : t("withdraw.amountPlaceholder")}
             required
           />
           {exceedsAvailable || noWithdrawable ? (
             <p className="mt-1 text-xs font-semibold text-red-400" role="alert">
-              Insufficient withdrawable balance
+              {t("withdraw.insufficient")}
             </p>
           ) : (
             <button type="button" className="mt-1.5 text-xs text-brand hover:underline" onClick={() => setAmount(String(max))}>
-              Withdraw max
+              {t("withdraw.withdrawMax")}
             </button>
           )}
         </div>
         <div>
           <label className="label" htmlFor="w-dest">
-            {effectiveMethod === "MPESA" ? "M-Pesa number" : "Crypto destination address"}
+            {effectiveMethod === "MPESA" ? t("withdraw.destinationMpesa") : t("withdraw.destinationCrypto")}
           </label>
           <input
             id="w-dest"
             className="input font-mono"
             inputMode={effectiveMethod === "MPESA" ? "tel" : "text"}
-            placeholder={effectiveMethod === "MPESA" ? "0712 345 678" : "0x… / bc1q… / TRC20…"}
+            placeholder={effectiveMethod === "MPESA" ? t("withdraw.placeholderMpesa") : t("withdraw.placeholderCrypto")}
             value={destination}
             onChange={(e) => setDestination(e.target.value)}
             required
             minLength={effectiveMethod === "MPESA" ? 9 : 8}
           />
           {effectiveMethod === "MPESA" && (
-            <p className="mt-1.5 text-xs text-ink3">Payouts are sent from our Paybill via B2C. You may be required to verify identity first.</p>
+            <p className="mt-1.5 text-xs text-ink3">{t("withdraw.mpesaNote")}</p>
           )}
         </div>
         <button className="btn btn-primary w-full py-3" disabled={loading || exceedsAvailable || noWithdrawable}>
-          {loading ? "Requesting…" : noWithdrawable ? "No withdrawable funds" : "Request Withdrawal"}
+          {loading ? t("withdraw.requesting") : noWithdrawable ? t("withdraw.noWithdrawableBtn") : t("withdraw.request")}
         </button>
         {trackingId && (
           <p className="rounded-lg border border-brand/40 bg-brand/10 px-3 py-2 text-center text-sm font-bold text-brand">
-            Tracking ID: {trackingId}
+            {t("withdraw.tracking", { id: trackingId })}
           </p>
         )}
         <p className="text-xs text-ink3">
-          The amount is reserved from your balance immediately, then reviewed by our finance team and paid out. Save your tracking ID for support queries.
+          {t("withdraw.reservedNote")}
         </p>
       </form>
     </div>
