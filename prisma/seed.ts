@@ -859,7 +859,7 @@ async function main() {
   // ── Extended UI keys (market names + nav extras) from the client bundle ──
   // Keeps the admin panel dictionary in sync with the UI keys; existing
   // seeded values win (update: {}), missing keys are added. Idempotent.
-  for (const lang of ["en", "sw", "fr", "pt", "es"]) {
+  for (const lang of ["en", "sw", "fr", "pt", "es", "tpi", "bi", "crs", "fj", "to", "sm"]) {
     const bundle = (resources as Record<string, { translation: Record<string, string> }>)[lang]?.translation ?? {};
     for (const [key, value] of Object.entries(bundle)) {
       await t(lang, key, String(value));

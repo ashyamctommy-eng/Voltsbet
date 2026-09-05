@@ -1,3 +1,5 @@
+import { BATCH3_PACKS } from "./i18n-packs-batch3";
+
 /**
  * Built-in i18n resources + language catalog — a PLAIN module (no client
  * directives, no i18n imports) so both the client singleton (i18n.ts) and
@@ -85,15 +87,15 @@ export const LANGUAGES = [
 export type LangCode = (typeof LANGUAGES)[number]["code"];
 
 export const resources = {
-  // Batch 3 languages have no translation pack yet — empty bundles mean
-  // every key falls through to the English fallback (fallbackLng: "en"),
-  // so the UI always renders. Swap in real packs as they become available.
-  tpi: { translation: {} },
-  bi: { translation: {} },
-  fj: { translation: {} },
-  to: { translation: {} },
-  sm: { translation: {} },
-  crs: { translation: {} },
+  // Batch 3 languages — packs from ./i18n-packs-batch3 (v1 draft). Keys
+  // missing from a pack fall through to the English bundle (fallbackLng:
+  // "en"), so the UI always renders while packs are being completed.
+  tpi: { translation: BATCH3_PACKS.tpi },
+  bi: { translation: BATCH3_PACKS.bi },
+  crs: { translation: BATCH3_PACKS.crs },
+  fj: { translation: BATCH3_PACKS.fj },
+  to: { translation: BATCH3_PACKS.to },
+  sm: { translation: BATCH3_PACKS.sm },
 
   en: {
     translation: {
