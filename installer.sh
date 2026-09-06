@@ -12,6 +12,8 @@
 #   5. PM2 (ecosystem.config.js) bootstrap + boot persistence
 #   6. Nginx reverse proxy (80/443 → local app port)
 #   7. Certbot Let's Encrypt SSL when a valid domain is present
+#   8. Crontab (voltsbet user): odds sync · calendar refresh · auto-settle ·
+#      purge · nightly DB backup (deploy/backup.sh) — fully automatic
 #
 # Usage:
 #   sudo bash installer.sh                     # interactive
@@ -118,7 +120,7 @@ CRON_SECRET="$(rand 32)"
 log "Installing system packages (PostgreSQL, Nginx, Certbot, toolchain)…"
 apt-get update -y
 apt-get install -y --no-install-recommends \
-  curl wget git ca-certificates gnupg openssl ufw \
+  curl wget git ca-certificates gnupg openssl ufw cron \
   nginx postgresql postgresql-contrib certbot python3-certbot-nginx \
   build-essential
 
@@ -135,6 +137,13 @@ if ! command -v pm2 >/dev/null; then
   npm install -g pm2
 fi
 
+# pnpm (pinned to the repo's packageManager) — the repo is pnpm-locked; npm
+# would ignore pnpm-lock.yaml and float every dependency version.
+if ! command -v pnpm >/dev/null || [ "$(pnpm --version 2>/dev/null)" != "10.34.5" ]; then
+  log "Installing pnpm 10.34.5…"
+  npm install -g pnpm@10.34.5
+fi
+
 # ── 3. App user + code checkout ───────────────────────────────────────
 id "$APP_USER" >/dev/null 2>&1 || useradd --create-home --shell /bin/bash "$APP_USER"
 
@@ -149,6 +158,7 @@ fi
 chown -R "$APP_USER:$APP_USER" "$INSTALL_DIR"
 
 # ── 4. PostgreSQL role + database ────────────────────────────────────
+systemctl enable --now cron 2>/dev/null || service cron start || true
 if [ "${SKIP_DB_CREATE:-0}" != "1" ]; then
   systemctl enable --now postgresql
   if su - postgres -c "psql -tAc \"SELECT 1 FROM pg_roles WHERE rolname='$DB_USER'\"" | grep -q 1; then
@@ -191,17 +201,21 @@ fi
 as_app() { su -s /bin/bash "$APP_USER" -c "export HOME=/home/$APP_USER && cd '$INSTALL_DIR' && $*"; }
 
 # ── 6. Dependencies → migrations → seed → build ──────────────────────
-log "Installing production dependencies (npm install)…"
-as_app "npm install --omit=dev --no-audit --no-fund || npm install --no-audit --no-fund"
+# NOTE: dev dependencies stay installed on purpose — `prisma` (CLI), `tsx`
+# (the seed runner) and `typescript` are devDependencies in this repo, so a
+# prod-only install cannot migrate, seed or generate the client. Runtime size
+# impact is small; prune later with: pnpm prune --prod (re-run migrate first).
+log "Installing dependencies (pnpm install, frozen lockfile)…"
+as_app "pnpm install --frozen-lockfile --no-audit 2>/dev/null || pnpm install --no-audit"
 
 log "Running Prisma migrations…"
-as_app "DATABASE_URL='${DB_URL}' npx prisma migrate deploy"
+as_app "DATABASE_URL='${DB_URL}' pnpm exec prisma migrate deploy"
 
 log "Seeding initial data (sports, statuses, admin)…"
-as_app "DATABASE_URL='${DB_URL}' npx prisma db seed"
+as_app "DATABASE_URL='${DB_URL}' pnpm exec prisma db seed"
 
 log "Building the Next.js production bundle…"
-as_app "DATABASE_URL='${DB_URL}' NODE_ENV=production npm run build"
+as_app "DATABASE_URL='${DB_URL}' NODE_ENV=production pnpm build"
 
 # ── 6b. Branding + Super Admin credentials + Telegram ────────────────
 log "Applying Super Admin credentials (${ADMIN_EMAIL})…"
@@ -214,7 +228,7 @@ module.exports = {
   apps: [{
     name: "voltsbet",
     cwd: "$INSTALL_DIR",
-    script: "npm",
+    script: "$(command -v npm)",
     args: "start",
     env: { NODE_ENV: "production", PORT: "$APP_PORT" },
     instances: 1,
@@ -279,6 +293,7 @@ $MARK
 0 5 * * * curl -fsS -m 120 "$CRON_BASE/schedule?secret=$CRON_SECRET" >> $LOG_DIR/cron-schedule.log 2>&1
 */12 * * * * curl -fsS -m 120 "$CRON_BASE/settle?secret=$CRON_SECRET" >> $LOG_DIR/cron-settle.log 2>&1
 0 0 * * * curl -fsS -m 120 "$CRON_BASE/purge?secret=$CRON_SECRET" >> $LOG_DIR/cron-purge.log 2>&1
+0 3 * * * bash $INSTALL_DIR/deploy/backup.sh >> $LOG_DIR/backup.log 2>&1
 $MARK-end
 EOF
 )

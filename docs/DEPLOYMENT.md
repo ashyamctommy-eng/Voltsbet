@@ -12,13 +12,18 @@ running sportsbook in one command:
 sudo bash installer.sh
 ```
 
-It installs Node.js LTS, PM2, PostgreSQL, Nginx and Certbot; prompts for the
-domain, DB credentials, `THE_ODDS_API_KEY`, Telegram bot token and the initial
-Super Admin credentials; then writes a sanitized `.env`, runs
-`npm install` → `prisma migrate deploy` → `prisma db seed` → `npm run build`,
-generates `ecosystem.config.js` and boots the app under PM2 (`pm2 save` +
-systemd startup), configures Nginx as a reverse proxy on 80/443, and issues a
-Let's Encrypt certificate when a domain is present. Non-interactive use:
+It installs Node.js LTS, PM2, pnpm (pinned to the repo's `packageManager`),
+PostgreSQL, Nginx and Certbot; prompts for the domain, DB credentials,
+`THE_ODDS_API_KEY`, Telegram bot token and the initial Super Admin
+credentials; then writes a sanitized `.env`, runs
+`pnpm install --frozen-lockfile` → `prisma migrate deploy` → `prisma db seed`
+→ `pnpm build` (full deps — the devDependencies include the `prisma` CLI,
+`tsx` seed runner and `typescript`, so a prod-only install cannot migrate,
+seed or build), generates `ecosystem.config.js` and boots the app under PM2
+(`pm2 save` + systemd startup), configures Nginx as a reverse proxy on
+80/443, issues a Let's Encrypt certificate when a domain is present, and
+INSTALLS THE 4 CRON JOBS into the `voltsbet` user's crontab (see below).
+Non-interactive use:
 
 ```bash
 DOMAIN=bet.example.com THE_ODDS_API_KEY=xxx \
