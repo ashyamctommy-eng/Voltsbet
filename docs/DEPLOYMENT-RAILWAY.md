@@ -66,11 +66,21 @@ against the NOWPayments and M-Pesa **sandboxes**.
 
 ## Step 5.5 — Cron jobs (settlement, sync, schedule, rates, purge)
 
-Railway has native cron (no GitHub Actions needed): **Project → your service →
-Settings → Cron Jobs → Add Cron Job**. Each job is an HTTP request to one of
-the app's cron endpoints. All endpoints require the cron secret — set it once
-in Admin → Website Settings → **Automation → cron.secret** (or as the
-`CRON_SECRET` env var) and use it in every URL below.
+**How the scheduling works (important):** Railway's native cron does NOT ping
+HTTP endpoints — it runs a service's *start command* on a schedule (UTC, min
+interval 5 minutes, and the process must exit when done). The app's cron jobs
+are plain HTTP endpoints, so you use one of two patterns:
+
+- **Recommended — an external HTTP scheduler** (cron-job.org / UptimeRobot):
+  zero extra Railway services. Each job is an HTTPS GET to one endpoint below.
+- **Railway-native** — deploy the official *Cron Webhook Trigger* template
+  (one tiny Bun service per job) or a custom `curl`-image service; the request
+  URL goes in its `ENDPOINT_URL`, and you set the schedule under **Settings →
+  Cron Schedule** on that service.
+
+All endpoints require the cron secret — set it once in Admin → Website
+Settings → **Automation → cron.secret** (or as the `CRON_SECRET` env var —
+note the DB setting wins if both exist) and use it in every URL below.
 
 | Endpoint | Schedule | Why |
 |---|---|---|
