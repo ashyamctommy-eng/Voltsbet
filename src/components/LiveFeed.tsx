@@ -86,7 +86,7 @@ export default function LiveFeed({
                 <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-400" />
                 No live matches right now — these kick off soon
               </div>
-              <div className="mt-3 grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+              <div className="mt-3 grid gap-4 [&>*]:min-w-0 md:grid-cols-2 2xl:grid-cols-3">
                 {fallback.map((g) => (
                   <MatchCard key={g.id} game={g} />
                 ))}
@@ -105,7 +105,7 @@ export default function LiveFeed({
             </div>
           )
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+          <div className="grid gap-4 [&>*]:min-w-0 md:grid-cols-2 2xl:grid-cols-3">
             {live.map((g) => (
               <MatchCard key={g.id} game={g} />
             ))}

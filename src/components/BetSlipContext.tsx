@@ -133,6 +133,10 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
   // the rail; mobile opens the sheet once so the user sees where their pick
   // went — later additions don't yank the sheet open again while browsing.
   const hadItemsRef = useRef(false);
+  // Only a real tap on an odds cell may auto-open the slip. Selections
+  // restored from localStorage on mount must restore SILENTLY (the badge /
+  // floating bar show the count) — never yank the sheet open on page load.
+  const userTappedRef = useRef(false);
   useEffect(() => {
     if (items.length === 0) {
       hadItemsRef.current = false;
@@ -140,7 +144,7 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
     }
     const firstSelection = !hadItemsRef.current;
     hadItemsRef.current = true;
-    if (!firstSelection || open) return;
+    if (!firstSelection || open || !userTappedRef.current) return;
     const t = setTimeout(() => setOpen(true), 0);
     return () => clearTimeout(t);
   }, [items.length, open]);
@@ -150,6 +154,7 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
   // Singles). This is what makes multi-pick slips show ALL legs on mobile
   // instead of the first pick only — handled in add/remove/clear, not an effect.
   const add = useCallback((item: SlipItem) => {
+    userTappedRef.current = true;
     const prev = itemsRef.current;
     const exists = prev.find((p) => p.outcomeId === item.outcomeId);
     if (exists) {

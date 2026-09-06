@@ -12,6 +12,7 @@ import { fmtOdds } from "@/lib/odds";
 import { currencyPrefix } from "@/lib/currency-format";
 import { selectionMarketLabel, tOutcome } from "@/lib/i18n";
 import { teamContext } from "@/lib/market-labels";
+import { Target } from "lucide-react";
 import { IconX, IconTrash } from "@/components/icons";
 
 type PlaceResponse = {
@@ -308,7 +309,7 @@ function SlipBody(props: {
       <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
         {items.length === 0 ? (
           <div className="mt-8 text-center">
-            <div className="text-3xl">🎯</div>
+            <Target className="mx-auto h-10 w-10 text-ink3" strokeWidth={1.5} aria-hidden />
             <p className="mt-3 text-sm text-ink3">{t("betslip.empty")}</p>
             <p className="mt-1 text-xs text-ink3">{t("betslip.emptyHint")}</p>
             <Link href="/sports" className="btn btn-ghost btn-sm mt-4" onClick={onClose}>
