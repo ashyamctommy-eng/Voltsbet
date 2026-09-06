@@ -21,13 +21,10 @@ export default function CountryAutocomplete({
   value: string;
   onChange: (code: string) => void;
 }) {
-  const initialLabel = (code: string) => {
-    const entry = COUNTRIES.find((c) => c[1] === code);
-    return entry ? `${entry[0]} (${entry[1]})` : "";
-  };
-  // The value code only ever changes THROUGH this component (pick()), so a
-  // lazy initializer is enough — no effect needed to mirror props.
-  const [query, setQuery] = useState<string>(() => initialLabel(value));
+  // Deliberately NO default value: the field starts clean and neutral and
+  // only shows a country once the user searches and picks one. `value` only
+  // ever changes THROUGH this component (pick()), so no prop-mirroring effect.
+  const [query, setQuery] = useState<string>("");
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState(0);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -64,7 +61,7 @@ export default function CountryAutocomplete({
         aria-label="Country"
         className="input"
         value={query}
-        placeholder="Kenya (KE)"
+        placeholder="Type or select country..."
         autoComplete="off"
         onChange={(e) => {
           setQuery(e.target.value);

@@ -435,6 +435,10 @@ export const resources = {
       "err.notCancellable": "This bet can no longer be cancelled \u2014 it has already settled.",
       "err.windowExpired": "The cancellation window has expired.",
       "err.depositLocked": "Deposits are currently disabled for your account.",
+      "register.fullNamePh": "Full name",
+      "register.emailPh": "name@example.com",
+      "register.passwordPh": "Password",
+      "register.phonePh": "+...",
     },
   },
   sw: {

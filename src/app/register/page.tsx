@@ -28,7 +28,7 @@ export default function RegisterPage() {
   }
   const [form, setForm] = useState({
     fullName: "", email: "", phone: "", password: "", confirmPassword: "",
-    country: "KE", language: initialLanguage(), currency: "KES", referralCode: "", terms: false,
+    country: "", language: initialLanguage(), currency: "KES", referralCode: "", terms: false,
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -101,8 +101,10 @@ export default function RegisterPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-12">
       <div className="card p-8">
-        <h1 className="text-2xl font-extrabold">{t("register.title")}</h1>
-        <p className="mt-1 text-sm text-ink2">{t("register.subtitle")}</p>
+        <div className="text-center">
+          <h1 className="text-center text-2xl font-extrabold">{t("register.title")}</h1>
+          <p className="mx-auto mt-1 w-full max-w-md text-center text-sm text-ink2">{t("register.subtitle")}</p>
+        </div>
 
         <form onSubmit={submit} className="mt-6 grid gap-4 sm:grid-cols-2">
           {error && (
@@ -111,22 +113,22 @@ export default function RegisterPage() {
 
           <div className="sm:col-span-2">
             <label className="label" htmlFor="fullName">{t("register.fullName")}</label>
-            <input id="fullName" className={input} value={form.fullName} onChange={(e) => set("fullName", e.target.value)} required />
+            <input id="fullName" className={input} value={form.fullName} onChange={(e) => set("fullName", e.target.value)} placeholder={t("register.fullNamePh")} required />
           </div>
 
-          <div>
+          <div className="sm:col-span-2">
             <label className="label" htmlFor="phone">{t("register.phone")}</label>
-            <input id="phone" className={input} value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="+..." inputMode="tel" required />
+            <input id="phone" className={input} value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder={t("register.phonePh")} inputMode="tel" required />
           </div>
 
           <div className="sm:col-span-2">
             <label className="label" htmlFor="email">{t("register.email")}</label>
-            <input id="email" type="email" className={input} value={form.email} onChange={(e) => set("email", e.target.value)} required />
+            <input id="email" type="email" className={input} value={form.email} onChange={(e) => set("email", e.target.value)} placeholder={t("register.emailPh")} required />
           </div>
 
           <div>
             <label className="label" htmlFor="password">{t("register.password")}</label>
-            <input id="password" type="password" className={input} value={form.password} onChange={(e) => set("password", e.target.value)} required minLength={8} />
+            <input id="password" type="password" className={input} value={form.password} onChange={(e) => set("password", e.target.value)} placeholder={t("register.passwordPh")} required minLength={8} />
           </div>
           <div>
             <label className="label" htmlFor="confirmPassword">{t("register.confirmPassword")}</label>
@@ -163,22 +165,24 @@ export default function RegisterPage() {
             <input id="referral" className={input} value={form.referralCode} onChange={(e) => set("referralCode", e.target.value)} placeholder="e.g. VOLT-X6HW" />
           </div>
 
-          <label className="flex cursor-pointer items-start gap-2 text-sm text-ink2 sm:col-span-2">
-            <input type="checkbox" checked={form.terms} onChange={(e) => set("terms", e.target.checked)} className="mt-0.5 h-4 w-4 accent-[var(--vb-primary)]" required />
-            <span>
-              {t("register.termsPrefix")}{" "}
-              <Link href="/terms" className="text-brand hover:underline">{t("register.termsLink")}</Link>{" "}
-              {t("register.termsSuffix")}
-            </span>
-          </label>
+          <div className="my-4 flex w-full flex-col items-center justify-center gap-3 text-center sm:col-span-2">
+            <label className="flex w-full max-w-md cursor-pointer items-start gap-2 text-left text-sm text-ink2">
+              <input type="checkbox" checked={form.terms} onChange={(e) => set("terms", e.target.checked)} className="mt-0.5 h-4 w-4 accent-[var(--vb-primary)]" required />
+              <span>
+                {t("register.termsPrefix")}{" "}
+                <Link href="/terms" className="text-brand hover:underline">{t("register.termsLink")}</Link>{" "}
+                {t("register.termsSuffix")}
+              </span>
+            </label>
 
-          <RecaptchaGate onChange={setCaptchaToken} resetSignal={captchaReset} />
-          <button
-            className="btn btn-primary w-full py-3 sm:col-span-2"
-            disabled={loading || !form.terms || (captchaRequired && !captchaToken)}
-          >
-            {loading ? t("register.submitting") : t("register.submit")}
-          </button>
+            <RecaptchaGate onChange={setCaptchaToken} resetSignal={captchaReset} />
+            <button
+              className="btn btn-primary w-full max-w-md py-3"
+              disabled={loading || !form.terms || (captchaRequired && !captchaToken)}
+            >
+              {loading ? t("register.submitting") : t("register.submit")}
+            </button>
+          </div>
         </form>
 
         <p className="mt-5 text-center text-sm text-ink2">

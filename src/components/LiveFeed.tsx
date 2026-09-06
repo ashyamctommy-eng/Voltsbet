@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import MatchCard from "@/components/MatchCard";
+import { SportIcon } from "@/components/SportIcon";
 import { IconTv } from "@/components/icons";
 import { isLiveStatus } from "@/lib/game-status";
 
@@ -71,23 +72,61 @@ export default function LiveFeed({
     [games],
   );
 
+  // Sport category filter — pills built from the sports actually present in
+  // the live set (plus the upcoming fallback so a pill never filters to a
+  // dead end). Selections are client-side; the auto-refresh preserves them.
+  const [sport, setSport] = useState<string>("all");
+  const sportOptions = useMemo(() => {
+    const seen = new Map<string, { name: string; icon: string | null }>();
+    for (const g of [...live, ...(fallback ?? [])]) {
+      if (!seen.has(g.sport.slug)) seen.set(g.sport.slug, { name: g.sport.name, icon: g.sport.icon });
+    }
+    return Array.from(seen.entries());
+  }, [live, fallback]);
+
+  const bySport = (list: FeedGame[]) =>
+    sport === "all" ? list : list.filter((g) => g.sport.slug === sport);
+  const liveShown = bySport(live);
+  const fallbackShown = sport === "all" ? (fallback ?? []) : bySport(fallback ?? []);
+
+  const pill = (active: boolean) =>
+    `flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${
+      active
+        ? "bg-brand text-[#052e16]"
+        : "border border-line bg-card2 text-ink2 hover:border-brand/40 hover:text-ink"
+    }`;
+
   return (
     <>
+      {sportOptions.length > 1 && (
+        <div className="no-scrollbar -mx-4 mt-4 flex w-full max-w-full items-center gap-1.5 overflow-x-auto px-4 pb-0.5 sm:mx-0 sm:px-0">
+          <button type="button" onClick={() => setSport("all")} className={pill(sport === "all")}>
+            All Sports
+          </button>
+          {sportOptions.map(([slug, sp]) => (
+            <button type="button" key={slug} onClick={() => setSport(slug)} className={pill(sport === slug)}>
+              <SportIcon slug={slug} icon={sp.icon} className="h-3.5 w-3.5" />
+              {sp.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="relative z-40 flex w-full max-w-full items-center gap-2 text-[11px] font-semibold text-ink3">
         <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-red-400" />
         Live — updates automatically every {refreshSeconds}s
       </div>
 
       <div className="mt-4 w-full max-w-full overflow-x-hidden">
-        {live.length === 0 ? (
-          fallback && fallback.length > 0 ? (
+        {liveShown.length === 0 ? (
+          fallbackShown.length > 0 ? (
             <div>
               <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold text-ink3">
                 <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-400" />
                 No live matches right now — these kick off soon
               </div>
               <div className="mt-3 grid gap-4 [&>*]:min-w-0 md:grid-cols-2 2xl:grid-cols-3">
-                {fallback.map((g) => (
+                {fallbackShown.map((g) => (
                   <MatchCard key={g.id} game={g} />
                 ))}
               </div>
@@ -106,7 +145,7 @@ export default function LiveFeed({
           )
         ) : (
           <div className="grid gap-4 [&>*]:min-w-0 md:grid-cols-2 2xl:grid-cols-3">
-            {live.map((g) => (
+            {liveShown.map((g) => (
               <MatchCard key={g.id} game={g} />
             ))}
           </div>
