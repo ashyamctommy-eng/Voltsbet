@@ -112,15 +112,32 @@ body {
   .btn-danger:hover { filter: brightness(1.1); }
   .btn-sm { @apply px-2.5 py-1.5 text-xs; }
 
-  /* ── Inputs ───────────────────────────────────────────────── */
+  /* ── Inputs ─────────────────────────────────────────────────
+   * Standardized metrics so every field (text, tel, email, password,
+   * select, country combobox) renders identically at 360–430px mobile AND
+   * desktop: fixed 44px tap-target height (not padding-derived, which
+   * drifts across browsers), uniform 14px horizontal padding, rounded-lg
+   * corners, 14px text. Placeholders inherit the same line box, so they
+   * align vertically with real values by construction. */
   .input {
-    @apply w-full rounded-lg border px-3 py-2.5 text-sm outline-none transition-colors;
+    @apply w-full rounded-lg border text-sm outline-none transition-colors;
     background: var(--card-bg, #1a2235);
     border-color: var(--card-border, #2d3748);
     color: var(--primary-text, #ffffff);
+    -webkit-tap-highlight-color: transparent;
   }
+  .input:not(textarea) { height: 44px; padding: 0 0.875rem; }
+  textarea.input { min-height: 96px; padding: 0.625rem 0.875rem; line-height: 1.45; }
   .input:focus { border-color: var(--vb-primary, #00e676); }
-  .input::placeholder { color: var(--text-tertiary, #66738f); }
+  .input::placeholder {
+    color: var(--text-tertiary, #66738f);
+    /* Explicit single-line box so placeholder text sits dead-centre
+       vertically in every browser (some UA stylesheets stretch it). */
+    line-height: normal;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   .label { @apply mb-1.5 block text-xs font-medium text-ink2; }
 
   /* ── Odds buttons (classic sportsbook) ─────────────────────── */

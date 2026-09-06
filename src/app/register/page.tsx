@@ -101,8 +101,8 @@ export default function RegisterPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-12">
       <div className="card p-8">
-        <div className="text-center">
-          <h1 className="text-center text-2xl font-extrabold">{t("register.title")}</h1>
+        <div className="mx-auto w-full text-center">
+          <h1 className="text-2xl font-extrabold">{t("register.title")}</h1>
           <p className="mx-auto mt-1 w-full max-w-md text-center text-sm text-ink2">{t("register.subtitle")}</p>
         </div>
 
