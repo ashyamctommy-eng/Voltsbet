@@ -33,13 +33,22 @@ export const POST = handle(async (req: NextRequest) => {
   }
 
   const targetType = body?.targetType === "USER" ? "USER" : "ALL";
-  const userId = targetType === "USER" ? String(body?.userId ?? "").trim() : null;
+  let userId = targetType === "USER" ? String(body?.userId ?? "").trim() : null;
   if (targetType === "USER" && !userId) {
     throw new ApiError(400, "userId is required for USER-targeted broadcasts.", "VALIDATION");
   }
   if (targetType === "USER") {
-    const target = await prisma.user.findUnique({ where: { id: userId! } });
-    if (!target) throw new ApiError(404, "Target user not found.", "NOT_FOUND");
+    // Accept the user's ID, email, or @username (admins copy these from
+    // Admin → Users); always store the canonical ID so history stays clean.
+    const ref = userId!;
+    const target =
+      (await prisma.user.findUnique({ where: { id: ref } })) ??
+      (await prisma.user.findFirst({ where: { email: ref.toLowerCase() } })) ??
+      (await prisma.user.findFirst({ where: { username: { equals: ref, mode: "insensitive" } } }));
+    if (!target) {
+      throw new ApiError(404, "Target user not found. Paste a user ID, email, or @username.", "NOT_FOUND");
+    }
+    userId = target.id;
   }
 
   const broadcast = await prisma.broadcast.create({

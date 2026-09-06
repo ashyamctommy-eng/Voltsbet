@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/client";
 import { useToast } from "@/components/BetSlipContext";
 import { useCurrency } from "@/components/CurrencyProvider";
+import CopyButton from "@/components/CopyButton";
 
 type UserRow = {
   id: string; fullName: string; username: string; email: string; phone: string;
@@ -192,7 +193,15 @@ export default function AdminUsers() {
               </div>
               <button className="text-ink3 hover:text-ink" onClick={() => setSelected(null)}>✕</button>
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-3">
+            <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl bg-card2/50 px-3 py-2.5">
+              <span className="mr-1 text-[10px] font-bold uppercase tracking-wide text-ink3">Copy for broadcast</span>
+              <CopyButton text={selected.email} label="Email" title="Copy this user's email — paste it into a targeted announcement" />
+              <CopyButton text={selected.id} label="User ID" title="Copy this user's ID (UUID) — paste it into a targeted announcement" />
+              <span className="w-full text-[10px] text-ink3 sm:w-auto sm:flex-1 sm:text-right">
+                Targeted broadcast accepts the email, ID, or @username.
+              </span>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-3">
               <button className="btn btn-ghost btn-sm" onClick={() => { patchUser(selected.id, { verified: true }); }}>Verify identity</button>
               <button className="btn btn-ghost btn-sm" onClick={() => { patchUser(selected.id, { status: "ACTIVE" }); }}>Set Active</button>
               <button className="btn btn-ghost btn-sm" onClick={() => { patchUser(selected.id, { status: "PENDING_VERIFICATION" }); }}>Require verification</button>

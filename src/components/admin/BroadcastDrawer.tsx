@@ -117,12 +117,12 @@ function BroadcastDrawer({ onClose }: { onClose: () => void }) {
           </div>
           {form.targetType === "USER" && (
             <div>
-              <label className="label">User ID</label>
+              <label className="label">User (ID, email, or @username)</label>
               <input
                 className="input"
                 value={form.userId}
                 onChange={(e) => setForm({ ...form, userId: e.target.value })}
-                placeholder="User id (find it on /admin/users)"
+                placeholder="Paste the email or ID copied from Admin → Users"
                 required
               />
             </div>
