@@ -36,7 +36,7 @@ export default function RecaptchaGate({
   if (!siteKey) return null;
 
   return (
-    <div className="flex justify-center [&>div]:scale-[0.92] sm:block">
+    <div className="w-full flex justify-center items-center my-4">
       <ReCAPTCHA
         ref={ref}
         sitekey={siteKey}

@@ -9,6 +9,7 @@ import { apiErrorText } from "@/lib/api-error-text";
 import { LANGUAGES, LANG_KEY } from "@/lib/i18n-resources";
 import { useToast } from "@/components/BetSlipContext";
 import RecaptchaGate from "@/components/auth/RecaptchaGate";
+import CountryAutocomplete from "@/components/ui/CountryAutocomplete";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -26,7 +27,7 @@ export default function RegisterPage() {
     }
   }
   const [form, setForm] = useState({
-    fullName: "", username: "", email: "", phone: "", password: "", confirmPassword: "",
+    fullName: "", email: "", phone: "", password: "", confirmPassword: "",
     country: "KE", language: initialLanguage(), currency: "KES", referralCode: "", terms: false,
   });
   const [error, setError] = useState("");
@@ -114,12 +115,8 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label className="label" htmlFor="username">{t("register.username")}</label>
-            <input id="username" className={input} value={form.username} onChange={(e) => set("username", e.target.value)} required minLength={3} maxLength={20} />
-          </div>
-          <div>
             <label className="label" htmlFor="phone">{t("register.phone")}</label>
-            <input id="phone" className={input} value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="+254…" required />
+            <input id="phone" className={input} value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="+..." inputMode="tel" required />
           </div>
 
           <div className="sm:col-span-2">
@@ -138,46 +135,7 @@ export default function RegisterPage() {
 
           <div>
             <label className="label" htmlFor="country">{t("register.country")}</label>
-            <select id="country" className={input} value={form.country} onChange={(e) => set("country", e.target.value)}>
-              <option value="KE">Kenya</option>
-              <option value="UG">Uganda</option>
-              <option value="TZ">Tanzania</option>
-              <option value="NG">Nigeria</option>
-              <option value="GH">Ghana</option>
-              <option value="ZA">South Africa</option>
-              <option value="GB">United Kingdom</option>
-              <option value="US">United States</option>
-              <option value="DE">Germany</option>
-              <option value="FR">France</option>
-              <option value="NL">Netherlands</option>
-              <option value="ES">Spain</option>
-              <option value="PT">Portugal</option>
-
-              <option value="PG">Papua New Guinea</option>
-              <option value="BO">Bolivia</option>
-              <option value="CV">Cape Verde</option>
-              <option value="ST">São Tomé & Príncipe</option>
-              <option value="RE">Réunion</option>
-              <option value="PY">Paraguay</option>
-              <option value="VU">Vanuatu</option>
-              <option value="TO">Tonga</option>
-              <option value="FJ">Fiji</option>
-              <option value="WS">Samoa</option>
-              <option value="PF">French Polynesia</option>
-              <option value="NC">New Caledonia</option>
-              <option value="SV">El Salvador</option>
-              <option value="BZ">Belize</option>
-              <option value="GD">Grenada</option>
-              <option value="HN">Honduras</option>
-              <option value="GP">Guadeloupe</option>
-              <option value="TT">Trinidad & Tobago</option>
-              <option value="AG">Antigua & Barbuda</option>
-              <option value="MQ">Martinique</option>
-              <option value="GF">French Guiana</option>
-              <option value="SC">Seychelles</option>
-              <option value="SR">Suriname</option>
-              <option value="GY">Guyana</option>
-            </select>
+            <CountryAutocomplete value={form.country} onChange={(code) => set("country", code)} />
           </div>
           <div>
             <label className="label" htmlFor="currency">{t("register.currency")}</label>
@@ -202,7 +160,7 @@ export default function RegisterPage() {
           </div>
           <div>
             <label className="label" htmlFor="referral">{t("register.referral")}</label>
-            <input id="referral" className={input} value={form.referralCode} onChange={(e) => set("referralCode", e.target.value)} placeholder="e.g. VOLT-DEMO" />
+            <input id="referral" className={input} value={form.referralCode} onChange={(e) => set("referralCode", e.target.value)} placeholder="e.g. VOLT-X6HW" />
           </div>
 
           <label className="flex cursor-pointer items-start gap-2 text-sm text-ink2 sm:col-span-2">

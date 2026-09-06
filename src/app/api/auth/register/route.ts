@@ -9,9 +9,22 @@ import { rateLimit } from "@/lib/rate-limit";
 import { toCents } from "@/lib/wallet";
 import { requireRecaptcha } from "@/lib/recaptcha";
 
+
+/**
+ * Email-only registration: the public never chooses a username. We still
+ * need a unique value for the internal `username` column (used by login,
+ * referrals and admin), so it is derived from the email's local part with a
+ * short random suffix, e.g. "bob_7k2x9p". Collisions are retried.
+ */
+function makeUsername(email: string): string {
+  const base = (email.split("@")[0] || "user").toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, 12) || "user";
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  let suffix = "";
+  for (let i = 0; i < 6; i++) suffix += chars[Math.floor(Math.random() * chars.length)];
+  return `${base}_${suffix}`;
+}
 const schema = z.object({
   fullName: z.string().min(2, "Enter your full name").max(80),
-  username: z.string().min(3, "Username must be at least 3 characters").max(20).regex(/^[a-zA-Z0-9_]+$/, "Letters, numbers and underscore only"),
   email: z.string().email("Enter a valid email"),
   phone: z.string().regex(/^\+?[0-9]{9,15}$/, "Enter a valid phone number"),
   password: z.string().min(8, "Password must be at least 8 characters").regex(/[a-zA-Z]/, "Must contain a letter").regex(/[0-9]/, "Must contain a number"),
@@ -44,15 +57,12 @@ export const POST = handle(async (req: NextRequest) => {
   await requireRecaptcha(d.gRecaptchaToken);
 
   const email = d.email.toLowerCase().trim();
-  const username = d.username.trim().toLowerCase();
 
-  const [uEmail, uName, uPhone] = await Promise.all([
+  const [uEmail, uPhone] = await Promise.all([
     prisma.user.findUnique({ where: { email } }),
-    prisma.user.findUnique({ where: { username } }),
     prisma.user.findUnique({ where: { phone: d.phone } }),
   ]);
   if (uEmail) throw new ApiError(409, "An account with this email already exists.", "EMAIL_TAKEN");
-  if (uName) throw new ApiError(409, "This username is already taken.", "USERNAME_TAKEN");
   if (uPhone) throw new ApiError(409, "This phone number is already registered.", "PHONE_TAKEN");
 
   // Wallet base currencies are STRICTLY USD | KES — the account currency is
@@ -63,6 +73,14 @@ export const POST = handle(async (req: NextRequest) => {
   const settings = await getSettings();
   const signupBonusAmount = settings.signupBonusEnabled ? settings.signupBonusAmount : 0;
 
+  // Internal username derived from the email (email-only registration).
+  let internalUsername = makeUsername(email);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const clash = await prisma.user.findUnique({ where: { username: internalUsername } });
+    if (!clash) break;
+    internalUsername = makeUsername(email); // extremely unlikely, but never collide
+  }
+
   const user = await prisma.$transaction(async (tx) => {
     // Registration bonus: credited to the BONUS pool at signup when enabled.
     // It is locked — not stakeable/withdrawable — until the user's first
@@ -71,7 +89,7 @@ export const POST = handle(async (req: NextRequest) => {
     const created = await tx.user.create({
       data: {
         fullName: d.fullName.trim(),
-        username,
+        username: internalUsername,
         email,
         phone: d.phone,
         passwordHash: await hashPassword(d.password),

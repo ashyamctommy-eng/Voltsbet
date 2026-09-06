@@ -52,7 +52,7 @@ export default function SupportWidget({ support, isStaff = false }: { support: S
       <button
         onClick={() => setOpen(true)}
         aria-label="Open support"
-        className="fixed bottom-20 left-4 z-40 flex h-13 w-13 items-center justify-center rounded-full bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-[0_8px_24px_rgba(37,99,235,0.45)] transition-transform hover:scale-110 xl:bottom-6 xl:left-6"
+        className="fixed bottom-24 left-4 z-40 flex h-13 w-13 items-center justify-center rounded-full bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-[0_8px_24px_rgba(37,99,235,0.45)] transition-transform hover:scale-110 md:bottom-6 md:left-6"
         style={{ width: 52, height: 52 }}
       >
         <IconChat className="h-6 w-6" />
