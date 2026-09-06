@@ -590,7 +590,8 @@ export const resources = {
       "match.marketSuspended": "Soko Limezimwa",
       "match.priceUnavailable": "Bei haipatikani",
       "nav.adminPanel": "Jopo la Msimamizi",
-    },
+
+      "nav.live_games": "Michezo ya Moja kwa Moja",      "nav.refer_earn": "Rejea na Upate",      "nav.top_leagues": "Ligi Bora",      "nav.dark_theme": "Mada ya Giza",    },
   },
   fr: {
     translation: {
@@ -737,7 +738,8 @@ export const resources = {
       "match.marketSuspended": "Marché suspendu",
       "match.priceUnavailable": "Prix indisponible",
       "nav.adminPanel": "Panneau d'administration",
-    },
+
+      "nav.live_games": "Jeux en direct",      "nav.refer_earn": "Parrainez et gagnez",      "nav.top_leagues": "Meilleurs championnats",      "nav.dark_theme": "Thème sombre",    },
   },
   pt: {
     translation: {
@@ -884,7 +886,8 @@ export const resources = {
       "match.marketSuspended": "Mercado suspenso",
       "match.priceUnavailable": "Preço indisponível",
       "nav.adminPanel": "Painel de administração",
-    },
+
+      "nav.live_games": "Jogos ao Vivo",      "nav.refer_earn": "Indique e Ganhe",      "nav.top_leagues": "Principais Ligas",      "nav.dark_theme": "Tema Escuro",    },
   },
   es: {
     translation: {
@@ -1062,7 +1065,8 @@ export const resources = {
       "dashboard.stake": "Importe",
       "dashboard.potential": "Posible ganancia",
       "nav.adminPanel": "Panel de administración",
-    },
+
+      "nav.live_games": "Juegos en Vivo",      "nav.refer_earn": "Recomienda y Gana",      "nav.top_leagues": "Mejores Ligas",      "nav.dark_theme": "Tema Oscuro",    },
   },
   de: {
     translation: {
@@ -1209,7 +1213,8 @@ export const resources = {
         "match.marketSuspended": "Markt Gesperrt",
         "match.priceUnavailable": "Preis nicht verfügbar",
         "nav.adminPanel": "Admin-Panel",
-    }
+
+      "nav.live_games": "Live-Spiele",      "nav.refer_earn": "Empfehlen & Verdienen",      "nav.top_leagues": "Top-Ligen",      "nav.dark_theme": "Dunkles Design",    }
   },
   nl: {
     translation: {
@@ -1356,7 +1361,8 @@ export const resources = {
         "match.marketSuspended": "Markt Geschorst",
         "match.priceUnavailable": "Prijs niet beschikbaar",
         "nav.adminPanel": "Adminpaneel",
-    }
+
+      "nav.live_games": "Live Wedstrijden",      "nav.refer_earn": "Verwijs & Verdien",      "nav.top_leagues": "Topcompetities",      "nav.dark_theme": "Donker thema",    }
   },
   it: {
     translation: {
@@ -1503,7 +1509,8 @@ export const resources = {
         "match.marketSuspended": "Mercato Sospeso",
         "match.priceUnavailable": "Prezzo non disponibile",
         "nav.adminPanel": "Pannello Admin",
-    }
+
+      "nav.live_games": "Partite Live",      "nav.refer_earn": "Invita e Guadagna",      "nav.top_leagues": "Top Leghe",      "nav.dark_theme": "Tema Scuro",    }
   },
   ro: {
     translation: {
@@ -1650,7 +1657,8 @@ export const resources = {
         "match.marketSuspended": "Piață Suspendată",
         "match.priceUnavailable": "Preț indisponibil",
         "nav.adminPanel": "Panou Admin",
-    }
+
+      "nav.live_games": "Meciuri Live",      "nav.refer_earn": "Recomandă și Câștigă",      "nav.top_leagues": "Top Campionate",      "nav.dark_theme": "Temă Întunecată",    }
   },
   mt: {
     translation: {
@@ -1797,7 +1805,8 @@ export const resources = {
         "match.marketSuspended": "Suq Sospiż",
         "match.priceUnavailable": "Prezz mhux disponibbli",
         "nav.adminPanel": "Pannell tal-Amministratur",
-    }
+
+      "nav.live_games": "Logħob Live",      "nav.refer_earn": "Irreferi u Aqla'",      "nav.top_leagues": "Kampjonati Top",      "nav.dark_theme": "Tema Skura",    }
   },
   pl: {
     translation: {
@@ -1945,7 +1954,8 @@ export const resources = {
       "match.marketSuspended": "Rynek Zawieszony",
       "match.priceUnavailable": "Cena niedostępna",
       "nav.adminPanel": "Panel Administratora",
-    },
+
+      "nav.live_games": "Mecze Na Żywo",      "nav.refer_earn": "Poleć i Zarabiaj",      "nav.top_leagues": "Najlepsze Ligi",      "nav.dark_theme": "Tryb Ciemny",    },
   },
   tr: {
     translation: {
@@ -2090,7 +2100,8 @@ export const resources = {
       "match.marketSuspended": "Market Askıya Alındı",
       "match.priceUnavailable": "Fiyat mevcut değil",
       "nav.adminPanel": "Yönetici Paneli",
-    },
+
+      "nav.live_games": "Canlı Maçlar",      "nav.refer_earn": "Davet Et ve Kazan",      "nav.top_leagues": "En İyi Ligler",      "nav.dark_theme": "Karanlık Tema",    },
   },
   el: {
     translation: {
@@ -2237,7 +2248,8 @@ export const resources = {
       "match.marketSuspended": "Αγορά Ανασταλμένη",
       "match.priceUnavailable": "Τιμή μη διαθέσιμη",
       "nav.adminPanel": "Πίνακας Διαχείρισης",
-    },
+
+      "nav.live_games": "Ζωντανοί Αγώνες",      "nav.refer_earn": "Πρόσκληση & Κέρδος",      "nav.top_leagues": "Κορυφαία Πρωταθλήματα",      "nav.dark_theme": "Σκοτεινό Θέμα",    },
   },
   ar: {
     translation: {
@@ -2386,7 +2398,8 @@ export const resources = {
       "match.marketSuspended": "سوق موقوف",
       "match.priceUnavailable": "السعر غير متاح",
       "nav.adminPanel": "لوحة الإدارة",
-    },
+
+      "nav.live_games": "مباريات مباشرة",      "nav.refer_earn": "أدعُ واربح",      "nav.top_leagues": "أفضل الدوريات",      "nav.dark_theme": "الوضع الداكن",    },
   },
   id: {
     translation: {
@@ -2531,6 +2544,7 @@ export const resources = {
       "match.marketSuspended": "Pasaran Ditangguhkan",
       "match.priceUnavailable": "Harga tidak tersedia",
       "nav.adminPanel": "Panel Admin",
-    },
+
+      "nav.live_games": "Pertandingan Langsung",      "nav.refer_earn": "Referal & Dapatkan",      "nav.top_leagues": "Liga Teratas",      "nav.dark_theme": "Tema Gelap",    },
   },
 };
