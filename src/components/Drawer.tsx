@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import LanguageSelector from "@/components/LanguageSelector";
+import { useTranslation } from "react-i18next";
 import { usePathname } from "next/navigation";
 import { useTheme } from "@/components/ThemeProvider";
 import {
@@ -34,18 +35,18 @@ export type SupportLinks = {
   telegram: string;
 };
 
-type MenuItem = { href: string; label: string; Icon: (p: { className?: string }) => React.ReactNode; color: string; badge?: string };
+type MenuItem = { href: string; label: string; labelKey?: string; Icon: (p: { className?: string }) => React.ReactNode; color: string; badge?: string };
 
 /* Color-coded menu items (matches the SafiBets drawer hierarchy).
  * Colors use `dark:` pairs so the pale icon tints (sky-100/300, amber-300…)
  * only apply in dark mode — in light mode they flip to 600-level shades that
  * hold contrast on white (#f4f6f8). */
 const CUSTOMER_ITEMS: MenuItem[] = [
-  { href: "/live", label: "Live Games", Icon: IconLive, color: "dark:text-red-400 text-red-600", badge: "LIVE" },
-  { href: "/account/deposit", label: "Deposit", Icon: IconArrowDown, color: "dark:text-green-400 text-green-600" },
-  { href: "/account/withdraw", label: "Withdraw", Icon: IconArrowUp, color: "dark:text-sky-300 text-sky-600" },
-  { href: "/account/bets", label: "My Bets", Icon: IconTicket, color: "dark:text-sky-100 text-sky-600" },
-  { href: "/account", label: "Refer & Earn", Icon: IconGift, color: "dark:text-purple-400 text-purple-600" },
+  { href: "/live", label: "Live Games", labelKey: "nav.live_games", Icon: IconLive, color: "dark:text-red-400 text-red-600", badge: "LIVE" },
+  { href: "/account/deposit", label: "Deposit", labelKey: "nav.deposit", Icon: IconArrowDown, color: "dark:text-green-400 text-green-600" },
+  { href: "/account/withdraw", label: "Withdraw", labelKey: "nav.withdraw", Icon: IconArrowUp, color: "dark:text-sky-300 text-sky-600" },
+  { href: "/account/bets", label: "My Bets", labelKey: "nav.my_bets", Icon: IconTicket, color: "dark:text-sky-100 text-sky-600" },
+  { href: "/account", label: "Refer & Earn", labelKey: "nav.refer_earn", Icon: IconGift, color: "dark:text-purple-400 text-purple-600" },
 ];
 
 /* Staff drawer — admin features, not customer features */
@@ -80,6 +81,7 @@ export default function Drawer({
 }) {
   const pathname = usePathname();
   const { theme, toggle } = useTheme();
+  const { t } = useTranslation();
   const showWhatsApp = support.whatsappEnabled && !!support.whatsapp;
   const showTelegram = support.telegramEnabled && !!support.telegram;
   const items = isStaff ? STAFF_ITEMS : CUSTOMER_ITEMS;
@@ -106,7 +108,7 @@ export default function Drawer({
           <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand text-lg font-black text-[#052e16]">U</span>
           <div className="min-w-0">
             <div className="truncate text-base font-extrabold tracking-tight">UNIBET360</div>
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-ink3">Menu</div>
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-ink3">{t("nav.menu")}</div>
           </div>
           <div className="ml-auto flex items-center gap-2">
             <LanguageSelector />
@@ -126,9 +128,9 @@ export default function Drawer({
         <div className="flex-1 overflow-y-auto pb-6">
           {/* Sports section */}
           <nav className="px-3 pt-4">
-            <h3 className="px-2 pb-2 text-sm font-black text-ink">{isStaff ? "Admin" : "Sports"}</h3>
+            <h3 className="px-2 pb-2 text-sm font-black text-ink">{isStaff ? "Admin" : t("nav.sports")}</h3>
             <div className="space-y-1.5">
-              {items.map(({ href, label, Icon, color, badge }) => {
+              {items.map(({ href, label, labelKey, Icon, color, badge }) => {
                 const active = pathname === href || pathname.startsWith(href + "/");
                 return (
                   <Link
@@ -140,7 +142,7 @@ export default function Drawer({
                     } ${active ? "ring-1 ring-brand/40" : ""}`}
                   >
                     <Icon className="h-5 w-5" />
-                    {label}
+                    {isStaff ? label : t(labelKey ?? label)}
                     {badge && (
                       <span className="ml-auto rounded-md bg-red-500 px-1.5 py-0.5 text-[9px] font-black text-white">{badge}</span>
                     )}
@@ -155,7 +157,7 @@ export default function Drawer({
           {!isStaff && (
           <div className="mt-6 px-3">
             <h3 className="flex items-center gap-2 px-2 pb-2 text-sm font-black text-ink">
-              <IconCrown className="h-4 w-4 text-warn" /> Top Leagues
+              <IconCrown className="h-4 w-4 text-warn" /> {t("nav.top_leagues")}
             </h3>
             <div className="space-y-1.5">
               {TOP_LEAGUES.map((l) => (
@@ -178,7 +180,7 @@ export default function Drawer({
 
           {/* Community & support */}
           <div className="mt-6 px-3">
-            <h3 className="px-2 pb-2 text-sm font-black text-ink">Community &amp; Support</h3>
+            <h3 className="px-2 pb-2 text-sm font-black text-ink">{t("nav.community_support")}</h3>
             <div className="space-y-1.5">
               {showWhatsApp && (
                 <a
@@ -209,7 +211,7 @@ export default function Drawer({
                 onClick={onClose}
                 className="flex items-center gap-3 rounded-xl bg-card px-3.5 py-3 text-sm font-bold text-ink2"
               >
-                <IconHelp className="h-5 w-5" /> Help &amp; Support
+                <IconHelp className="h-5 w-5" /> {t("nav.help_support")}
                 <IconChevronRight className="ml-auto h-4 w-4 opacity-40" />
               </Link>
             </div>
@@ -221,7 +223,7 @@ export default function Drawer({
           <div className="flex items-center justify-between rounded-xl bg-card px-4 py-3">
             <span className="flex items-center gap-2 text-sm font-semibold text-ink2">
               {theme === "dark" ? <IconMoon className="h-5 w-5" /> : <IconSun className="h-5 w-5" />}
-              Dark Theme
+              {t("nav.dark_theme")}
             </span>
             <button
               role="switch"

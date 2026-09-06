@@ -99,14 +99,14 @@ export default function RegisterPage() {
   const input = "input";
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-12">
-      <div className="card p-8">
+    <div className="mx-auto w-full max-w-2xl px-4 py-12">
+      <div className="card p-5 sm:p-8">
         <div className="mx-auto w-full text-center">
           <h1 className="text-2xl font-extrabold">{t("register.title")}</h1>
           <p className="mx-auto mt-1 w-full max-w-md text-center text-sm text-ink2">{t("register.subtitle")}</p>
         </div>
 
-        <form onSubmit={submit} className="mt-6 grid gap-4 sm:grid-cols-2">
+        <form onSubmit={submit} className="mt-6 grid w-full gap-4 [&>*]:min-w-0 sm:grid-cols-2">
           {error && (
             <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300 sm:col-span-2">{error}</div>
           )}

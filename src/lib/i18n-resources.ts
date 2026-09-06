@@ -439,6 +439,13 @@ export const resources = {
       "register.emailPh": "name@example.com",
       "register.passwordPh": "Password",
       "register.phonePh": "+...",
+      "nav.live_games": "Live Games",
+      "nav.refer_earn": "Refer & Earn",
+      "nav.top_leagues": "Top Leagues",
+      "nav.dark_theme": "Dark Theme",
+      "nav.community_support": "Community & Support",
+      "nav.help_support": "Help & Support",
+      "nav.menu": "Menu",
     },
   },
   sw: {

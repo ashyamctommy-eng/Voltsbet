@@ -33,41 +33,45 @@ const PAYMENT_PROVIDERS = [
 
 export default function FooterBanner() {
   return (
-    <div className="border-t border-line bg-panel-bg px-4 py-6 text-ink3 sm:px-6">
-      <div className="mx-auto max-w-[1600px]">
-        {/* Official sports partners — horizontal touch-scroll row */}
-        <p className="mb-2 text-center text-[10px] font-bold uppercase tracking-[0.2em] text-ink2">
-          Official sports partners
-        </p>
-        <div className="flex overflow-x-auto flex-nowrap gap-5 items-center py-2 scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none]">
-          {SPORTS_PARTNERS.map((p) => (
-            <img
-              key={p.src}
-              src={p.src}
-              alt={p.alt}
-              loading="lazy"
-              className="flex-shrink-0 h-6 w-auto object-contain opacity-80 hover:opacity-100 transition-opacity"
-            />
-          ))}
+    <div className="border-t border-line bg-panel-bg px-4 text-ink3 sm:px-6">
+      <div className="mx-auto flex w-full max-w-[1600px] flex-col items-center justify-center gap-4 py-6 text-center">
+        {/* Official sports partners — centered, wrapping logo row */}
+        <div className="w-full">
+          <p className="text-center text-[10px] font-bold uppercase tracking-[0.2em] text-ink2">
+            Official sports partners
+          </p>
+          <div className="mt-2 flex flex-wrap items-center justify-center gap-x-6 gap-y-3">
+            {SPORTS_PARTNERS.map((p) => (
+              <img
+                key={p.src}
+                src={p.src}
+                alt={p.alt}
+                loading="lazy"
+                className="h-6 w-auto object-contain opacity-80 transition-opacity hover:opacity-100"
+              />
+            ))}
+          </div>
         </div>
 
-        {/* Payment providers — horizontal touch-scroll row */}
-        <p className="mb-2 mt-5 text-center text-[10px] font-bold uppercase tracking-[0.2em] text-ink2">
-          Payment providers
-        </p>
-        <div className="flex overflow-x-auto flex-nowrap gap-5 items-center py-2 scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none]">
-          {PAYMENT_PROVIDERS.map((p) => (
-            <img
-              key={p.src}
-              src={p.src}
-              alt={p.alt}
-              loading="lazy"
-              className="flex-shrink-0 h-6 w-auto object-contain opacity-80 hover:opacity-100 transition-opacity"
-            />
-          ))}
+        {/* Payment providers — centered, wrapping logo row */}
+        <div className="w-full">
+          <p className="text-center text-[10px] font-bold uppercase tracking-[0.2em] text-ink2">
+            Payment providers
+          </p>
+          <div className="mt-2 flex flex-wrap items-center justify-center gap-x-6 gap-y-3">
+            {PAYMENT_PROVIDERS.map((p) => (
+              <img
+                key={p.src}
+                src={p.src}
+                alt={p.alt}
+                loading="lazy"
+                className="h-6 w-auto object-contain opacity-80 transition-opacity hover:opacity-100"
+              />
+            ))}
+          </div>
         </div>
 
-        <p className="mt-5 text-center text-[11px] font-medium text-ink3">
+        <p className="text-[11px] font-medium text-ink3">
           Copyright © 2026. All rights reserved.
         </p>
       </div>
