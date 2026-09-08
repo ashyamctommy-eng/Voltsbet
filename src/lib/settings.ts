@@ -98,7 +98,7 @@ export type SiteSettings = {
 const LEGACY_CRYPTO_CURRENCIES = ["BTC", "ETH", "USDT", "USDC"];
 
 const DEFAULTS: SiteSettings = {
-  siteName: "UNIBET360",
+  siteName: "Voltbets",
   tagline: "Live the rush",
   primaryColor: "#00e676",
   secondaryColor: "#0b1220",
