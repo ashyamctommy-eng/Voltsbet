@@ -3,7 +3,7 @@ import { prisma } from "./prisma";
 import { ApiError } from "./api";
 import { getSettings } from "./settings";
 import { isUserActionAllowed } from "./statuses";
-import { debitWallet, debitBonusWallet, availableBankroll, splitStakeFunds } from "./wallet";
+import { ensureWallet, debitWallet, debitBonusWallet, availableBankroll, splitStakeFunds } from "./wallet";
 import type { User } from "@prisma/client";
 
 const BETTABLE_GAME_STATUSES = ["SCHEDULED", "LIVE", "HALF_TIME"];
@@ -242,8 +242,7 @@ export async function placeBet(user: User, input: PlaceBetInput) {
         // 7. Wallet check + atomic debit. Velocity caps are re-checked under
         //    the tx so two concurrent placements can't both slip under them.
         await checkVelocityCaps(tx);
-        const wallet = await tx.wallet.findUnique({ where: { userId: user.id } });
-        if (!wallet) throw new ApiError(500, "Wallet not found.", "NO_WALLET");
+        const wallet = await ensureWallet(tx, user.id);
 
         // Bonus-balance rules: bonusBalance is excluded from the bankroll
         // until the user's first successful deposit (hasDeposited). Once

@@ -1,6 +1,6 @@
 import { prisma } from "./prisma";
 import { ApiError, auditLog } from "./api";
-import { creditWallet, debitWallet, toCents, refundBetStake } from "./wallet";
+import { ensureWallet, creditWallet, debitWallet, toCents, refundBetStake } from "./wallet";
 export type SettleActor = { id: string; username: string };
 
 /**
@@ -218,8 +218,7 @@ export async function adjustBalance(
     throw new ApiError(400, "Invalid adjustment amount.", "INVALID_AMOUNT");
   }
   const result = await prisma.$transaction(async (tx) => {
-    const wallet = await tx.wallet.findUnique({ where: { userId } });
-    if (!wallet) throw new ApiError(404, "User has no wallet.", "NO_WALLET");
+    const wallet = await ensureWallet(tx, userId);
     const prev = Number(wallet.balance);
     const next = toCents(prev + amount);
     if (next < 0) throw new ApiError(400, "Adjustment would make the balance negative.", "NEGATIVE_BALANCE");

@@ -1,7 +1,36 @@
 import { ApiError } from "./api";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 type Tx = Prisma.TransactionClient;
+
+/**
+ * Get-or-create a user's wallet inside a transaction. Accounts created
+ * outside the app (data imports, direct DB inserts, pre-wallet builds) may
+ * lack a Wallet row — every money path self-heals by minting a zero-balance
+ * wallet in the user's currency instead of failing with "Wallet not found".
+ * Concurrent creation for the same user is safe (unique violation → re-read).
+ */
+export async function ensureWallet(tx: Tx, userId: string) {
+  const existing = await tx.wallet.findUnique({ where: { userId } });
+  if (existing) return existing;
+  const user = await tx.user.findUnique({
+    where: { id: userId },
+    select: { currencyCode: true },
+  });
+  if (!user) throw new ApiError(404, "User not found.", "NO_USER");
+  try {
+    return await tx.wallet.create({
+      data: { userId, balance: "0", bonusBalance: "0", currencyCode: user.currencyCode },
+    });
+  } catch (e) {
+    // A concurrent request created it between our read and create — use theirs.
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      const w = await tx.wallet.findUnique({ where: { userId } });
+      if (w) return w;
+    }
+    throw e;
+  }
+}
 
 /** Round to cents — every wallet arithmetic goes through this. */
 export function toCents(n: number): number {
@@ -61,8 +90,7 @@ export async function debitWallet(
   const amt = toCents(amount);
   if (amt < 0) throw new ApiError(400, "Amount cannot be negative.", "BAD_AMOUNT");
 
-  const wallet = await tx.wallet.findUnique({ where: { userId } });
-  if (!wallet) throw new ApiError(500, "Wallet not found.", "NO_WALLET");
+  const wallet = await ensureWallet(tx, userId);
   const prev = Number(wallet.balance);
   if (prev < amt) throw new ApiError(400, "Insufficient balance.", "INSUFFICIENT_BALANCE");
 
@@ -107,8 +135,7 @@ export async function creditWallet(
   const amt = toCents(amount);
   if (amt < 0) throw new ApiError(400, "Amount cannot be negative.", "BAD_AMOUNT");
 
-  const wallet = await tx.wallet.findUnique({ where: { userId } });
-  if (!wallet) throw new ApiError(500, "Wallet not found.", "NO_WALLET");
+  const wallet = await ensureWallet(tx, userId);
   const prev = Number(wallet.balance);
 
   await tx.wallet.update({
@@ -157,8 +184,7 @@ export async function creditBonusWallet(
   const amt = toCents(amount);
   if (amt < 0) throw new ApiError(400, "Amount cannot be negative.", "BAD_AMOUNT");
 
-  const wallet = await tx.wallet.findUnique({ where: { userId } });
-  if (!wallet) throw new ApiError(500, "Wallet not found.", "NO_WALLET");
+  const wallet = await ensureWallet(tx, userId);
   const prev = Number(wallet.bonusBalance);
 
   await tx.wallet.update({
@@ -200,8 +226,7 @@ export async function debitBonusWallet(
   const amt = toCents(amount);
   if (amt < 0) throw new ApiError(400, "Amount cannot be negative.", "BAD_AMOUNT");
 
-  const wallet = await tx.wallet.findUnique({ where: { userId } });
-  if (!wallet) throw new ApiError(500, "Wallet not found.", "NO_WALLET");
+  const wallet = await ensureWallet(tx, userId);
   const prev = Number(wallet.bonusBalance);
   if (prev < amt) throw new ApiError(400, "Insufficient bonus balance.", "INSUFFICIENT_BALANCE");
 

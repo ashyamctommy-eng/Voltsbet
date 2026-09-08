@@ -3,7 +3,7 @@ import { handle, ok, requireUser, verifyCsrf, ApiError } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { isUserActionAllowed, userBlockReason } from "@/lib/statuses";
-import { debitWallet } from "@/lib/wallet";
+import { ensureWallet, debitWallet } from "@/lib/wallet";
 import { generateWithdrawalRef } from "@/lib/ref-code";
 import { z } from "zod";
 
@@ -59,8 +59,7 @@ export const POST = handle(async (req: NextRequest) => {
   // holds its funds, so approval can never overdraw the account and the
   // user can't double-spend money that's already spoken for.
   const withdrawal = await prisma.$transaction(async (tx) => {
-    const wallet = await tx.wallet.findUnique({ where: { userId: user.id } });
-    if (!wallet) throw new ApiError(500, "Wallet not found.", "NO_WALLET");
+    const wallet = await ensureWallet(tx, user.id);
     if (Number(wallet.balance) < amount) {
       throw new ApiError(400, "Insufficient withdrawable balance.", "INSUFFICIENT_BALANCE");
     }

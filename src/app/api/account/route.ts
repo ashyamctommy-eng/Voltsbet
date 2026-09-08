@@ -5,6 +5,7 @@ import { getSettings } from "@/lib/settings";
 import { isUserActionAllowed, userBlockReason } from "@/lib/statuses";
 import { currencyMap, convert, formatMoney } from "@/lib/currency";
 import { toCents } from "@/lib/wallet";
+import { Prisma } from "@prisma/client";
 import { npCreatePayment, npPayCurrency } from "@/lib/providers/nowpayments";
 import { palplusStkPush } from "@/lib/providers/palplus";
 import { mpesaStkPush, normalizeMpesaPhone, publicBaseUrl } from "@/lib/providers/mpesa";
@@ -179,7 +180,23 @@ export const POST = handle(async (req: NextRequest) => {
     throw new ApiError(400, `Maximum deposit is ${settings.cryptoMaxDeposit}.`, "MAX_DEPOSIT");
   }
 
-  const wallet = await prisma.wallet.findUnique({ where: { userId: user.id } });
+  // Legacy accounts (imports / pre-wallet builds / direct DB inserts) may
+  // have no Wallet row — mint a zero-balance wallet on first deposit instead
+  // of failing with "Wallet not found". Concurrent mints are safe (P2002).
+  let wallet = await prisma.wallet.findUnique({ where: { userId: user.id } });
+  if (!wallet) {
+    try {
+      wallet = await prisma.wallet.create({
+        data: { userId: user.id, balance: "0", bonusBalance: "0", currencyCode: user.currencyCode },
+      });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+        wallet = await prisma.wallet.findUnique({ where: { userId: user.id } });
+      } else {
+        throw e;
+      }
+    }
+  }
   if (!wallet) throw new ApiError(500, "Wallet not found.", "NO_WALLET");
 
   // ── M-Pesa deposit (STK Push) ────────────────────────────────
