@@ -88,7 +88,7 @@ export async function mpesaStkPush(opts: { amount: number; phone: string; accoun
       PhoneNumber: phone,
       CallBackURL: opts.callbackUrl,
       AccountReference: opts.accountReference.slice(0, 12),
-      TransactionDesc: "UNIBET360 deposit",
+      TransactionDesc: `${(s.siteName || "Sportsbook").slice(0, 8)} deposit`,
     }),
   });
   const data = (await res.json().catch(() => ({}))) as Partial<StkPushResult>;
@@ -162,7 +162,7 @@ export async function mpesaB2c(opts: {
       Remarks: opts.remarks.slice(0, 100),
       QueueTimeOutURL: opts.queueTimeOutUrl,
       ResultURL: opts.resultUrl,
-      Occasion: "UNIBET360 payout",
+      Occasion: `${(s.siteName || "Sportsbook").slice(0, 8)} payout`,
     }),
   });
   const data = (await res.json().catch(() => ({}))) as Partial<B2cResult>;

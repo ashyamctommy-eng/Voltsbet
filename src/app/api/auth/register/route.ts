@@ -137,10 +137,10 @@ export const POST = handle(async (req: NextRequest) => {
     data: {
       userId: user.id,
       type: "GENERAL",
-      title: "Welcome to UNIBET360! 🎉",
+      title: `Welcome to ${settings.siteName}! 🎉`,
       message: bonusCredited
         ? `Your welcome bonus of ${toCents(signupBonusAmount)} ${walletCurrency} has been added to your bonus balance. Make your first deposit to unlock it for betting.`
-        : "Thanks for joining UNIBET360. Deposit and start betting — fast odds, live betting, instant crypto deposits.",
+        : `Thanks for joining ${settings.siteName}. Deposit and start betting — fast odds, live betting, instant crypto deposits.`,
     },
   });
 

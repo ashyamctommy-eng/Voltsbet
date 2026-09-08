@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/client";
+import { useSiteName } from "@/components/SiteSettingsContext";
 
 /**
  * Printable voucher sheets. Full codes exist ONLY in the generating admin's
@@ -12,6 +13,7 @@ import { apiFetch } from "@/lib/client";
  * Print: window.print() with @media print rules (sheets only).
  */
 export default function VoucherPrintPage() {
+  const siteName = useSiteName();
   const sp = useSearchParams();
   const batchId = sp?.get("batchId") ?? "";
   const value = sp?.get("value") ?? "";
@@ -68,7 +70,7 @@ export default function VoucherPrintPage() {
         {rows.map((code, i) => (
           <div key={`${code}-${i}`} className="voucher-card">
             <div className="text-center">
-              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-brand">UNIBET360</div>
+              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-brand">{(siteName.trim() || "Sportsbook").toUpperCase()}</div>
               <div className="text-[9px] uppercase tracking-wider text-ink3">Deposit Voucher</div>
               <div className="mt-2 text-xl font-extrabold">
                 {cur} {Number(val || 0).toLocaleString()}

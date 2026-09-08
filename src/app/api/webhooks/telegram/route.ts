@@ -56,13 +56,14 @@ export const POST = handle(async (req: NextRequest) => {
   if (!rl.ok) return ok({ ignored: true });
 
   const text = msg.text.trim();
+  const brand = settings.siteName || "Sportsbook";
 
   if (text.startsWith("/start")) {
     const token = text.slice("/start".length).trim();
     if (!token) {
       await sendTelegramMessage(
         msg.chat.id,
-        `👋 Welcome to the <b>UNIBET360</b> bot!\n\nTo link your account, open UNIBET360 → Account → Settings → Telegram and tap <b>Link Telegram</b> — that button carries your personal link token.`
+        `👋 Welcome to the <b>${brand}</b> bot!\n\nTo link your account, open ${brand} → Account → Settings → Telegram and tap <b>Link Telegram</b> — that button carries your personal link token.`
       );
       return ok({ handled: "start" });
     }
@@ -74,7 +75,7 @@ export const POST = handle(async (req: NextRequest) => {
     if (!linked) {
       await sendTelegramMessage(
         msg.chat.id,
-        `⚠️ That link is invalid or expired. Generate a fresh one in UNIBET360 → Account → Settings → Telegram.`
+        `⚠️ That link is invalid or expired. Generate a fresh one in ${brand} → Account → Settings → Telegram.`
       );
       return ok({ handled: "link_failed" });
     }
@@ -88,7 +89,7 @@ export const POST = handle(async (req: NextRequest) => {
   if (text.startsWith("/help")) {
     await sendTelegramMessage(
       msg.chat.id,
-      `I deliver UNIBET360 verification codes. There's nothing to type here — codes arrive automatically when you log in.`
+      `I deliver ${brand} verification codes. There's nothing to type here — codes arrive automatically when you log in.`
     );
     return ok({ handled: "help" });
   }

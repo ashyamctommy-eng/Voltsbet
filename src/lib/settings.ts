@@ -173,6 +173,11 @@ const DEFAULTS: SiteSettings = {
 };
 
 let cache: SiteSettings | null = null;
+let cacheAt = 0;
+// Short in-process TTL: bounds cross-replica staleness (Railway/ multi-node)
+// to a few seconds while keeping the per-request DB read cheap. A settings
+// save clears the cache immediately in the process that handled it.
+const SETTINGS_TTL_MS = 3_000;
 
 async function rawSettings(): Promise<Record<string, string>> {
   const rows = await prisma.setting.findMany();
@@ -180,7 +185,8 @@ async function rawSettings(): Promise<Record<string, string>> {
 }
 
 export async function getSettings(): Promise<SiteSettings> {
-  if (cache) return cache;
+  const now = Date.now();
+  if (cache && now - cacheAt < SETTINGS_TTL_MS) return cache;
   const raw = await rawSettings();
   const s: SiteSettings = { ...DEFAULTS };
   s.siteName = raw["site.name"] ?? s.siteName;
@@ -293,14 +299,17 @@ export async function getSettings(): Promise<SiteSettings> {
   s.settlementDelayMinutes = Number(raw["settlement.delayMinutes"] ?? s.settlementDelayMinutes);
   s.cronSecret = raw["cron.secret"] ?? s.cronSecret;
   cache = s;
+  cacheAt = Date.now();
   return s;
 }
 
 export async function setSetting(key: string, value: string) {
   await prisma.setting.upsert({ where: { key }, update: { value }, create: { key, value } });
   cache = null;
+  cacheAt = 0;
 }
 
 export async function invalidateSettingsCache() {
   cache = null;
+  cacheAt = 0;
 }

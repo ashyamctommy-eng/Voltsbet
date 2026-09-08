@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { revalidatePath } from "next/cache";
 import { handle, ok, auditLog, ApiError, sharedAdminGuard } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { setSetting, invalidateSettingsCache } from "@/lib/settings";
@@ -56,6 +57,11 @@ export const PUT = handle(async (req: NextRequest) => {
     await setSetting(key, value);
   }
   invalidateSettingsCache();
+  // Purge every Next.js cached render under "/" (full route cache, router
+  // cache, ISR pages) so DB-driven branding/settings changes show up
+  // immediately — the very next request re-renders the root layout,
+  // metadata, header/footer and any statically-cached page.
+  revalidatePath("/", "layout");
   await auditLog({ admin, action: "UPDATE", entity: "SETTINGS", prevValue: prev, newValue: body });
   return ok({ message: "Settings saved" });
 });

@@ -7,10 +7,12 @@ import { apiFetch } from "@/lib/client";
 import { useTranslation } from "react-i18next";
 import RecaptchaGate from "@/components/auth/RecaptchaGate";
 import { apiErrorText } from "@/lib/api-error-text";
+import { useSiteName } from "@/components/SiteSettingsContext";
 
 export default function LoginPage() {
   const router = useRouter();
   const { t } = useTranslation();
+  const siteName = useSiteName();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
@@ -138,7 +140,7 @@ export default function LoginPage() {
         </form>
 
         <p className="mt-5 text-center text-sm text-ink2">
-          New to UNIBET360?{" "}
+          {siteName.trim() ? <>New to {siteName.trim()}?{" "}</> : "New here? "}
           <Link href="/register" className="font-semibold text-brand hover:underline">Create an account</Link>
         </p>
       </div>

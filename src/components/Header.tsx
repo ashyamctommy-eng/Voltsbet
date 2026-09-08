@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/client";
 import { useToast } from "@/components/BetSlipContext";
 import { useDrawer } from "@/components/DrawerProvider";
-import UNIBET360Logo from "@/components/VoltBetLogo";
+import VoltBetLogo from "@/components/VoltBetLogo";
 import { FEED_VIEWS, type FeedView } from "@/components/MatchFeed";
 import { useTranslation } from "react-i18next";
 import {
@@ -154,7 +154,7 @@ export default function Header({
         </button>
 
         <Link href="/" className="flex shrink-0 items-center gap-2">
-          <UNIBET360Logo />
+          <VoltBetLogo name={siteName} />
           <span className="sr-only">{siteName}</span>
         </Link>
 

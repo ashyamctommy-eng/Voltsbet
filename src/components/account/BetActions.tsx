@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSiteName } from "@/components/SiteSettingsContext";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/client";
 import { useBetSlip } from "@/components/BetSlipContext";
@@ -42,6 +43,7 @@ export default function BetActions({
     selections: DetailSelection[];
   };
 }) {
+  const siteName = useSiteName();
   const router = useRouter();
   const { push } = useToast();
   const { add, setOpen: openSlip } = useBetSlip();
@@ -81,7 +83,7 @@ export default function BetActions({
   }
 
   function share() {
-    const text = `UNIBET360 bet ${bet.code}: ${bet.selections.length} selection(s)`;
+    const text = `${(siteName.trim() || "Sportsbook")} bet ${bet.code}: ${bet.selections.length} selection(s)`;
     const payload = {
       title: `Bet ${bet.code}`,
       text,

@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/client";
 import { useToast } from "@/components/BetSlipContext";
+import { useRouter } from "next/navigation";
+import { useSiteSettings } from "@/components/SiteSettingsContext";
 import { IconWhatsApp, IconTelegram, IconCoins, IconSmartphone, IconGear, IconGlobe, IconGift2, IconPencil, IconTv } from "@/components/icons";
 
 type FieldType = "text" | "password" | "number" | "toggle" | "select" | "copy";
@@ -175,6 +177,8 @@ const GROUPS: { title: string; anchor: string; icon: React.ReactNode; fields: Fi
 
 export default function AdminSettings() {
   const { push } = useToast();
+  const router = useRouter();
+  const { refresh: refreshBrand } = useSiteSettings();
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
@@ -203,6 +207,11 @@ export default function AdminSettings() {
     const res = await apiFetch("/api/admin/settings", { method: "PUT", body: settings });
     setLoading(false);
     if (!res.ok) return push("error", res.error.message);
+    // Re-brand instantly: refetch the public brand payload for the client
+    // context (header/drawer/logo) and re-render server components (root
+    // layout → metadata + props) without a full page reload.
+    void refreshBrand();
+    router.refresh();
     push("success", "Settings saved — the whole site updates instantly");
   }
 

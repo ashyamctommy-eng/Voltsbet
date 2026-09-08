@@ -8,6 +8,7 @@ import { BetSlipProvider, ToastProvider } from "@/components/BetSlipContext";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { CurrencyProvider } from "@/components/CurrencyProvider";
 import { DrawerProvider } from "@/components/DrawerProvider";
+import { SiteSettingsProvider } from "@/components/SiteSettingsContext";
 import I18nSync from "@/components/I18nSync";
 import Header, { HeaderUser } from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -15,12 +16,21 @@ import MobileNav from "@/components/MobileNav";
 import SupportWidget from "@/components/SupportWidget";
 import BetSlip from "@/components/BetSlip";
 import BroadcastBanner from "@/components/BroadcastBanner";
-import UNIBET360SplashLoader from "@/components/VoltBetSplashLoader";
+import VoltBetSplashLoader from "@/components/VoltBetSplashLoader";
 
-export const metadata: Metadata = {
-  title: { default: "UNIBET360 — Sports Betting", template: "%s | UNIBET360" },
-  description: "Fast odds, live betting and instant crypto deposits.",
-};
+/** White-label metadata — every brand string comes from the DB settings
+ *  (Admin → Website Settings → Branding), never a build-time constant. */
+export async function generateMetadata(): Promise<Metadata> {
+  const s = await getSettings();
+  const brand = s.siteName || "Sportsbook";
+  return {
+    title: {
+      default: `${brand} — Sports Betting`,
+      template: `%s | ${brand}`,
+    },
+    description: s.tagline || "Fast odds, live betting and instant crypto deposits.",
+  };
+}
 export const viewport: Viewport = {
   themeColor: "#0b1220",
   width: "device-width",
@@ -82,44 +92,46 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             __html: `try{var t=localStorage.getItem("voltbet-theme");if(t==="light"||t==="dark"){document.documentElement.dataset.theme=t;document.documentElement.style.colorScheme=t;}}catch(e){}`,
           }}
         />
-        <ThemeProvider>
-          <I18nSync />
-          <CurrencyProvider>
-            <ToastProvider>
-              <BetSlipProvider>
-                <DrawerProvider
-                  isStaff={!!user && user.role !== "CUSTOMER"}
-                  support={{
-                    whatsappEnabled: s.whatsappEnabled,
-                    whatsapp: s.whatsapp,
-                    telegramEnabled: s.telegramEnabled,
-                    telegram: s.telegram,
-                  }}
-                >
-                  <UNIBET360SplashLoader />
-                  <BroadcastBanner />
-                  <Header user={headerUser} siteName={s.siteName} sports={sports} />
-                  {/* Mobile bottom padding clears the bottom nav (~64px) plus the
-                      floating yellow betslip bar (sits at 62px, ~56px tall). */}
-                  <main className="min-h-[60vh] pb-32 xl:pb-0">{children}</main>
-                  <Footer />
-                  <MobileNav loggedIn={!!user} liveCount={liveGames} />
-                  <SupportWidget
+        <SiteSettingsProvider siteName={s.siteName} tagline={s.tagline}>
+          <ThemeProvider>
+            <I18nSync />
+            <CurrencyProvider>
+              <ToastProvider>
+                <BetSlipProvider>
+                  <DrawerProvider
                     isStaff={!!user && user.role !== "CUSTOMER"}
                     support={{
-                      phone: s.supportPhone,
                       whatsappEnabled: s.whatsappEnabled,
                       whatsapp: s.whatsapp,
                       telegramEnabled: s.telegramEnabled,
                       telegram: s.telegram,
                     }}
-                  />
-                  <BetSlip />
-                </DrawerProvider>
-              </BetSlipProvider>
-            </ToastProvider>
-          </CurrencyProvider>
-        </ThemeProvider>
+                  >
+                    <VoltBetSplashLoader />
+                    <BroadcastBanner />
+                    <Header user={headerUser} siteName={s.siteName} sports={sports} />
+                    {/* Mobile bottom padding clears the bottom nav (~64px) plus the
+                        floating yellow betslip bar (sits at 62px, ~56px tall). */}
+                    <main className="min-h-[60vh] pb-32 xl:pb-0">{children}</main>
+                    <Footer />
+                    <MobileNav loggedIn={!!user} liveCount={liveGames} />
+                    <SupportWidget
+                      isStaff={!!user && user.role !== "CUSTOMER"}
+                      support={{
+                        phone: s.supportPhone,
+                        whatsappEnabled: s.whatsappEnabled,
+                        whatsapp: s.whatsapp,
+                        telegramEnabled: s.telegramEnabled,
+                        telegram: s.telegram,
+                      }}
+                    />
+                    <BetSlip />
+                  </DrawerProvider>
+                </BetSlipProvider>
+              </ToastProvider>
+            </CurrencyProvider>
+          </ThemeProvider>
+        </SiteSettingsProvider>
       </body>
     </html>
   );

@@ -5,6 +5,7 @@ import LanguageSelector from "@/components/LanguageSelector";
 import { useTranslation } from "react-i18next";
 import { usePathname } from "next/navigation";
 import { useTheme } from "@/components/ThemeProvider";
+import { useSiteName } from "@/components/SiteSettingsContext";
 import {
   IconLive,
   IconArrowDown,
@@ -82,6 +83,7 @@ export default function Drawer({
   const pathname = usePathname();
   const { theme, toggle } = useTheme();
   const { t } = useTranslation();
+  const siteName = useSiteName().trim() || "Sportsbook";
   const showWhatsApp = support.whatsappEnabled && !!support.whatsapp;
   const showTelegram = support.telegramEnabled && !!support.telegram;
   const items = isStaff ? STAFF_ITEMS : CUSTOMER_ITEMS;
@@ -105,9 +107,9 @@ export default function Drawer({
       >
         {/* Header */}
         <div className="flex items-center gap-3 border-b border-line px-4 py-4">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand text-lg font-black text-[#052e16]">U</span>
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand text-lg font-black text-[#052e16]">{siteName.charAt(0).toUpperCase()}</span>
           <div className="min-w-0">
-            <div className="truncate text-base font-extrabold tracking-tight">UNIBET360</div>
+            <div className="truncate text-base font-extrabold tracking-tight">{siteName}</div>
             <div className="text-[10px] font-semibold uppercase tracking-wider text-ink3">{t("nav.menu")}</div>
           </div>
           <div className="ml-auto flex items-center gap-2">

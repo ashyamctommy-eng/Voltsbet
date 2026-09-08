@@ -1,22 +1,25 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSiteName } from "@/components/SiteSettingsContext";
 
 const SESSION_KEY = "vb-splash-shown";
 
 /**
  * Brand loading screen — full-screen dark overlay with:
- *  - centered circular badge holding the UNIBET360 mark
+ *  - centered circular badge holding the site's initial
  *  - sonar ripple rings scaling 1 → 1.8 with fading opacity
  *  - a rotating SVG arc whose stroke length pulses 0% → 75%
  *
  * Shows once per browser session (first page load), then fades out.
  * Pure CSS keyframe animations — no JS rAF, smooth at 60fps.
  */
-export default function UNIBET360SplashLoader() {
+export default function VoltBetSplashLoader() {
   // SSR + first paint show the loader; the effect then runs the lifecycle
   // entirely through timers (never a synchronous setState in the effect).
   const [phase, setPhase] = useState<"shown" | "leaving" | "hidden">("shown");
+  const siteName = useSiteName();
+  const brand = siteName.trim() || "Sportsbook";
 
   useEffect(() => {
     let hide: number | undefined;
@@ -68,10 +71,10 @@ export default function UNIBET360SplashLoader() {
 
           {/* Brand badge */}
           <div className="vb-badge flex h-16 w-16 items-center justify-center rounded-full">
-            <span className="text-3xl font-black">U</span>
+            <span className="text-3xl font-black">{brand.charAt(0).toUpperCase()}</span>
           </div>
         </div>
-        <p className="vb-wordmark mt-5 text-sm font-black tracking-[0.35em]">UNIBET360</p>
+        <p className="vb-wordmark mt-5 text-sm font-black tracking-[0.35em]">{brand.toUpperCase()}</p>
       </div>
     </div>
   );

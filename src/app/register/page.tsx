@@ -10,11 +10,13 @@ import { LANGUAGES, LANG_KEY } from "@/lib/i18n-resources";
 import { useToast } from "@/components/BetSlipContext";
 import RecaptchaGate from "@/components/auth/RecaptchaGate";
 import CountryAutocomplete from "@/components/ui/CountryAutocomplete";
+import { useSiteName } from "@/components/SiteSettingsContext";
 
 export default function RegisterPage() {
   const router = useRouter();
   const { push } = useToast();
   const { t } = useTranslation();
+  const siteName = useSiteName();
   /** Language select starts from the geo-detected site language (stored in
    *  localStorage by the site-wide i18n resolver) so registration continues
    *  in the visitor's language — falls back to English. */
@@ -86,7 +88,7 @@ export default function RegisterPage() {
       setCaptchaReset((n) => n + 1);
       return;
     }
-    push("success", t("register.welcome"));
+    push("success", t("register.welcome", { siteName: siteName.trim() || "Sportsbook" }));
     // Smart auth redirect: ?redirect=/account/deposit (set when an
     // insufficient-balance guest was routed here from the betslip) sends the
     // new user straight to funding their wallet — selections survive via the
@@ -103,7 +105,7 @@ export default function RegisterPage() {
       <div className="card p-5 sm:p-8">
         <div className="mx-auto w-full text-center">
           <h1 className="text-2xl font-extrabold">{t("register.title")}</h1>
-          <p className="mx-auto mt-1 w-full max-w-md text-center text-sm text-ink2">{t("register.subtitle")}</p>
+          <p className="mx-auto mt-1 w-full max-w-md text-center text-sm text-ink2">{t("register.subtitle", { siteName: siteName.trim() || "Sportsbook" })}</p>
         </div>
 
         <form onSubmit={submit} className="mt-6 grid w-full gap-4 [&>*]:min-w-0 sm:grid-cols-2">

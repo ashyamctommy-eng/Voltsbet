@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getSettings } from "@/lib/settings";
-import UNIBET360Logo from "@/components/VoltBetLogo";
+import VoltBetLogo from "@/components/VoltBetLogo";
 import FooterBanner from "@/components/FooterBanner";
 
 export default async function Footer() {
@@ -9,7 +9,7 @@ export default async function Footer() {
     <footer className="mt-16 border-t border-line bg-panel-bg pb-24 md:pb-0">
       <div className="mx-auto grid max-w-[1600px] gap-8 px-4 py-10 sm:grid-cols-2 lg:grid-cols-4">
         <div>
-          <UNIBET360Logo />
+          <VoltBetLogo name={s.siteName} />
           <p className="mt-3 text-sm text-ink3">{s.tagline}. Fast odds, live betting, instant crypto deposits.</p>
         </div>
         <div>

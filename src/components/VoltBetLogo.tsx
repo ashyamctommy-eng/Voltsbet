@@ -1,18 +1,33 @@
+"use client";
+
+import { useSiteName } from "@/components/SiteSettingsContext";
+
 /**
- * UNIBET360 brand logo — dynamic brand-primary green highlights.
+ * White-label site logo — badge letter + wordmark both come from the
+ * DB-driven site name (Admin → Website Settings → Branding), falling back
+ * to the server-injected SiteSettingsProvider value.
  *
- * A "V" badge + wordmark where the brand color flows from the admin
- * branding setting (--vb-primary, default #00e676) via the `brand` token,
- * so it re-colors with the theme engine in both dark and light mode.
+ * The `name` prop lets server components (e.g. the Footer) pin the exact
+ * brand on first paint without waiting for client hydration.
  */
-export default function UNIBET360Logo({ className }: { className?: string }) {
+export default function VoltBetLogo({
+  name,
+  className,
+}: {
+  name?: string;
+  className?: string;
+}) {
+  const siteName = useSiteName();
+  const brand = (name ?? siteName ?? "").trim() || "Sportsbook";
+  const badge = brand.charAt(0).toUpperCase();
+
   return (
     <span className={`flex shrink-0 items-center gap-2 ${className ?? ""}`}>
       <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand text-base font-black text-[#052e16] shadow-[0_0_16px_rgba(0,230,118,0.35)]">
-        U
+        {badge}
       </span>
       <span className="text-lg font-extrabold tracking-tight text-primary-text">
-        UNIBET<span className="text-brand">360</span>
+        {brand}
       </span>
     </span>
   );

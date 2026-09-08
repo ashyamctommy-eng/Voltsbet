@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import { apiFetch } from "@/lib/client";
 import { CRON_JOBS, type CronJobDef, type CronJobId } from "@/lib/cron-jobs";
 import { IconCheck, IconClock, IconCopy } from "@/components/icons";
+import { useSiteName } from "@/components/SiteSettingsContext";
 
 type Props = {
   baseUrl: string;
@@ -55,6 +56,7 @@ function Field({ k, v }: { k: string; v: string }) {
 }
 
 export default function CronJobsAdmin({ baseUrl, secret, initialSchedules }: Props) {
+  const siteName = useSiteName();
   const [schedules, setSchedules] = useState<Record<string, string>>(initialSchedules);
   const [saving, setSaving] = useState<string | null>(null);
   const [savedFlash, setSavedFlash] = useState<string | null>(null);
@@ -200,7 +202,7 @@ export default function CronJobsAdmin({ baseUrl, secret, initialSchedules }: Pro
                     <CodeBlock value={wget} label="Railway start command" />
                     <div className="text-[10px] font-black uppercase tracking-wider text-ink3">cron-job.org</div>
                     <div className="space-y-1.5">
-                      <Field k="Title" v={`UNIBET360 ${job.title}`} />
+                      <Field k="Title" v={`${siteName.trim() || "Sportsbook"} ${job.title}`} />
                       <Field k="URL" v={url} />
                       <Field k="Method" v="GET" />
                       <Field k="Cron syntax" v={schedule} />
