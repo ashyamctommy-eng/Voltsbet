@@ -379,10 +379,18 @@ export async function syncGames(providerId?: string) {
 
   // Per-event extended markets (btts, correct_score, …) for the top leagues —
   // fetched from /events/{id}/odds for the nearest upcoming fixtures.
-  const eventMarkets = await syncEventMarkets(
-    priced.filter((g) => !g.inPlay),
-    whitelistMode ? sportKeys : undefined,
-  );
+  // Per-event deep-market pass config: env ODDS_API_EVENT_MARKET_* wins,
+  // otherwise the DB-driven Admin → Website Settings → Odds Sync values.
+  // The featured set is additionally intersected with the league whitelist
+  // so an unlisted league is never charged for deep markets.
+  const envEventLeagues = process.env.ODDS_API_EVENT_MARKET_LEAGUES?.split(",").map((x) => x.trim()).filter(Boolean);
+  const eventLeagues = (envEventLeagues && envEventLeagues.length ? envEventLeagues : s.oddsEventMarketLeagues) ?? [];
+  const envEventLimit = Number(process.env.ODDS_API_EVENT_MARKET_LIMIT);
+  const eventLimit = process.env.ODDS_API_EVENT_MARKET_LIMIT !== undefined && Number.isFinite(envEventLimit)
+    ? Math.max(0, envEventLimit)
+    : s.oddsEventMarketLimit;
+  const featured = whitelistMode ? eventLeagues.filter((k) => sportKeys.includes(k)) : eventLeagues;
+  const eventMarkets = await syncEventMarkets(priced.filter((g) => !g.inPlay), featured, eventLimit);
 
   // Auto-hide seed/manual games once the provider feed is live — the site then
   // shows only synced (API) games. Auto-enables on any successful sync that
@@ -407,23 +415,6 @@ export async function syncGames(providerId?: string) {
   };
 }
 
-/** Leagues that get per-event extended markets (btts, correct_score, …).
- *  Override via ODDS_API_EVENT_MARKET_LEAGUES (comma-separated sport keys).
- *  Empty string disables the per-event pass entirely. */
-const EVENT_MARKET_LEAGUES = (
-  process.env.ODDS_API_EVENT_MARKET_LEAGUES?.split(",").map((s) => s.trim()).filter(Boolean) ?? [
-    "soccer_epl",
-    "soccer_uefa_champs_league",
-    "soccer_italy_serie_a",
-    "soccer_spain_la_liga",
-    "soccer_germany_bundesliga",
-    "soccer_france_ligue_one",
-  ]
-);
-/** Max events per league per sync for the per-event extended markets
- *  (quota: 1 credit per market per event — keep this small; 0 disables). */
-const EVENT_MARKET_LIMIT = Math.max(0, Number(process.env.ODDS_API_EVENT_MARKET_LIMIT ?? 4)) || 0;
-
 /**
  * Fetch + upsert the extended markets (everything in ODDS_MARKETS beyond the
  * list-supported h2h/spreads/totals) for the nearest upcoming fixtures of the
@@ -436,26 +427,22 @@ const EVENT_MARKET_LIMIT = Math.max(0, Number(process.env.ODDS_API_EVENT_MARKET_
  */
 export async function syncEventMarkets(
   preMatchGames: ApiGame[],
-  /** Restrict to these sport keys (whitelist mode). Defaults to the
-   *  EVENT_MARKET_LEAGUES env set. */
-  onlyKeys?: string[],
+  /** Featured leagues for the per-event pass (Odds API keys) — already
+   *  intersected with the sync whitelist by the caller. Empty = off. */
+  leagues: string[],
+  /** Max events per league (0 = off). */
+  limit: number,
 ): Promise<{ events: number; markets: number }> {
   const extended = ODDS_MARKETS.filter((m) => !(LIST_MARKETS as readonly string[]).includes(m));
-  // In whitelist mode the extended pass may only run for leagues the admin
-  // listed (it costs ~1 credit per market per event) — intersect the env
-  // default with the whitelist so nothing unlisted is ever charged.
-  const leagues = onlyKeys?.length
-    ? EVENT_MARKET_LEAGUES.filter((k) => onlyKeys.includes(k))
-    : EVENT_MARKET_LEAGUES;
-  if (!extended.length || leagues.length === 0) return { events: 0, markets: 0 };
+  if (!extended.length || leagues.length === 0 || limit <= 0) return { events: 0, markets: 0 };
 
-  // Nearest LIMIT upcoming fixtures per configured league (cheapest first).
+  // Nearest `limit` upcoming fixtures per configured league (cheapest first).
   const perLeague = new Map<string, ApiGame[]>();
   const sorted = [...preMatchGames].sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
   for (const g of sorted) {
     if (!leagues.includes(g.sportKey)) continue;
     const list = perLeague.get(g.sportKey) ?? [];
-    if (list.length >= EVENT_MARKET_LIMIT) continue;
+    if (list.length >= limit) continue;
     list.push(g);
     perLeague.set(g.sportKey, list);
   }

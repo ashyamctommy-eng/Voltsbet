@@ -433,7 +433,11 @@ export class TheOddsApi implements OddsProvider {
         const markets_: ApiGame["markets"] = [];
         // Aggregate across bookmakers: for each requested market take the FIRST
         // book that offers it (bookmakers[0] alone silently drops markets).
+        // Exchange books (betfair_ex_eu etc.) return _lay keys (h2h_lay) which
+        // carry inverted lay prices — never mapped, never stored. Belt-and-
+        // braces guard so a future MARKET_MAP addition can't leak them in.
         for (const spec of MARKET_MAP) {
+          if (spec.key.endsWith("_lay")) continue;
           const book = ev.bookmakers.find((b) => b.markets?.some((m) => m.key === spec.key));
           const m = book?.markets?.find((mk) => mk.key === spec.key);
           if (!m?.outcomes?.length) continue;
@@ -547,6 +551,7 @@ export class TheOddsApi implements OddsProvider {
 
         const marketsOut: ApiGame["markets"] = [];
         for (const spec of MARKET_MAP) {
+          if (spec.key.endsWith("_lay")) continue; // exchange lay prices — never priced
           if (!extended.includes(spec.key)) continue;
           const book = data[0].bookmakers?.find((b) => b.markets?.some((mk) => mk.key === spec.key));
           const m = book?.markets?.find((mk) => mk.key === spec.key);

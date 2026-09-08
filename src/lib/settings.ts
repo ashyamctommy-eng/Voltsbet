@@ -91,6 +91,13 @@ export type SiteSettings = {
    *  doesn't offer. Empty = legacy behavior: every bettable league in API
    *  catalog order, capped by ODDS_API_FEED_MAX_LEAGUES. */
   oddsSyncLeagues: string[];
+  /** Per-event (deep-market) pass — max fixtures per featured league that
+   *  get the extended menu (Correct Score, BTTS, HT markets…). 0 disables
+   *  the whole pass. Env ODDS_API_EVENT_MARKET_LIMIT overrides. */
+  oddsEventMarketLimit: number;
+  /** Featured leagues for the per-event pass (Odds API keys). Empty = pass
+   *  off. Env ODDS_API_EVENT_MARKET_LEAGUES overrides. */
+  oddsEventMarketLeagues: string[];
   // Automation
   settlementDelayMinutes: number; // settle finished games only after this many minutes
   cronSecret: string; // bearer token for /api/cron/* endpoints
@@ -177,6 +184,15 @@ const DEFAULTS: SiteSettings = {
   settlementDelayMinutes: 10,
   cronSecret: "",
   oddsSyncLeagues: [],
+  oddsEventMarketLimit: 4,
+  oddsEventMarketLeagues: [
+    "soccer_epl",
+    "soccer_uefa_champs_league",
+    "soccer_italy_serie_a",
+    "soccer_spain_la_liga",
+    "soccer_germany_bundesliga",
+    "soccer_france_ligue_one",
+  ],
 };
 
 let cache: SiteSettings | null = null;
@@ -314,6 +330,23 @@ export async function getSettings(): Promise<SiteSettings> {
       : [];
   } catch {
     s.oddsSyncLeagues = [];
+  }
+  // Per-event deep-market pass: limit (0 = off) + featured leagues (CSV or
+  // JSON array). Env overrides (ODDS_API_EVENT_MARKET_LIMIT / _LEAGUES) are
+  // applied by the consumer in lib/sync.ts, not here.
+  {
+    const rawLimit = raw["odds.eventMarketLimit"];
+    const n = Number(rawLimit);
+    s.oddsEventMarketLimit = rawLimit !== undefined && Number.isFinite(n) ? Math.max(0, n) : s.oddsEventMarketLimit;
+    try {
+      const rawLeagues = raw["odds.eventMarketLeagues"] ?? "";
+      const v: unknown = rawLeagues.trim().startsWith("[") ? JSON.parse(rawLeagues) : rawLeagues.split(",");
+      s.oddsEventMarketLeagues = Array.isArray(v)
+        ? [...new Set(v.filter((x): x is string => typeof x === "string").map((x) => x.trim()).filter(Boolean))]
+        : [];
+    } catch {
+      s.oddsEventMarketLeagues = [];
+    }
   }
   cache = s;
   cacheAt = Date.now();
