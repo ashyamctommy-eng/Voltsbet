@@ -2,13 +2,15 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { apiFetch } from "@/lib/client";
 import { useToast } from "@/components/BetSlipContext";
+import CopyButton from "@/components/CopyButton";
 
 type VoucherDetail = {
   voucher: {
     id: string;
+    batchId: string | null;
     displayCode: string;
     codeLast4: string;
     value: number;
@@ -49,13 +51,33 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 
 export default function VoucherDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
   const { push } = useToast();
   const [data, setData] = useState<VoucherDetail | null>(null);
   const [busy, setBusy] = useState(false);
+  // The full code is only ever in the generating admin's browser session
+  // (stashed at generation for print). Recover it for copy-to-clipboard.
+  const [fullCode, setFullCode] = useState<string | null>(null);
 
   const load = () =>
-    apiFetch<VoucherDetail>(`/api/admin/vouchers/${id}`).then((r) => r.ok && setData(r.data));
+    apiFetch<VoucherDetail>(`/api/admin/vouchers/${id}`).then((r) => {
+      if (!r.ok) return;
+      // The full code lives only in the generating admin's browser session
+      // (stashed at generation for print) — recover it for copy-to-clipboard.
+      let full: string | null = null;
+      try {
+        if (r.data.voucher.batchId) {
+          const raw = sessionStorage.getItem(`vb_voucher_codes_${r.data.voucher.batchId}`);
+          if (raw) {
+            const codes = JSON.parse(raw) as string[];
+            full = codes.find((c) => c.endsWith(r.data.voucher.codeLast4)) ?? null;
+          }
+        }
+      } catch {
+        /* session unavailable — stay masked */
+      }
+      setFullCode(full);
+      setData(r.data);
+    });
 
   useEffect(() => {
     void load();
@@ -84,8 +106,19 @@ export default function VoucherDetailPage() {
       </div>
 
       <div className="card p-5">
-        <h1 className="font-mono text-lg font-extrabold">{v.displayCode}</h1>
-        <p className="text-xs text-ink3">ID: {v.id} · full code is stored only as a hash</p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="break-all font-mono text-lg font-extrabold">{fullCode ?? v.displayCode}</h1>
+            <p className="text-xs text-ink3">ID: {v.id}</p>
+          </div>
+          {fullCode ? (
+            <CopyButton text={fullCode} label="Copy code" title="Copy the full voucher code to the clipboard" />
+          ) : (
+            <span className="max-w-[240px] text-right text-[10px] leading-snug text-amber-600 dark:text-amber-400">
+              Full code is stored only as a hash — available to the generating admin at generation time (Download .txt / Print).
+            </span>
+          )}
+        </div>
         <div className="mt-4">
           <Row label="Value"><span className="tabular-nums">{v.value.toLocaleString()} {v.currency}</span></Row>
           <Row label="Created">{new Date(v.createdAt).toLocaleString()}{v.createdBy ? ` by ${v.createdBy}` : ""}</Row>

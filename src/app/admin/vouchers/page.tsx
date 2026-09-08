@@ -144,13 +144,19 @@ export default function AdminVouchers() {
 
   function downloadCodes() {
     if (!lastGen) return;
-    const csv = "\uFEFF" + ["code,value,currency,expiry,batch,status"].concat(
-      lastGen.codes.map((c) => `${c},${gen.value},${gen.currency},${gen.expiresAt || ""},${gen.batchName || ""},UNUSED`),
-    ).join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    // .txt export of the one-shot full codes (one code per line) — easy to
+    // scan, print, or paste into a spreadsheet column.
+    const lines = [
+      `# Batch ${lastGen.batchId} — ${lastGen.count} voucher code(s)`,
+      `# Value: ${gen.value} ${gen.currency}${gen.expiresAt ? ` · expires: ${gen.expiresAt}` : ""}`,
+      "# Full codes are shown ONCE here — they are never stored server-side.",
+      "",
+      ...lastGen.codes,
+    ];
+    const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `vouchers-${lastGen.batchId}.csv`;
+    a.download = `vouchers-${lastGen.batchId}.txt`;
     a.click();
     URL.revokeObjectURL(a.href);
   }
@@ -246,7 +252,7 @@ export default function AdminVouchers() {
             <span className="ml-2 text-ink2">Full codes are shown only now. Download or print them.</span>
           </div>
           <div className="flex items-center gap-2">
-            <button className="btn btn-primary btn-sm" onClick={downloadCodes}>Download CSV</button>
+            <button className="btn btn-primary btn-sm" onClick={downloadCodes}>Download .txt</button>
             <Link className="btn btn-ghost btn-sm" href={`/admin/vouchers/print?batchId=${lastGen.batchId}&value=${gen.value}&currency=${gen.currency}`} target="_blank">
               Print sheets
             </Link>
