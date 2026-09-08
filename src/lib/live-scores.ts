@@ -57,20 +57,31 @@ async function leagueTitleToKey(): Promise<Map<string, string>> {
   return map;
 }
 
-const LIVE_LOOKBACK_HOURS = Number(process.env.LIVE_SCORES_LOOKBACK_HOURS ?? 4) || 4;
-/** Min seconds between provider sweeps (independent of the UI poll interval). */
-const THROTTLE_SECONDS = Number(process.env.LIVE_SCORES_THROTTLE_SECONDS ?? 300) || 300;
-/** Min seconds between in-play ODDS refreshes (separate from the scores
- *  throttle — odds cost 1 credit per market per league per call).
- *  Default 900s (15 min) at the default 1 market (h2h) keeps a paid 20K plan
- *  comfortable: ~4 sweeps/hr × active leagues. */
-const LIVE_ODDS_THROTTLE_SECONDS = Number(process.env.LIVE_ODDS_THROTTLE_SECONDS ?? 900) || 900;
-/** Markets for the live-odds refresh (h2h only by default — cheapest and the
- *  one in-play price every bookmaker serves; enrich via
- *  "h2h,spreads,totals" if quota allows). */
-const LIVE_ODDS_MARKETS = (
-  process.env.ODDS_API_LIVE_MARKETS?.split(",").map((s) => s.trim()).filter(Boolean) ?? ["h2h"]
-) as readonly string[];
+/** Live pipeline knobs are DB-driven (Admin → API Settings → Live scores &
+ *  in-play odds); env vars override when set. Resolved per sweep so admin
+ *  saves apply on the next sweep without a restart.
+ *
+ *  Defaults (keep cheapest): scores sweep ≤300s, in-play odds refresh ≤900s
+ *  at h2h only — ~4 credits/hr per league with live games at regions=eu. */
+async function liveConfig() {
+  const s = await getSettings();
+  const envThrottle = Number(process.env.LIVE_SCORES_THROTTLE_SECONDS);
+  const envOdds = Number(process.env.LIVE_ODDS_THROTTLE_SECONDS);
+  const envLookback = Number(process.env.LIVE_SCORES_LOOKBACK_HOURS);
+  const envMarkets = process.env.ODDS_API_LIVE_MARKETS?.split(",").map((x) => x.trim()).filter(Boolean);
+  return {
+    lookbackHours: process.env.LIVE_SCORES_LOOKBACK_HOURS !== undefined && Number.isFinite(envLookback) && envLookback > 0
+      ? Math.round(envLookback)
+      : s.liveLookbackHours || 4,
+    scoresThrottleSeconds: process.env.LIVE_SCORES_THROTTLE_SECONDS !== undefined && Number.isFinite(envThrottle) && envThrottle > 0
+      ? Math.round(envThrottle)
+      : s.liveScoresThrottleSeconds || 300,
+    oddsThrottleSeconds: process.env.LIVE_ODDS_THROTTLE_SECONDS !== undefined && Number.isFinite(envOdds) && envOdds > 0
+      ? Math.round(envOdds)
+      : s.liveOddsThrottleSeconds || 900,
+    oddsMarkets: (envMarkets && envMarkets.length ? envMarkets : s.liveOddsMarkets.length ? s.liveOddsMarkets : ["h2h"]) as readonly string[],
+  };
+}
 
 export async function refreshLiveScores(): Promise<{
   updated: number;
@@ -79,8 +90,8 @@ export async function refreshLiveScores(): Promise<{
   skipped: boolean;
   leagues: string[];
 }> {
-  const s = await getSettings();
-  const windowMs = Math.max(10, THROTTLE_SECONDS * 1000);
+  const live = await liveConfig();
+  const windowMs = Math.max(10, live.scoresThrottleSeconds * 1000);
   const now = Date.now();
   if (now - lastRefresh < windowMs) return { updated: 0, created: 0, oddsUpdated: 0, skipped: true, leagues: [] };
 
@@ -98,7 +109,7 @@ export async function refreshLiveScores(): Promise<{
           { status: { in: ["LIVE", "HALF_TIME", "IN_PLAY"] } },
           {
             status: "SCHEDULED",
-            startAt: { gte: new Date(now - LIVE_LOOKBACK_HOURS * 3600_000), lte: new Date(now) },
+            startAt: { gte: new Date(now - live.lookbackHours * 3600_000), lte: new Date(now) },
           },
         ],
       },
@@ -169,11 +180,11 @@ export async function refreshLiveScores(): Promise<{
     //    live events with moving prices — refresh them so live betting odds
     //    track the market. Strictly odds-only via upsertInPlayOdds.
     let oddsUpdated = 0;
-    const oddsWindowMs = Math.max(10, LIVE_ODDS_THROTTLE_SECONDS * 1000);
+    const oddsWindowMs = Math.max(10, live.oddsThrottleSeconds * 1000);
     if (Date.now() - lastOddsRefresh >= oddsWindowMs) {
       lastOddsRefresh = Date.now(); // backoff even on failure (quota-safe)
       try {
-        const liveOdds = await provider.fetchUpcomingGames([...leagueKeys], LIVE_ODDS_MARKETS);
+        const liveOdds = await provider.fetchUpcomingGames([...leagueKeys], live.oddsMarkets);
         oddsUpdated = (await upsertInPlayOdds(liveOdds)).updated;
       } catch (e) {
         console.error("[live-scores] in-play odds refresh failed:", e instanceof Error ? e.message : e);

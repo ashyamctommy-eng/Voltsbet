@@ -116,6 +116,18 @@ export type SiteSettings = {
   /** Cap on leagues queried per sync/feed when no whitelist is set. Env
    *  ODDS_API_FEED_MAX_LEAGUES overrides. */
   oddsFeedMaxLeagues: number;
+  /** Live scores: min seconds between provider /scores sweeps. Env
+   *  LIVE_SCORES_THROTTLE_SECONDS overrides. */
+  liveScoresThrottleSeconds: number;
+  /** Live: lookback window for candidate games that kicked off (hours).
+   *  Env LIVE_SCORES_LOOKBACK_HOURS overrides. */
+  liveLookbackHours: number;
+  /** Live odds: min seconds between in-play price refreshes. Env
+   *  LIVE_ODDS_THROTTLE_SECONDS overrides. */
+  liveOddsThrottleSeconds: number;
+  /** Live odds: market keys refreshed in-play (default h2h). Env
+   *  ODDS_API_LIVE_MARKETS overrides. */
+  liveOddsMarkets: string[];
   // Automation
   settlementDelayMinutes: number; // settle finished games only after this many minutes
   cronSecret: string; // bearer token for /api/cron/* endpoints
@@ -207,6 +219,10 @@ const DEFAULTS: SiteSettings = {
   oddsEventBookmakers: "bovada,pinnacle",
   oddsMarkets: [],
   oddsFeedMaxLeagues: 120,
+  liveScoresThrottleSeconds: 300,
+  liveLookbackHours: 4,
+  liveOddsThrottleSeconds: 900,
+  liveOddsMarkets: ["h2h"],
   oddsEventMarketLimit: 4,
   oddsEventMarketLeagues: [
     "soccer_epl",
@@ -388,6 +404,24 @@ export async function getSettings(): Promise<SiteSettings> {
     }
     const rawCap = Number(raw["odds.feedMaxLeagues"]);
     s.oddsFeedMaxLeagues = raw["odds.feedMaxLeagues"] !== undefined && Number.isFinite(rawCap) && rawCap > 0 ? Math.round(rawCap) : s.oddsFeedMaxLeagues;
+    // Live scores & in-play odds (poll + sweep throttles, lookback, markets)
+    const rawPoll = Number(raw["live.refreshSeconds"]);
+    if (raw["live.refreshSeconds"] !== undefined && Number.isFinite(rawPoll) && rawPoll >= 10) s.liveRefreshSeconds = Math.round(rawPoll);
+    const rawSt = Number(raw["live.scoresThrottleSeconds"]);
+    if (raw["live.scoresThrottleSeconds"] !== undefined && Number.isFinite(rawSt) && rawSt >= 10) s.liveScoresThrottleSeconds = Math.round(rawSt);
+    const rawLb = Number(raw["live.lookbackHours"]);
+    if (raw["live.lookbackHours"] !== undefined && Number.isFinite(rawLb) && rawLb >= 1) s.liveLookbackHours = Math.round(rawLb);
+    const rawOt = Number(raw["live.oddsThrottleSeconds"]);
+    if (raw["live.oddsThrottleSeconds"] !== undefined && Number.isFinite(rawOt) && rawOt >= 10) s.liveOddsThrottleSeconds = Math.round(rawOt);
+    const rawLm = raw["live.oddsMarkets"] ?? "";
+    try {
+      const v: unknown = rawLm.trim().startsWith("[") ? JSON.parse(rawLm) : rawLm.split(",");
+      s.liveOddsMarkets = Array.isArray(v)
+        ? [...new Set(v.filter((x): x is string => typeof x === "string").map((x) => x.trim()).filter(Boolean))]
+        : [];
+    } catch {
+      s.liveOddsMarkets = [];
+    }
   }
   cache = s;
   cacheAt = Date.now();

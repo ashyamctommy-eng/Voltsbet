@@ -20,6 +20,13 @@ import { revalidatePath } from "next/cache";
  *   odds.eventMarketLimit     deep-pass fixtures per featured league (0 = off)
  *   odds.eventMarketLeagues   featured leagues for the deep pass (CSV/JSON)
  *   odds.syncLeagues          league sync whitelist (managed on the same page)
+ *
+ * Live scores & in-play odds (Admin → API Settings → Live scores):
+ *   live.refreshSeconds          /live page auto-refresh poll (seconds)
+ *   live.scoresThrottleSeconds   min s between /scores sweeps
+ *   live.lookbackHours           kickoff lookback window for candidates
+ *   live.oddsThrottleSeconds     min s between in-play odds refreshes
+ *   live.oddsMarkets             in-play market keys (default h2h)
  */
 let quotaCache: { at: number; used: number; remaining: number } | null = null;
 const QUOTA_TTL_MS = 60_000;
@@ -57,6 +64,10 @@ export const GET = handle(async (req: NextRequest) => {
     feedMaxLeagues: process.env.ODDS_API_FEED_MAX_LEAGUES,
     eventMarketLimit: process.env.ODDS_API_EVENT_MARKET_LIMIT,
     eventMarketLeagues: process.env.ODDS_API_EVENT_MARKET_LEAGUES,
+    liveScoresThrottleSeconds: process.env.LIVE_SCORES_THROTTLE_SECONDS,
+    liveLookbackHours: process.env.LIVE_SCORES_LOOKBACK_HOURS,
+    liveOddsThrottleSeconds: process.env.LIVE_ODDS_THROTTLE_SECONDS,
+    liveOddsMarkets: process.env.ODDS_API_LIVE_MARKETS,
   };
 
   return ok({
@@ -69,6 +80,11 @@ export const GET = handle(async (req: NextRequest) => {
       eventMarketLimit: s.oddsEventMarketLimit,
       eventMarketLeagues: s.oddsEventMarketLeagues,
       syncLeagues: s.oddsSyncLeagues ?? [],
+      liveRefreshSeconds: s.liveRefreshSeconds,
+      liveScoresThrottleSeconds: s.liveScoresThrottleSeconds,
+      liveLookbackHours: s.liveLookbackHours,
+      liveOddsThrottleSeconds: s.liveOddsThrottleSeconds,
+      liveOddsMarkets: s.liveOddsMarkets,
     },
     env,
     quota,
@@ -108,6 +124,12 @@ export const PUT = handle(async (req: NextRequest) => {
   if (body.feedMaxLeagues !== undefined) updates.push({ key: "odds.feedMaxLeagues", value: num(body.feedMaxLeagues, 1) });
   if (body.eventMarketLimit !== undefined) updates.push({ key: "odds.eventMarketLimit", value: num(body.eventMarketLimit, 0) });
   if (body.eventMarketLeagues !== undefined) updates.push({ key: "odds.eventMarketLeagues", value: list(body.eventMarketLeagues) });
+  // Live scores & in-play odds knobs
+  if (body.liveRefreshSeconds !== undefined) updates.push({ key: "live.refreshSeconds", value: num(body.liveRefreshSeconds, 10) });
+  if (body.liveScoresThrottleSeconds !== undefined) updates.push({ key: "live.scoresThrottleSeconds", value: num(body.liveScoresThrottleSeconds, 10) });
+  if (body.liveLookbackHours !== undefined) updates.push({ key: "live.lookbackHours", value: num(body.liveLookbackHours, 1) });
+  if (body.liveOddsThrottleSeconds !== undefined) updates.push({ key: "live.oddsThrottleSeconds", value: num(body.liveOddsThrottleSeconds, 10) });
+  if (body.liveOddsMarkets !== undefined) updates.push({ key: "live.oddsMarkets", value: list(body.liveOddsMarkets) });
 
   for (const u of updates) await setSetting(u.key, u.value);
   invalidateSettingsCache();

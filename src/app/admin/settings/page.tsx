@@ -5,7 +5,7 @@ import { apiFetch } from "@/lib/client";
 import { useToast } from "@/components/BetSlipContext";
 import { useRouter } from "next/navigation";
 import { useSiteSettings } from "@/components/SiteSettingsContext";
-import { IconWhatsApp, IconTelegram, IconCoins, IconSmartphone, IconGear, IconGlobe, IconGift2, IconPencil, IconTv } from "@/components/icons";
+import { IconWhatsApp, IconTelegram, IconCoins, IconSmartphone, IconGear, IconGlobe, IconGift2, IconPencil } from "@/components/icons";
 
 type FieldType = "text" | "password" | "number" | "toggle" | "select" | "copy";
 type Field = {
@@ -55,14 +55,6 @@ const GROUPS: { title: string; anchor: string; icon: React.ReactNode; fields: Fi
       { key: "games.hideSeeded", label: "Disable seeded / virtual matches", type: "toggle", hint: "Show only live API-feed matches (source=API). Turns on automatically after the first successful sync that adds games. Env override: SHOW_SEEDED_GAMES=false" },
       { key: "currency.forceDefault", label: "Force default currency (ignore IP auto-detect)", type: "toggle", hint: "ON = every visitor sees the platform default currency regardless of location or profile. OFF = per-user display preference wins, then IP auto-detection (ipapi.co → currency, fallback USD)." },
       { key: "betting.maxLiabilityPerMarket", label: "Max liability per market", type: "number", hint: "Reject bets that push exposure past this cap" },
-    ],
-  },
-  {
-    title: "Live",
-    anchor: "live",
-    icon: <IconTv className="h-4 w-4" />,
-    fields: [
-      { key: "live.refreshSeconds", label: "Live page auto-refresh (seconds)", type: "number", hint: "How often /live polls for fresh scores/timers. The Odds API /scores sweep runs at most once per this window per active league (throttled separately, default 5 min)" },
     ],
   },
   {

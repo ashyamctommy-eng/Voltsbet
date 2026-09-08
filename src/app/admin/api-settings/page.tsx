@@ -34,6 +34,8 @@ type OddsConfig = {
   stored: {
     regions: string; rateLimitMs: number; eventBookmakers: string; markets: string[];
     feedMaxLeagues: number; eventMarketLimit: number; eventMarketLeagues: string[]; syncLeagues: string[];
+    liveRefreshSeconds: number; liveScoresThrottleSeconds: number; liveLookbackHours: number;
+    liveOddsThrottleSeconds: number; liveOddsMarkets: string[];
   };
   env: Record<string, string | undefined>;
   quota: { used: number; remaining: number } | null;
@@ -74,8 +76,13 @@ export default function AdminApiSettings() {
     feedMaxLeagues: "120",
     evLimit: "4",
     evLeagues: "",
+    liveRefresh: "60",
+    liveScoresThrottle: "300",
+    liveLookback: "4",
+    liveOddsThrottle: "900",
+    liveOddsMarkets: "h2h",
   });
-  const [savingOdds, setSavingOdds] = useState<"" | "ev" | "prefs">("");
+  const [savingOdds, setSavingOdds] = useState<"" | "ev" | "prefs" | "live">("");
   const [oddsMsg, setOddsMsg] = useState("");
 
   useEffect(() => {
@@ -137,6 +144,11 @@ export default function AdminApiSettings() {
         feedMaxLeagues: String(r.data.stored.feedMaxLeagues),
         evLimit: String(r.data.stored.eventMarketLimit),
         evLeagues: r.data.stored.eventMarketLeagues.join(", "),
+        liveRefresh: String(r.data.stored.liveRefreshSeconds ?? 60),
+        liveScoresThrottle: String(r.data.stored.liveScoresThrottleSeconds ?? 300),
+        liveLookback: String(r.data.stored.liveLookbackHours ?? 4),
+        liveOddsThrottle: String(r.data.stored.liveOddsThrottleSeconds ?? 900),
+        liveOddsMarkets: (r.data.stored.liveOddsMarkets ?? ["h2h"]).join(", "),
       });
     });
     const t = setInterval(() => {
@@ -153,19 +165,27 @@ export default function AdminApiSettings() {
       </span>
     ) : null;
 
-  async function saveOdds(kind: "ev" | "prefs") {
+  async function saveOdds(kind: "ev" | "prefs" | "live") {
     setSavingOdds(kind);
     setOddsMsg("");
     const body =
       kind === "ev"
         ? { eventMarketLimit: Number(fm.evLimit || 0), eventMarketLeagues: fm.evLeagues }
-        : {
-            regions: fm.regions,
-            rateLimitMs: Number(fm.rateLimitMs || 1100),
-            eventBookmakers: fm.bookmakers,
-            markets: fm.markets,
-            feedMaxLeagues: Number(fm.feedMaxLeagues || 120),
-          };
+        : kind === "live"
+          ? {
+              liveRefreshSeconds: Number(fm.liveRefresh || 60),
+              liveScoresThrottleSeconds: Number(fm.liveScoresThrottle || 300),
+              liveLookbackHours: Number(fm.liveLookback || 4),
+              liveOddsThrottleSeconds: Number(fm.liveOddsThrottle || 900),
+              liveOddsMarkets: fm.liveOddsMarkets,
+            }
+          : {
+              regions: fm.regions,
+              rateLimitMs: Number(fm.rateLimitMs || 1100),
+              eventBookmakers: fm.bookmakers,
+              markets: fm.markets,
+              feedMaxLeagues: Number(fm.feedMaxLeagues || 120),
+            };
     const res = await apiFetch<{ message: string }>("/api/admin/odds-config", { method: "PUT", body });
     setSavingOdds("");
     if (!res.ok) return push("error", res.error.message);
@@ -416,6 +436,54 @@ export default function AdminApiSettings() {
           </div>
         </div>
         {oddsMsg && <p className="mt-3 text-xs font-semibold text-green-600 dark:text-green-400">{oddsMsg}</p>}
+      </div>
+
+      {/* ── Live scores & in-play odds ───────────────────────── */}
+      <div className="card p-6">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h1 className="text-lg font-extrabold">Live scores &amp; in-play odds</h1>
+            <p className="text-sm text-ink2">
+              Scores update by opening /live (the page auto-polls below); each poll triggers a throttled provider sweep. In-play
+              odds refresh separately at their own throttle. Env vars (LIVE_SCORES_*) override when set.
+            </p>
+          </div>
+          <button className="btn btn-primary btn-sm" disabled={savingOdds === "live"} onClick={() => saveOdds("live")}>
+            {savingOdds === "live" ? "Saving…" : "Save live settings"}
+          </button>
+        </div>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div>
+            <label className="label">Live page auto-refresh (seconds)</label>
+            <input className="input" type="number" min={10} value={fm.liveRefresh} onChange={(e) => setFm((f) => ({ ...f, liveRefresh: e.target.value }))} />
+            <p className="mt-1 text-[11px] text-ink3">How often the /live tab re-polls. 60 = scores appear ≤ ~1 min after each sweep.</p>
+            {envTag("liveScoresThrottleSeconds") && null}
+          </div>
+          <div>
+            <label className="label">Scores sweep throttle (seconds)</label>
+            <input className="input" type="number" min={10} value={fm.liveScoresThrottle} onChange={(e) => setFm((f) => ({ ...f, liveScoresThrottle: e.target.value }))} />
+            <p className="mt-1 text-[11px] text-ink3">Provider /scores calls at most once per this window (default 300 = 5 min), shared across all visitors.</p>
+            {envTag("liveScoresThrottleSeconds")}
+          </div>
+          <div>
+            <label className="label">Kickoff lookback (hours)</label>
+            <input className="input" type="number" min={1} value={fm.liveLookback} onChange={(e) => setFm((f) => ({ ...f, liveLookback: e.target.value }))} />
+            <p className="mt-1 text-[11px] text-ink3">How far back a SCHEDULED match may have kicked off before the sweep picks it up as live.</p>
+            {envTag("liveLookbackHours")}
+          </div>
+          <div>
+            <label className="label">In-play odds throttle (seconds)</label>
+            <input className="input" type="number" min={10} value={fm.liveOddsThrottle} onChange={(e) => setFm((f) => ({ ...f, liveOddsThrottle: e.target.value }))} />
+            <p className="mt-1 text-[11px] text-ink3">How often live prices refresh (default 900 = 15 min). Each refresh costs ~1 credit per live league per market at eu.</p>
+            {envTag("liveOddsThrottleSeconds")}
+          </div>
+          <div className="sm:col-span-2">
+            <label className="label">In-play markets (comma separated)</label>
+            <input className="input font-mono text-xs" value={fm.liveOddsMarkets} onChange={(e) => setFm((f) => ({ ...f, liveOddsMarkets: e.target.value }))} placeholder="h2h" />
+            <p className="mt-1 text-[11px] text-ink3">Default <b>h2h</b> (1 credit per league per refresh — cheapest). Add spreads/totals for full live menus at higher cost.</p>
+            {envTag("liveOddsMarkets")}
+          </div>
+        </div>
       </div>
 
       {/* ── League sync whitelist ─────────────────────────────── */}
