@@ -85,6 +85,12 @@ export type SiteSettings = {
   // Responsible gambling — per-user daily velocity caps (rolling 24h)
   dailyStakeLimit: number; // max total STAKED per user per 24h (0 = unlimited)
   dailyLossLimit: number; // max net LOSS per user per 24h (0 = unlimited)
+  /** The Odds API league whitelist (sport keys, in priority order). When
+   *  non-empty, sync queries ONLY these leagues (1 request each) — the
+   *  remaining catalog is skipped, saving credits on leagues the client
+   *  doesn't offer. Empty = legacy behavior: every bettable league in API
+   *  catalog order, capped by ODDS_API_FEED_MAX_LEAGUES. */
+  oddsSyncLeagues: string[];
   // Automation
   settlementDelayMinutes: number; // settle finished games only after this many minutes
   cronSecret: string; // bearer token for /api/cron/* endpoints
@@ -170,6 +176,7 @@ const DEFAULTS: SiteSettings = {
   dailyLossLimit: 0,
   settlementDelayMinutes: 10,
   cronSecret: "",
+  oddsSyncLeagues: [],
 };
 
 let cache: SiteSettings | null = null;
@@ -298,6 +305,16 @@ export async function getSettings(): Promise<SiteSettings> {
   s.dailyLossLimit = Number(raw["betting.dailyLossLimit"] ?? s.dailyLossLimit);
   s.settlementDelayMinutes = Number(raw["settlement.delayMinutes"] ?? s.settlementDelayMinutes);
   s.cronSecret = raw["cron.secret"] ?? s.cronSecret;
+  // League sync whitelist (JSON array of Odds API sport keys). Tolerant
+  // parse: anything invalid/absent = empty = sync every bettable league.
+  try {
+    const v = JSON.parse(raw["odds.syncLeagues"] ?? "[]");
+    s.oddsSyncLeagues = Array.isArray(v)
+      ? [...new Set(v.filter((x): x is string => typeof x === "string").map((x) => x.trim()).filter(Boolean))]
+      : [];
+  } catch {
+    s.oddsSyncLeagues = [];
+  }
   cache = s;
   cacheAt = Date.now();
   return s;

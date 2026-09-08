@@ -273,6 +273,17 @@ sync time, and league names come from the API. Futures/outrights keys
 (`*_winner`, `*_preseason`, …) are excluded from the catalog. The odds pass
 is capped by `ODDS_API_FEED_MAX_LEAGUES` (default `120`; free tier: lower it).
 
+**League sync whitelist (credit saver):** paid plans pay **1 request per
+league per run**, so every client can restrict sync to the leagues they
+actually offer — Admin → **API Settings → League sync**. The page lists the
+*live* catalog of in-season leagues (searchable, one-click add/remove per
+sport, e.g. the `＋ soccer` chip adds every football league) and stores the
+whitelist as the `odds.syncLeagues` DB setting. When the whitelist is
+non-empty, `sync` queries **only those keys, in the listed order** — no
+credit is spent on any other league; out-of-season entries are kept and
+skipped until the API lists them again. Empty whitelist = legacy full-catalog
+behaviour above.
+
 Sport pages query **live/today matches first and fall back to upcoming
 fixtures** when a tab has none — no empty-tab UX dead-ends. The home hero
 slideshow and `/live` fall back to the next kickoffs the same way.

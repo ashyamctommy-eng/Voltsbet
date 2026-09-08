@@ -17,7 +17,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { TheOddsApi, OddsProvider, ApiGame, ODDS_MARKETS, LIST_MARKETS } from "@/lib/providers/odds-api";
 import { teamLogo } from "@/lib/team-logos";
-import { setSetting } from "@/lib/settings";
+import { getSettings, setSetting } from "@/lib/settings";
 import { deriveMarketsFrom1x2, DERIVED_MARKET_KEYS } from "@/lib/derived-markets";
 import { LEAGUE_TITLES } from "@/lib/league-titles";
 import { FEED_MAX_LEAGUES } from "@/lib/feed";
@@ -224,13 +224,26 @@ export async function syncGames(providerId?: string) {
   }
 
   const sports = await provider.fetchSports();
-  // FULL mapping: every bettable league the API lists is synced — curated
-  // SPORT_KEY_MAP first, auto-mapped via resolveSportSlug() for everything
-  // else (NFL, NHL, boxing, cricket, K-League, …). The odds pass is capped
-  // by ODDS_API_FEED_MAX_LEAGUES (1 request per league; raise on paid plans).
   const bettable = sports.filter((s) => isBettableSportKey(s.key));
-  const sportKeys = bettable.map((s) => s.key).slice(0, FEED_MAX_LEAGUES);
-  const liveTitles = new Map(bettable.map((s) => [s.key, s.name]));
+  const inSeason = new Map(bettable.map((s) => [s.key, s.name]));
+
+  // League selection:
+  //   whitelist mode — Admin-configured odds.syncLeagues (Admin → API
+  //   Settings → League sync): ONLY the listed keys are queried, in the
+  //   admin's order. Out-of-season / non-bettable listed keys are skipped
+  //   silently (the live catalog is the gate). No credit is spent on any
+  //   league the client didn't list.
+  //   default mode — every bettable league the API lists (catalog order),
+  //   capped by ODDS_API_FEED_MAX_LEAGUES (1 request per league).
+  const s = await getSettings();
+  const configured = s.oddsSyncLeagues ?? [];
+  const whitelistMode = configured.length > 0;
+  const sportKeys = whitelistMode
+    ? configured.filter((k) => inSeason.has(k))
+    : bettable.map((s) => s.key).slice(0, FEED_MAX_LEAGUES);
+  const liveTitles = whitelistMode
+    ? new Map(sportKeys.map((k) => [k, inSeason.get(k)!]))
+    : inSeason;
 
   // Make sure every mapped sport has a Sport row (new installs get them from
   // the seed; existing installs get them here) before the N+1 batch lookup.
@@ -366,7 +379,10 @@ export async function syncGames(providerId?: string) {
 
   // Per-event extended markets (btts, correct_score, …) for the top leagues —
   // fetched from /events/{id}/odds for the nearest upcoming fixtures.
-  const eventMarkets = await syncEventMarkets(priced.filter((g) => !g.inPlay));
+  const eventMarkets = await syncEventMarkets(
+    priced.filter((g) => !g.inPlay),
+    whitelistMode ? sportKeys : undefined,
+  );
 
   // Auto-hide seed/manual games once the provider feed is live — the site then
   // shows only synced (API) games. Auto-enables on any successful sync that
@@ -380,6 +396,8 @@ export async function syncGames(providerId?: string) {
   }
 
   return {
+    mode: whitelistMode ? "whitelist" : "catalog",
+    leagues: sportKeys.length,
     created,
     updated,
     oddsUpdated,
@@ -418,15 +436,24 @@ const EVENT_MARKET_LIMIT = Math.max(0, Number(process.env.ODDS_API_EVENT_MARKET_
  */
 export async function syncEventMarkets(
   preMatchGames: ApiGame[],
+  /** Restrict to these sport keys (whitelist mode). Defaults to the
+   *  EVENT_MARKET_LEAGUES env set. */
+  onlyKeys?: string[],
 ): Promise<{ events: number; markets: number }> {
   const extended = ODDS_MARKETS.filter((m) => !(LIST_MARKETS as readonly string[]).includes(m));
-  if (!extended.length || EVENT_MARKET_LEAGUES.length === 0) return { events: 0, markets: 0 };
+  // In whitelist mode the extended pass may only run for leagues the admin
+  // listed (it costs ~1 credit per market per event) — intersect the env
+  // default with the whitelist so nothing unlisted is ever charged.
+  const leagues = onlyKeys?.length
+    ? EVENT_MARKET_LEAGUES.filter((k) => onlyKeys.includes(k))
+    : EVENT_MARKET_LEAGUES;
+  if (!extended.length || leagues.length === 0) return { events: 0, markets: 0 };
 
   // Nearest LIMIT upcoming fixtures per configured league (cheapest first).
   const perLeague = new Map<string, ApiGame[]>();
   const sorted = [...preMatchGames].sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
   for (const g of sorted) {
-    if (!EVENT_MARKET_LEAGUES.includes(g.sportKey)) continue;
+    if (!leagues.includes(g.sportKey)) continue;
     const list = perLeague.get(g.sportKey) ?? [];
     if (list.length >= EVENT_MARKET_LIMIT) continue;
     list.push(g);
