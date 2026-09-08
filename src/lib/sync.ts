@@ -15,12 +15,12 @@
  */
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
-import { TheOddsApi, OddsProvider, ApiGame, ODDS_MARKETS, LIST_MARKETS } from "@/lib/providers/odds-api";
+import { TheOddsApi, OddsProvider, ApiGame, LIST_MARKETS, getEffectiveOddsMarkets } from "@/lib/providers/odds-api";
 import { teamLogo } from "@/lib/team-logos";
 import { getSettings, setSetting } from "@/lib/settings";
 import { deriveMarketsFrom1x2, DERIVED_MARKET_KEYS } from "@/lib/derived-markets";
 import { LEAGUE_TITLES } from "@/lib/league-titles";
-import { FEED_MAX_LEAGUES } from "@/lib/feed";
+
 
 export const PROVIDERS: Record<string, () => OddsProvider> = {
   "the-odds-api": () => new TheOddsApi(), // the ONLY provider
@@ -238,9 +238,14 @@ export async function syncGames(providerId?: string) {
   const s = await getSettings();
   const configured = s.oddsSyncLeagues ?? [];
   const whitelistMode = configured.length > 0;
+  // Catalog-mode cap: env ODDS_API_FEED_MAX_LEAGUES wins over the DB setting.
+  const envFeedCap = Number(process.env.ODDS_API_FEED_MAX_LEAGUES);
+  const feedCap = process.env.ODDS_API_FEED_MAX_LEAGUES !== undefined && Number.isFinite(envFeedCap) && envFeedCap > 0
+    ? Math.round(envFeedCap)
+    : s.oddsFeedMaxLeagues;
   const sportKeys = whitelistMode
     ? configured.filter((k) => inSeason.has(k))
-    : bettable.map((s) => s.key).slice(0, FEED_MAX_LEAGUES);
+    : bettable.map((x) => x.key).slice(0, feedCap);
   const liveTitles = whitelistMode
     ? new Map(sportKeys.map((k) => [k, inSeason.get(k)!]))
     : inSeason;
@@ -433,7 +438,8 @@ export async function syncEventMarkets(
   /** Max events per league (0 = off). */
   limit: number,
 ): Promise<{ events: number; markets: number }> {
-  const extended = ODDS_MARKETS.filter((m) => !(LIST_MARKETS as readonly string[]).includes(m));
+  const effective = await getEffectiveOddsMarkets();
+  const extended = effective.filter((m) => !(LIST_MARKETS as readonly string[]).includes(m));
   if (!extended.length || leagues.length === 0 || limit <= 0) return { events: 0, markets: 0 };
 
   // Nearest `limit` upcoming fixtures per configured league (cheapest first).

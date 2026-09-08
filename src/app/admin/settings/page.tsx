@@ -57,15 +57,6 @@ const GROUPS: { title: string; anchor: string; icon: React.ReactNode; fields: Fi
     ],
   },
   {
-    title: "Odds Sync (credits)",
-    anchor: "odds-sync",
-    icon: <IconTv className="h-4 w-4" />,
-    fields: [
-      { key: "odds.eventMarketLimit", label: "Event market limit (per league)", type: "number", hint: "How many of the nearest fixtures per featured league get deep markets (Correct Score, BTTS, half-time, alternates…). 0 = deep-market pass OFF — matches show only 1X2 / Handicap / Over-Under + derived DC/DNB/BTTS (cheapest). ~1 credit per market per event. Env ODDS_API_EVENT_MARKET_LIMIT overrides" },
-      { key: "odds.eventMarketLeagues", label: "Event market leagues", type: "text", hint: "Comma-separated Odds API keys that receive deep markets, e.g. soccer_epl,soccer_uefa_champs_league. Empty = no league gets deep markets. Env ODDS_API_EVENT_MARKET_LEAGUES overrides. Also intersected with your League Sync whitelist (Admin → API Settings)" },
-    ],
-  },
-  {
     title: "Live",
     anchor: "live",
     icon: <IconTv className="h-4 w-4" />,

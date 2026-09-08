@@ -30,6 +30,15 @@ type SyncLeaguesData = {
   note: string;
 };
 
+type OddsConfig = {
+  stored: {
+    regions: string; rateLimitMs: number; eventBookmakers: string; markets: string[];
+    feedMaxLeagues: number; eventMarketLimit: number; eventMarketLeagues: string[]; syncLeagues: string[];
+  };
+  env: Record<string, string | undefined>;
+  quota: { used: number; remaining: number } | null;
+};
+
 /** Accept one key per line, comma separated, or a JSON array. */
 function parseLeagues(v: string): string[] {
   const raw = v.trim();
@@ -55,6 +64,19 @@ export default function AdminApiSettings() {
   const [savedMsg, setSavedMsg] = useState("");
   const [search, setSearch] = useState("");
   const [copiedAll, setCopiedAll] = useState(false);
+  // Odds engine config + live quota (Admin → API Settings)
+  const [odds, setOdds] = useState<OddsConfig | null>(null);
+  const [fm, setFm] = useState({
+    regions: "eu,us",
+    rateLimitMs: "1100",
+    bookmakers: "bovada,pinnacle",
+    markets: "",
+    feedMaxLeagues: "120",
+    evLimit: "4",
+    evLeagues: "",
+  });
+  const [savingOdds, setSavingOdds] = useState<"" | "ev" | "prefs">("");
+  const [oddsMsg, setOddsMsg] = useState("");
 
   useEffect(() => {
     apiFetch<{ config: ApiConfig }>("/api/admin/config/api").then((res) => {
@@ -102,6 +124,75 @@ export default function AdminApiSettings() {
       push("info", "Browser blocked clipboard — select the list text manually.");
     }
   }
+
+  useEffect(() => {
+    apiFetch<OddsConfig>("/api/admin/odds-config").then((r) => {
+      if (!r.ok) return;
+      setOdds(r.data);
+      setFm({
+        regions: r.data.stored.regions,
+        rateLimitMs: String(r.data.stored.rateLimitMs),
+        bookmakers: r.data.stored.eventBookmakers,
+        markets: r.data.stored.markets.join(", "),
+        feedMaxLeagues: String(r.data.stored.feedMaxLeagues),
+        evLimit: String(r.data.stored.eventMarketLimit),
+        evLeagues: r.data.stored.eventMarketLeagues.join(", "),
+      });
+    });
+    const t = setInterval(() => {
+      // Keep the quota read fresh (server caches 60s; the /v4/sports call is free).
+      apiFetch<OddsConfig>("/api/admin/odds-config").then((r) => r.ok && setOdds(r.data));
+    }, 60_000);
+    return () => clearInterval(t);
+  }, []);
+
+  const envTag = (key: keyof OddsConfig["env"]) =>
+    odds?.env?.[key] ? (
+      <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-600 dark:text-amber-400" title={`Railway env ${key} overrides this`}>
+        env: {odds.env[key]}
+      </span>
+    ) : null;
+
+  async function saveOdds(kind: "ev" | "prefs") {
+    setSavingOdds(kind);
+    setOddsMsg("");
+    const body =
+      kind === "ev"
+        ? { eventMarketLimit: Number(fm.evLimit || 0), eventMarketLeagues: fm.evLeagues }
+        : {
+            regions: fm.regions,
+            rateLimitMs: Number(fm.rateLimitMs || 1100),
+            eventBookmakers: fm.bookmakers,
+            markets: fm.markets,
+            feedMaxLeagues: Number(fm.feedMaxLeagues || 120),
+          };
+    const res = await apiFetch<{ message: string }>("/api/admin/odds-config", { method: "PUT", body });
+    setSavingOdds("");
+    if (!res.ok) return push("error", res.error.message);
+    setOddsMsg(res.data.message);
+    push("success", res.data.message);
+    const r = await apiFetch<OddsConfig>("/api/admin/odds-config");
+    if (r.ok) setOdds(r.data);
+  }
+
+  // ≈ runs left on the current balance for the LIST pass only.
+  const runsLeft = (() => {
+    const q = odds?.quota;
+    if (!q || !odds) return null;
+    const regionsCount = fm.regions.includes(",") ? 2 : 1;
+    const perLeague = 3 * regionsCount;
+    const leagues = (syncData?.configured?.length ?? 0) || odds.stored.feedMaxLeagues || 1;
+    if (!perLeague || !leagues) return null;
+    const listRuns = Math.floor(q.remaining / (perLeague * leagues));
+    const deep = Number(fm.evLimit || 0) > 0;
+    return { listRuns, deep, perRun: perLeague * leagues };
+  })();
+
+  const quotaPct = odds?.quota
+    ? Math.round((odds.quota.used / (odds.quota.used + odds.quota.remaining)) * 100)
+    : 0;
+  const quotaLow = odds?.quota ? odds.quota.remaining < 1000 : false;
+  const quotaWarn = odds?.quota ? odds.quota.remaining >= 1000 && odds.quota.remaining < 5000 : false;
 
   const catalogFiltered = syncData?.catalog?.filter(
     (c) => c.key.toLowerCase().includes(search.toLowerCase()) || c.name.toLowerCase().includes(search.toLowerCase()),
@@ -195,6 +286,136 @@ export default function AdminApiSettings() {
             {!test.ok && <p className="mt-1 text-xs text-ink2">{test.error ?? test.note}</p>}
           </div>
         )}
+      </div>
+
+      {/* ── Credits: live quota ───────────────────────────────── */}
+      <div className="card p-6">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h1 className="text-lg font-extrabold">Credits — live quota</h1>
+            <p className="text-sm text-ink2">Remaining balance on your The Odds API plan (checked via the free /v4/sports call, refreshed automatically).</p>
+          </div>
+          <button className="btn btn-ghost btn-sm" onClick={() => { apiFetch<OddsConfig>("/api/admin/odds-config").then((r) => r.ok && setOdds(r.data)); }}>
+            Refresh
+          </button>
+        </div>
+        {odds?.quota ? (
+          <div className="mt-4">
+            <div className="flex flex-wrap items-end gap-x-6 gap-y-2">
+              <div>
+                <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Remaining</div>
+                <div className={`text-3xl font-extrabold ${quotaLow ? "text-red-600 dark:text-red-400" : quotaWarn ? "text-amber-600 dark:text-amber-400" : "text-green-600 dark:text-green-400"}`}>
+                  {odds.quota.remaining.toLocaleString()}
+                </div>
+              </div>
+              <div>
+                <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Used this cycle</div>
+                <div className="text-xl font-bold text-slate-900 dark:text-white">{odds.quota.used.toLocaleString()}</div>
+              </div>
+              <div>
+                <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Plan total</div>
+                <div className="text-xl font-bold text-slate-900 dark:text-white">{(odds.quota.used + odds.quota.remaining).toLocaleString()}</div>
+              </div>
+            </div>
+            <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-card2">
+              <div className={`h-full rounded-full ${quotaLow ? "bg-red-500" : quotaWarn ? "bg-amber-500" : "bg-green-500"}`} style={{ width: `${quotaPct}%` }} />
+            </div>
+            {runsLeft && (
+              <p className="mt-2 text-xs text-ink2">
+                <b>{runsLeft.listRuns.toLocaleString()} full sync runs left</b> on your current balance at {runsLeft.perRun.toLocaleString()} credits/run
+                (list pass only)
+                {runsLeft.deep && " — the deep-market pass adds credits per run; see Event markets below."}
+              </p>
+            )}
+            {!odds?.quota && <p className="mt-2 text-xs text-amber-400">Quota unavailable — is ODDS_API_KEY set in the environment?</p>}
+          </div>
+        ) : (
+          <p className="mt-3 text-sm text-ink3">Loading quota…</p>
+        )}
+      </div>
+
+      {/* ── Odds engine preferences (credits 1–5) ─────────────── */}
+      <div className="card p-6">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h1 className="text-lg font-extrabold">Odds engine preferences</h1>
+            <p className="text-sm text-ink2">Per-client DB settings — Railway env vars (ODDS_API_*) override these when set.</p>
+          </div>
+          <button className="btn btn-primary btn-sm" disabled={savingOdds === "prefs"} onClick={() => saveOdds("prefs")}>
+            {savingOdds === "prefs" ? "Saving…" : "Save preferences"}
+          </button>
+        </div>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div>
+            <label className="label">Bookmaker regions</label>
+            <select className="input" value={fm.regions} onChange={(e) => setFm((f) => ({ ...f, regions: e.target.value }))}>
+              {["eu,us", "eu", "us"].map((o) => <option key={o} value={o}>{o}</option>)}
+            </select>
+            <p className="mt-1 text-[11px] text-ink3">
+              <b>eu</b> = 3 credits/league (Pinnacle soccer). <b>eu,us</b> = 6 (adds US books; needed to price US sports).{" "}
+              <b>us</b> = 3 (US books only).
+            </p>
+            {envTag("regions")}
+          </div>
+          <div>
+            <label className="label">Min ms between API requests</label>
+            <input className="input" type="number" min={50} value={fm.rateLimitMs} onChange={(e) => setFm((f) => ({ ...f, rateLimitMs: e.target.value }))} />
+            <p className="mt-1 text-[11px] text-ink3">Rate limiting (1100 ≈ 1 req/sec). Lower only if your plan allows.</p>
+            {envTag("rateLimitMs")}
+          </div>
+          <div>
+            <label className="label">Event-market bookmakers</label>
+            <input className="input font-mono text-xs" value={fm.bookmakers} onChange={(e) => setFm((f) => ({ ...f, bookmakers: e.target.value }))} placeholder="bovada,pinnacle" />
+            <p className="mt-1 text-[11px] text-ink3">Books used by the deep per-event pass (bovada deepest, pinnacle fallback).</p>
+            {envTag("eventBookmakers")}
+          </div>
+          <div className="sm:col-span-2">
+            <label className="label">Market keys (comma separated — empty = built-in menu)</label>
+            <input className="input font-mono text-xs" value={fm.markets} onChange={(e) => setFm((f) => ({ ...f, markets: e.target.value }))} placeholder="h2h,spreads,totals,btts,double_chance,…" />
+            <p className="mt-1 text-[11px] text-ink3">The list pass always uses h2h/spreads/totals; extra keys run on the per-event pass (≈1 credit per market per event).</p>
+            {envTag("markets")}
+          </div>
+          <div>
+            <label className="label">Catalog-mode league cap (per run)</label>
+            <input className="input" type="number" min={1} value={fm.feedMaxLeagues} onChange={(e) => setFm((f) => ({ ...f, feedMaxLeagues: e.target.value }))} />
+            <p className="mt-1 text-[11px] text-ink3">Only applies when the League Sync whitelist is empty.</p>
+            {envTag("feedMaxLeagues")}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Event markets (deep markets) ──────────────────────── */}
+      <div className="card p-6">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h1 className="text-lg font-extrabold">Event markets (deep markets)</h1>
+            <p className="text-sm text-ink2">
+              Correct Score, BTTS, half-time, alternates, corners/cards — fetched per event from the featured leagues. ~1 credit per served market per event.
+            </p>
+          </div>
+          <button className="btn btn-primary btn-sm" disabled={savingOdds === "ev"} onClick={() => saveOdds("ev")}>
+            {savingOdds === "ev" ? "Saving…" : "Save event markets"}
+          </button>
+        </div>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="label">Event market limit (nearest fixtures per league)</label>
+            <input className="input" type="number" min={0} value={fm.evLimit} onChange={(e) => setFm((f) => ({ ...f, evLimit: e.target.value }))} />
+            <p className="mt-1 text-[11px] text-ink3">
+              <b>0</b> = deep pass OFF (cheapest: matches show 1X2 / Handicap / Over-Under + derived DC/DNB/BTTS). <b>2–4</b> = that many nearest fixtures per featured league get the full menu.
+            </p>
+            {envTag("eventMarketLimit")}
+          </div>
+          <div>
+            <label className="label">Featured leagues (comma separated Odds API keys)</label>
+            <input className="input font-mono text-xs" value={fm.evLeagues} onChange={(e) => setFm((f) => ({ ...f, evLeagues: e.target.value }))} placeholder="soccer_epl,soccer_uefa_champs_league" />
+            <p className="mt-1 text-[11px] text-ink3">
+              Empty = no league gets deep markets. Intersected with your League Sync whitelist — unlisted leagues are never charged.
+            </p>
+            {envTag("eventMarketLeagues")}
+          </div>
+        </div>
+        {oddsMsg && <p className="mt-3 text-xs font-semibold text-green-600 dark:text-green-400">{oddsMsg}</p>}
       </div>
 
       {/* ── League sync whitelist ─────────────────────────────── */}

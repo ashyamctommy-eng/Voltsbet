@@ -18,6 +18,7 @@
  * between refreshes cost 0 requests.
  */
 import { TheOddsApi, type ApiGame } from "@/lib/providers/odds-api";
+import { getSettings } from "@/lib/settings";
 import { leagueRank } from "@/lib/league-rank";
 import { apiGameToMatchView, type FeedMatchView } from "@/lib/match-view";
 import { LEAGUE_TITLES } from "./league-titles";
@@ -103,8 +104,18 @@ export async function getPrematchFeed(
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean);
+      const settings = await getSettings();
+      const whitelist = settings.oddsSyncLeagues ?? [];
+      const envFeedCap = Number(process.env.ODDS_API_FEED_MAX_LEAGUES);
+      const feedCap = process.env.ODDS_API_FEED_MAX_LEAGUES !== undefined && Number.isFinite(envFeedCap) && envFeedCap > 0
+        ? Math.round(envFeedCap)
+        : settings.oddsFeedMaxLeagues || FEED_MAX_LEAGUES;
       let keys: string[];
-      if (override.length) {
+      if (whitelist.length) {
+        // Credit whitelist wins: the feed only prices leagues the admin
+        // listed (in-season ones present in the catalog).
+        keys = whitelist.filter((k) => sports.some((sp) => sp.key === k));
+      } else if (override.length) {
         keys = override.filter((k) => sports.some((s) => s.key === k));
       } else {
         keys = sports
@@ -118,7 +129,7 @@ export async function getPrematchFeed(
             return a.key.localeCompare(b.key);
           })
           .map((s) => s.key)
-          .slice(0, FEED_MAX_LEAGUES);
+          .slice(0, feedCap);
       }
       if (keys.length) {
         const games = await provider.fetchUpcomingGames(keys);

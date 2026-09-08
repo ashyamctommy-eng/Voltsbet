@@ -12,13 +12,20 @@
  * Paid plans raise the limit — set e.g. 250 for 4 req/sec after upgrading.
  */
 
-const MIN_SPACING_MS = Number(process.env.ODDS_API_RATE_LIMIT_MS) || 1100;
+import { getSettings } from "./settings";
+
 let lastRequestAt = 0;
 
-/** Space requests at least MIN_SPACING_MS apart (shared across callers). */
+/** Space requests at least the configured interval apart (shared across
+ *  callers). ODDS_API_RATE_LIMIT_MS env wins over the Admin → API Settings
+ *  value (odds.rateLimitMs); default 1100ms = 1 req/sec. */
 export async function oddsThrottle(): Promise<void> {
+  const envMs = Number(process.env.ODDS_API_RATE_LIMIT_MS);
+  const spacing = process.env.ODDS_API_RATE_LIMIT_MS !== undefined && Number.isFinite(envMs) && envMs > 0
+    ? envMs
+    : (await getSettings()).oddsRateLimitMs || 1100;
   const now = Date.now();
-  const wait = Math.max(0, lastRequestAt + MIN_SPACING_MS - now);
+  const wait = Math.max(0, lastRequestAt + spacing - now);
   if (wait > 0) await new Promise((r) => setTimeout(r, wait));
   lastRequestAt = Date.now();
 }

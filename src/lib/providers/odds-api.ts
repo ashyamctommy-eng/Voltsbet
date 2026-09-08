@@ -153,6 +153,16 @@ export const ODDS_MARKETS = (
 ) as readonly string[];
 
 /** Market key → local key + display name (derive totals line from outcomes). */
+
+/** Resolve the effective market set: ODDS_API_MARKETS env → DB
+ *  odds.markets (Admin → API Settings) → built-in default. */
+export async function getEffectiveOddsMarkets(): Promise<string[]> {
+  const env = process.env.ODDS_API_MARKETS?.split(",").map((x) => x.trim()).filter(Boolean) ?? [];
+  if (env.length) return env;
+  const settings = await getSettings();
+  return settings.oddsMarkets.length ? settings.oddsMarkets : [...ODDS_MARKETS];
+}
+
 const MARKET_MAP: {
   key: string;
   local: string;
@@ -388,7 +398,7 @@ export class TheOddsApi implements OddsProvider {
     }
   }
 
-  async fetchUpcomingGames(sportKeys: string[], markets: readonly string[] = ODDS_MARKETS) {
+  async fetchUpcomingGames(sportKeys: string[], markets?: readonly string[]) {
     const games: ApiGame[] = [];
     // Free tier serves US-region bookmakers only (regions=us); paid plans add
     // eu/uk/au. Configure via ODDS_API_REGIONS. Odds come as decimals either way.
@@ -396,10 +406,12 @@ export class TheOddsApi implements OddsProvider {
     // soccer book) and us adds Bovada + the US majors — a missing env var must
     // never silently drop Pinnacle (verified live 2026-09-02: eu 22 books /
     // us 10 / eu,us 34 on EPL). Costs 6 credits/league/list instead of 3.
-    const regions = process.env.ODDS_API_REGIONS ?? "eu,us";
+    const cfg = await getSettings();
+    const regions = process.env.ODDS_API_REGIONS ?? cfg.oddsRegions;
     // The list endpoint 422s on anything beyond the featured markets — the
     // extended set (btts, correct_score, …) is fetched per event instead.
-    const listMarkets = markets.filter((m) => (LIST_MARKETS as readonly string[]).includes(m));
+    const effective = markets ?? (await getEffectiveOddsMarkets());
+    const listMarkets = effective.filter((m) => (LIST_MARKETS as readonly string[]).includes(m));
     if (!listMarkets.length) return games;
     for (const sportKey of sportKeys) {
       const cacheKey = `${sportKey}:${regions}:${listMarkets.join(",")}`;
@@ -491,7 +503,7 @@ export class TheOddsApi implements OddsProvider {
     // as the fallback book for markets Bovada doesn't serve (e.g. correct
     // score). Response order follows the param order, so bovada prices win
     // where both books serve a market. Override via ODDS_API_EVENT_BOOKMAKERS.
-    const bookmakers = process.env.ODDS_API_EVENT_BOOKMAKERS ?? "bovada,pinnacle";
+    const bookmakers = process.env.ODDS_API_EVENT_BOOKMAKERS ?? ((await getSettings()).oddsEventBookmakers || "bovada,pinnacle");
     const out: ApiGame[] = [];
     let skipped = 0;
     for (const ev of events) {

@@ -98,6 +98,23 @@ export type SiteSettings = {
   /** Featured leagues for the per-event pass (Odds API keys). Empty = pass
    *  off. Env ODDS_API_EVENT_MARKET_LEAGUES overrides. */
   oddsEventMarketLeagues: string[];
+  /** Bookmaker regions requested per league ("eu" | "us" | "eu,us"). eu
+   *  = 3 credits/league (Pinnacle soccer), eu,us = 6 (adds US books).
+   *  Env ODDS_API_REGIONS overrides. */
+  oddsRegions: string;
+  /** Min ms between Odds API requests (rate limiting). Env
+   *  ODDS_API_RATE_LIMIT_MS overrides. */
+  oddsRateLimitMs: number;
+  /** Books used for the deep per-event pass ("bovada,pinnacle"). Env
+   *  ODDS_API_EVENT_BOOKMAKERS overrides. */
+  oddsEventBookmakers: string;
+  /** Market keys requested (list pass uses h2h/spreads/totals; the rest are
+   *  per-event). Empty = the built-in default menu. Env ODDS_API_MARKETS
+   *  overrides. */
+  oddsMarkets: string[];
+  /** Cap on leagues queried per sync/feed when no whitelist is set. Env
+   *  ODDS_API_FEED_MAX_LEAGUES overrides. */
+  oddsFeedMaxLeagues: number;
   // Automation
   settlementDelayMinutes: number; // settle finished games only after this many minutes
   cronSecret: string; // bearer token for /api/cron/* endpoints
@@ -184,6 +201,11 @@ const DEFAULTS: SiteSettings = {
   settlementDelayMinutes: 10,
   cronSecret: "",
   oddsSyncLeagues: [],
+  oddsRegions: "eu,us",
+  oddsRateLimitMs: 1100,
+  oddsEventBookmakers: "bovada,pinnacle",
+  oddsMarkets: [],
+  oddsFeedMaxLeagues: 120,
   oddsEventMarketLimit: 4,
   oddsEventMarketLeagues: [
     "soccer_epl",
@@ -347,6 +369,24 @@ export async function getSettings(): Promise<SiteSettings> {
     } catch {
       s.oddsEventMarketLeagues = [];
     }
+    // Provider prefs: regions, rate-limit ms, event bookmakers, market set,
+    // feed/sync league cap. Env overrides are applied by the consumers.
+    const rawRegions = raw["odds.regions"];
+    s.oddsRegions = rawRegions && ["eu", "us", "eu,us"].includes(rawRegions) ? rawRegions : s.oddsRegions;
+    const rawRl = Number(raw["odds.rateLimitMs"]);
+    s.oddsRateLimitMs = raw["odds.rateLimitMs"] !== undefined && Number.isFinite(rawRl) && rawRl > 0 ? Math.round(rawRl) : s.oddsRateLimitMs;
+    s.oddsEventBookmakers = (raw["odds.eventBookmakers"] ?? s.oddsEventBookmakers).trim() || s.oddsEventBookmakers;
+    const rawMarkets = raw["odds.markets"] ?? "";
+    try {
+      const v: unknown = rawMarkets.trim().startsWith("[") ? JSON.parse(rawMarkets) : rawMarkets.split(",");
+      s.oddsMarkets = Array.isArray(v)
+        ? [...new Set(v.filter((x): x is string => typeof x === "string").map((x) => x.trim()).filter(Boolean))]
+        : [];
+    } catch {
+      s.oddsMarkets = [];
+    }
+    const rawCap = Number(raw["odds.feedMaxLeagues"]);
+    s.oddsFeedMaxLeagues = raw["odds.feedMaxLeagues"] !== undefined && Number.isFinite(rawCap) && rawCap > 0 ? Math.round(rawCap) : s.oddsFeedMaxLeagues;
   }
   cache = s;
   cacheAt = Date.now();

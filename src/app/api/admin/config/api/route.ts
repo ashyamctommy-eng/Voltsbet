@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { handle, ok, sharedAdminGuard } from "@/lib/api";
+import { getSettings } from "@/lib/settings";
 
 /**
  * Admin API config — The Odds API (v4) — the ONLY sports data provider.
@@ -14,12 +15,13 @@ import { handle, ok, sharedAdminGuard } from "@/lib/api";
 export const GET = handle(async (req: NextRequest) => {
   await sharedAdminGuard(req, "settings");
   const key = process.env.ODDS_API_KEY ?? "";
+  const settings = await getSettings();
   return ok({
     config: {
       provider: "the-odds-api",
       keySet: !!key,
       keyMasked: key ? "••••" + key.slice(-4) : "",
-      regions: process.env.ODDS_API_REGIONS ?? "eu,us",
+      regions: process.env.ODDS_API_REGIONS ?? settings.oddsRegions,
       note: "Sports data is served exclusively by The Odds API (v4) — set ODDS_API_KEY in the server environment.",
     },
   });
