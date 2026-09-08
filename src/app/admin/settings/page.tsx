@@ -24,8 +24,9 @@ const GROUPS: { title: string; anchor: string; icon: React.ReactNode; fields: Fi
     anchor: "branding",
     icon: <IconPencil className="h-4 w-4" />,
     fields: [
-      { key: "site.name", label: "Site name", type: "text" },
-      { key: "site.tagline", label: "Tagline", type: "text" },
+      { key: "site.name", label: "Site name", type: "text", hint: "Shown in the header logo, drawer, browser-tab title, footer © line, splash screen, login/register copy, voucher prints, bet share text, and payment/OTP messages" },
+      { key: "site.tagline", label: "Tagline", type: "text", hint: "Used in the footer + browser-tab meta description" },
+      { key: "support.email", label: "Support email (support@yourdomain)", type: "text", hint: "Shown in the footer contact list + support surfaces. Set per client, e.g. support@voltbets.com — same value as Support & Social → Support email" },
       { key: "branding.primaryColor", label: "Primary color", type: "text", hint: "Hex, e.g. #00e676" },
       { key: "branding.secondaryColor", label: "Background color", type: "text", hint: "Hex, e.g. #0b1220" },
       { key: "branding.accentColor", label: "Accent color", type: "text", hint: "Hex, e.g. #7c3aed" },
