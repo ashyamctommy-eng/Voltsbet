@@ -225,7 +225,16 @@ export default function DepositPage() {
           <MethodCard active={effectiveMethod === "CRYPTO"} icon="₿" title={t("deposit.methodCrypto")} sub="BTC · ETH · USDT" onClick={() => { setMethod("CRYPTO"); setPending(null); }} />
         )}
         {methods.includes("MPESA") && (
-          <MethodCard active={effectiveMethod === "MPESA"} icon="📱" title={t("withdraw.methodMpesa")} sub={t("deposit.mpesaSub")} onClick={() => { setMethod("MPESA"); setPending(null); }} />
+          <MethodCard
+            active={effectiveMethod === "MPESA"}
+            icon={
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src="/mpesaicon.png" alt="M-Pesa" className="h-7 w-7 rounded-full object-cover" />
+            }
+            title={t("withdraw.methodMpesa")}
+            sub={t("deposit.mpesaSub")}
+            onClick={() => { setMethod("MPESA"); setPending(null); }}
+          />
         )}
         {methods.includes("VOUCHER") && (
           <MethodCard active={effectiveMethod === "VOUCHER"} icon="🎟️" title={t("deposit.methodVoucher")} sub={t("deposit.voucherSub")} onClick={() => { setMethod("VOUCHER"); setPending(null); }} />
@@ -266,7 +275,12 @@ export default function DepositPage() {
           <div className="card p-5">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="font-bold">{effectiveMethod === "MPESA" ? t("deposit.step1Mpesa") : t("deposit.step1Coin")}</h3>
-              <span className="text-xs text-ink3">{effectiveMethod === "MPESA" ? t("deposit.lipa") : t("deposit.noFees")}</span>
+              {effectiveMethod === "MPESA" ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src="/mpesabanner.png" alt="Lipa Na M-Pesa" className="h-6 w-auto object-contain inline-block" />
+              ) : (
+                <span className="text-xs text-ink3">{t("deposit.noFees")}</span>
+              )}
             </div>
             {effectiveMethod === "MPESA" ? (
               <div className="flex items-center gap-3">
@@ -521,7 +535,8 @@ export default function DepositPage() {
   );
 }
 
-function MethodCard({ active, icon, title, sub, onClick }: { active: boolean; icon: string; title: string; sub: string; onClick: () => void }) {
+function MethodCard({ active, icon, title, sub, onClick }: { active: boolean; icon: React.ReactNode; title: string; sub: string; onClick: () => void }) {
+  const isImage = typeof icon !== "string";
   return (
     <button
       type="button"
@@ -530,9 +545,18 @@ function MethodCard({ active, icon, title, sub, onClick }: { active: boolean; ic
         active ? "border-brand bg-brand/10" : "border-line2 hover:border-ink3"
       }`}
     >
-      <span className={`flex h-9 w-9 items-center justify-center rounded-full text-base font-black ${active ? "bg-brand text-[#052e16]" : "bg-card2 text-ink2"}`}>
-        {icon}
-      </span>
+      {isImage ? (
+        /* Image logo (e.g. M-Pesa badge): no tinted disc behind it — the
+           logo already carries its own shape/colors. Active state gets a
+           brand ring instead. */
+        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${active ? "ring-2 ring-brand" : ""}`}>
+          {icon}
+        </span>
+      ) : (
+        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-base font-black ${active ? "bg-brand text-[#052e16]" : "bg-card2 text-ink2"}`}>
+          {icon}
+        </span>
+      )}
       <span>
         <span className={`block text-sm font-bold ${active ? "text-brand" : "text-ink"}`}>{title}</span>
         <span className="block text-[11px] text-ink3">{sub}</span>
