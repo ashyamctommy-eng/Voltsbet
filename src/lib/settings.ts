@@ -99,7 +99,8 @@ export type SiteSettings = {
    *  off. Env ODDS_API_EVENT_MARKET_LEAGUES overrides. */
   oddsEventMarketLeagues: string[];
   /** Bookmaker regions requested per league ("eu" | "us" | "eu,us"). eu
-   *  = 3 credits/league (Pinnacle soccer), eu,us = 6 (adds US books).
+   *  = 3 credits/league (Pinnacle soccer — the default: cheapest and
+   *  football-first), eu,us = 6 (adds US books for US sports pricing).
    *  Env ODDS_API_REGIONS overrides. */
   oddsRegions: string;
   /** Min ms between Odds API requests (rate limiting). Env
@@ -201,7 +202,7 @@ const DEFAULTS: SiteSettings = {
   settlementDelayMinutes: 10,
   cronSecret: "",
   oddsSyncLeagues: [],
-  oddsRegions: "eu,us",
+  oddsRegions: "eu",
   oddsRateLimitMs: 1100,
   oddsEventBookmakers: "bovada,pinnacle",
   oddsMarkets: [],
