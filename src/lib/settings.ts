@@ -45,7 +45,7 @@ export type SiteSettings = {
    *  (USDT, BNB) have NO bare code on NOWPayments, so they always resolve. */
   cryptoNetworks: Record<string, string>;
   cryptoRates: Record<string, number>; // KES per 1 coin, for deposit estimates
-  mpesaEnabled: boolean;
+  mpesaEnabled: boolean; // M-Pesa rail on (deposit tab): ENABLE_MPESA_PAYMENTS env wins; else explicit admin toggle; auto-on when a Palplus API key is saved and the toggle was never set
   mpesaWithdrawalsEnabled: boolean; // offer M-Pesa as a WITHDRAWAL method (env ENABLE_MPESA_WITHDRAWALS wins)
   mpesaEnv: string; // sandbox | production
   mpesaConsumerKey: string;
@@ -234,12 +234,28 @@ export async function getSettings(): Promise<SiteSettings> {
   s.cryptoNetworks = { ...DEFAULTS.cryptoNetworks, ...s.cryptoNetworks };
   try { s.cryptoRates = JSON.parse(raw["crypto.rates"] ?? "{}"); } catch {}
   if (!Object.keys(s.cryptoRates).length) s.cryptoRates = DEFAULTS.cryptoRates;
-  // ENABLE_MPESA_PAYMENTS env wins when set (true|false) — the hard kill
-  // switch for the whole M-Pesa rail (deposit + withdrawal tabs hide).
+  // Palplus (gateway M-Pesa) config is read BEFORE the enable flags below:
+  // a saved `palplus.apiKey` is itself an "M-Pesa enabled" signal.
+  s.palplusApiKey = raw["palplus.apiKey"] ?? s.palplusApiKey;
+  // channelId replaced the old merchantId field; fall back to the legacy key if set.
+  s.palplusChannelId = raw["palplus.channelId"] ?? raw["palplus.merchantId"] ?? s.palplusChannelId;
+  s.palplusWebhookSecret = raw["palplus.webhookSecret"] ?? s.palplusWebhookSecret;
+  s.palplusEnv = raw["palplus.env"] ?? s.palplusEnv;
+  // M-Pesa rail enablement precedence:
+  //   1. ENABLE_MPESA_PAYMENTS env — hard force/kill switch, wins over everything.
+  //   2. Explicit admin toggle (Setting row "mpesa.enabled") — true/false as saved.
+  //   3. Toggle NEVER saved (row absent) — the rail is on when Palpluss is
+  //      configured (an API key is present). Filling in the Palplus gateway
+  //      under Admin → M-Pesa (Palplus) IS the act of enabling M-Pesa on a
+  //      Palplus install — previously this fell through to `false`, so a
+  //      configured Palplus account never surfaced the M-Pesa Deposit tab
+  //      (users only saw Crypto + Voucher).
   s.mpesaEnabled =
     process.env.ENABLE_MPESA_PAYMENTS !== undefined
       ? process.env.ENABLE_MPESA_PAYMENTS === "true"
-      : raw["mpesa.enabled"] === "true";
+      : raw["mpesa.enabled"] !== undefined
+        ? raw["mpesa.enabled"] === "true"
+        : Boolean(s.palplusApiKey);
   s.mpesaWithdrawalsEnabled =
     process.env.ENABLE_MPESA_WITHDRAWALS !== undefined
       ? process.env.ENABLE_MPESA_WITHDRAWALS === "true" // env wins when set
@@ -254,11 +270,6 @@ export async function getSettings(): Promise<SiteSettings> {
   s.mpesaInitiatorName = raw["mpesa.initiatorName"] ?? s.mpesaInitiatorName;
   s.mpesaSecurityCredential = raw["mpesa.securityCredential"] ?? s.mpesaSecurityCredential;
   s.mpesaCallbackSecret = raw["mpesa.callbackSecret"] ?? s.mpesaCallbackSecret;
-  s.palplusApiKey = raw["palplus.apiKey"] ?? s.palplusApiKey;
-  // channelId replaced the old merchantId field; fall back to the legacy key if set.
-  s.palplusChannelId = raw["palplus.channelId"] ?? raw["palplus.merchantId"] ?? s.palplusChannelId;
-  s.palplusWebhookSecret = raw["palplus.webhookSecret"] ?? s.palplusWebhookSecret;
-  s.palplusEnv = raw["palplus.env"] ?? s.palplusEnv;
   s.appUrl = raw["app.url"] ?? s.appUrl;
   s.heroTitle = raw["home.heroTitle"] ?? s.heroTitle;
   s.heroSubtitle = raw["home.heroSubtitle"] ?? s.heroSubtitle;

@@ -84,18 +84,38 @@ export default function AdminDashboard() {
             </div>
           </div>
           <div className="rounded-2xl border border-line bg-card p-4">
-            <div className="flex items-center justify-between">
-              <span className="flex items-center gap-2 text-sm font-bold">
-                <IconSmartphone className="h-4 w-4 text-brand" /> M-Pesa (Daraja)
-              </span>
-              <StatusPill ok={settings["mpesa.enabled"] === "true" && !!settings["mpesa.consumerKey"]} onText="Live" offText="Off" />
-            </div>
-            <div className="mt-3 space-y-1 text-xs text-ink2">
-              <Row k="Enabled" v={settings["mpesa.enabled"] === "true" ? "Yes" : "No"} />
-              <Row k="Environment" v={settings["mpesa.env"] || "—"} />
-              <Row k="Paybill" v={settings["mpesa.shortcode"] || "—"} />
-              <Row k="Consumer key" v={settings["mpesa.consumerKey"] ? "•••••••• set" : "missing"} />
-            </div>
+            {(() => {
+              // Mirror settings.ts enablement for the dashboard: env
+              // overrides aren't visible to the browser, so this reflects
+              // the DB toggle + Palplus-key auto-enable rules.
+              const toggle = settings["mpesa.enabled"]; // undefined | "true" | "false"
+              const palplusKey = !!settings["palplus.apiKey"];
+              const darajaKey = !!settings["mpesa.consumerKey"];
+              // Auto-on: Palplus key present AND the toggle was never saved.
+              const enabled = toggle === "true" || (toggle === undefined && palplusKey);
+              const provider = palplusKey ? "Palpluss" : darajaKey ? "Daraja" : "—";
+              const live = enabled && (palplusKey || darajaKey);
+              return (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-2 text-sm font-bold">
+                      <IconSmartphone className="h-4 w-4 text-brand" /> M-Pesa
+                    </span>
+                    <StatusPill ok={live} onText="Live" offText="Off" />
+                  </div>
+                  <div className="mt-3 space-y-1 text-xs text-ink2">
+                    <Row k="Provider" v={provider} />
+                    <Row k="Enabled" v={enabled ? "Yes" : "No"} />
+                    <Row k="Environment" v={settings["palplus.env"] === "production" || settings["mpesa.env"] === "production" ? "production" : settings["palplus.env"] || settings["mpesa.env"] || "—"} />
+                    {palplusKey ? (
+                      <Row k="API key" v={settings["palplus.apiKey"] ? "•••••••• set" : "missing"} />
+                    ) : (
+                      <Row k="Consumer key" v={settings["mpesa.consumerKey"] ? "•••••••• set" : "missing"} />
+                    )}
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
       </section>

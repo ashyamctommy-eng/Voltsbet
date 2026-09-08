@@ -81,6 +81,12 @@ export const GET = handle(async () => {
       currencyRates: Object.fromEntries(
         Object.entries(await currencyMap()).map(([code, c]) => [code, c.rate])
       ),
+      // M-Pesa is a single method token ("MPESA") for the whole rail: the
+      // server routes it to Palplus when palplus.apiKey is configured,
+      // otherwise to the legacy Daraja provider. `mpesaEnabled` already
+      // reflects Palplus config (auto-on when an API key is saved and the
+      // admin toggle was never set) — so configuring Palplus in Admin alone
+      // makes this tab appear. Env ENABLE_MPESA_PAYMENTS=false still hides it.
       depositMethods: [
         "CRYPTO",
         ...(settings.mpesaEnabled ? ["MPESA" as const] : []),

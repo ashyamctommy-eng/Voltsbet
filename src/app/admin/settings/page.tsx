@@ -141,9 +141,9 @@ const GROUPS: { title: string; anchor: string; icon: React.ReactNode; fields: Fi
     anchor: "mpesa",
     icon: <IconSmartphone className="h-4 w-4" />,
     fields: [
-      { key: "mpesa.enabled", label: "M-Pesa payments enabled", type: "toggle", hint: "Show the M-Pesa tab on Deposit & Withdraw (env ENABLE_MPESA_PAYMENTS overrides)" },
+      { key: "mpesa.enabled", label: "M-Pesa payments enabled", type: "toggle", hint: "Shows the M-Pesa tab on Deposit & Withdraw. Auto-enables when a Palplus API key is saved below and this switch was never touched. Env ENABLE_MPESA_PAYMENTS (true/false) overrides all of this." },
       { key: "payments.mpesaWithdrawalsEnabled", label: "M-Pesa withdrawals enabled", type: "toggle", hint: "Offer M-Pesa as a payout method (env ENABLE_MPESA_WITHDRAWALS overrides)" },
-      { key: "palplus.apiKey", label: "PALPLUS_API_KEY", type: "password", hint: "Gateway API key from the Palplus merchant dashboard" },
+      { key: "palplus.apiKey", label: "PALPLUS_API_KEY", type: "password", hint: "Gateway API key from the Palplus merchant dashboard. Saving one enables the M-Pesa Deposit tab automatically (unless the toggle above is explicitly OFF or ENABLE_MPESA_PAYMENTS=false)" },
       { key: "palplus.channelId", label: "PALPLUS_CHANNEL_ID (optional)", type: "text", hint: "Payment-channel UUID from the Palpluss console — only needed if your account has no default channel" },
       { key: "palplus.webhookSecret", label: "PALPLUS_WEBHOOK_SECRET", type: "password", hint: "Appended to callback URLs as ?secret= — callbacks without it are rejected" },
       { key: "palplus.env", label: "PALPLUS_ENV", type: "select", options: ["sandbox", "production"], hint: "Keys start with pp_live_ (production) / pp_test_ (test) — check the console" },

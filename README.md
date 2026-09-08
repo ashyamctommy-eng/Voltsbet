@@ -192,7 +192,7 @@ build — the compile itself still succeeds.
 | `PURGE_THROTTLE_MINUTES` | — | `60` | Min minutes between calendar-purge runs |
 | `PURGE_MAX_AGE_HOURS` | — | `2` | Delete non-in-play games this long after kickoff |
 | `RATES_SYNC_THROTTLE_MINUTES` | — | `60` | Min minutes between market-rate syncs (`/api/cron/rates`) |
-| `ENABLE_MPESA_PAYMENTS` | — | unset (admin toggle) | `false` **hides the M-Pesa tab** on Deposit & Withdraw — users fall back to crypto; env wins over the admin toggle |
+| `ENABLE_MPESA_PAYMENTS` | — | unset (admin toggle / Palplus key) | `true` force-shows the M-Pesa tab; `false` **hides it** on Deposit & Withdraw regardless of Admin config — users fall back to crypto; env always wins |
 | `ENABLE_MPESA_WITHDRAWALS` | — | follows `ENABLE_MPESA_PAYMENTS` | `false` hides M-Pesa as a withdrawal method |
 | `PALPLUS_BASE_URL` | — | `https://api.palpluss.com/v1` | Override for gateway mirrors (rarely needed) |
 | `SHOW_SEEDED_GAMES` | — | unset | **Leave unset in production** — reveals demo games |
@@ -307,6 +307,13 @@ Open **Admin → Settings → M-Pesa (Palplus)**:
 Then hit **"⟳ Test Palpluss connection"** — it performs a read-only
 service-wallet balance call and confirms the key, channel and environment
 without initiating any payment.
+
+> **Showing the M-Pesa tab:** saving a `PALPLUS_API_KEY` automatically enables
+> the M-Pesa Deposit/Withdraw tabs — you do **not** need a separate toggle when
+> you've never touched "M-Pesa payments enabled". If you *have* flipped that
+> toggle OFF at some point, switch it back ON (or clear it) to show the tabs.
+> The only thing that overrides all of this is the `ENABLE_MPESA_PAYMENTS`
+> env var (`false` = hard-hide, `true` = force-show).
 
 The webhook URL is `https://<APP_URL>/api/webhooks/palplus` (copyable from the
 same settings page). Callbacks are authenticated by the `?secret=` suffix the
