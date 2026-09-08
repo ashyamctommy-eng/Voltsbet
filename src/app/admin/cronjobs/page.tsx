@@ -18,10 +18,11 @@ export default async function CronJobsPage() {
 
   return (
     <div>
-      <h2 className="text-xl font-extrabold">Cronjobs</h2>
+      <h2 className="text-xl font-extrabold">Cron Settings</h2>
       <p className="mt-1 text-sm text-ink3">
-        The four scheduled jobs behind {s.siteName} — with ready-to-paste configs for cron-job.org (recommended), UptimeRobot,
-        Railway cron, or plain curl. Schedules are evaluated in UTC.
+        The four scheduled jobs behind {s.siteName}. Trigger them from any scheduler — Railway Cron, UptimeRobot,
+        cron-job.org, or your own webhook/CI — ready-to-paste configs for each provider are generated per job below.
+        Schedules are evaluated in UTC.
       </p>
       <div className="mt-4">
         <CronJobsAdmin baseUrl={baseUrl} secret={secret} initialSchedules={schedules} />

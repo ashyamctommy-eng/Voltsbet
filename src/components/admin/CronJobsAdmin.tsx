@@ -102,14 +102,16 @@ export default function CronJobsAdmin({ baseUrl, secret, initialSchedules }: Pro
       {/* Provider recommendation + secret status */}
       <div className="grid gap-3 lg:grid-cols-2">
         <div className="card p-4">
-          <div className="text-xs font-black uppercase tracking-wider text-brand">My pick</div>
-          <h3 className="mt-1 font-bold">cron-job.org (free)</h3>
+          <div className="text-xs font-black uppercase tracking-wider text-brand">Scheduler</div>
+          <h3 className="mt-1 font-bold">Cron Settings</h3>
           <p className="mt-1 text-xs text-ink3">
-            Real cron syntax, fixed time-of-day, unlimited jobs, up to 60 runs/hour. UptimeRobot works too but the free plan
-            has no fixed hour and a 5-min floor — fine for <code>settle</code>, clunky for daily jobs.
+            Any scheduler that can hit an HTTPS URL on a schedule works — Railway Cron, UptimeRobot, cron-job.org,
+            or a plain webhook/CI trigger. Every job&apos;s ready-to-paste config (Railway, cron-job.org, UptimeRobot)
+            is generated below; <code>settle</code> prefers a ~10&ndash;15&nbsp;min interval.
           </p>
           <div className="mt-2 rounded-lg bg-hover-tint px-3 py-2 text-[11px] text-ink2">
-            <b>Tip:</b> sign up → New Cronjob → paste the URL below → set the schedule (cron syntax) → Test run. Done.
+            <b>Tip:</b> point any of the generated URLs at your chosen scheduler, run a manual <b>Run now</b> first, and
+            keep the <code>cron.secret</code> in one place (Admin &rarr; Website Settings, or the <code>CRON_SECRET</code> env var).
           </div>
         </div>
         <div className="card p-4">

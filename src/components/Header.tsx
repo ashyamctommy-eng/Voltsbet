@@ -186,15 +186,15 @@ export default function Header({
                 className="hidden flex-col items-end rounded-2xl border border-line bg-card px-3 py-1 text-right sm:flex"
                 aria-label={t("nav.deposit")}
               >
-                <span className="flex items-center gap-1 text-[10px] font-semibold leading-none text-ink3">
+                <span className="flex items-center gap-1 text-[10px] font-semibold leading-none text-slate-700 dark:text-slate-300">
                   {t("common.balance", { defaultValue: "Balance" })}
-                  <span className="font-bold text-green-400">
+                  <span className="font-bold text-green-600 dark:text-green-400">
                     {user.currencyCode} {user.balanceLabel.replace(/^\S+\s/, "")}
                   </span>
                 </span>
-                <span className="mt-0.5 flex items-center gap-1 text-[10px] font-semibold leading-none text-ink3">
+                <span className="mt-0.5 flex items-center gap-1 text-[10px] font-semibold leading-none text-slate-700 dark:text-slate-300">
                   {t("common.bonus", { defaultValue: "Bonus" })}
-                  <span className={`font-bold ${labelAmount(user.bonusLabel) > 0 ? "text-amber-400" : "text-ink3"}`}>
+                  <span className={`font-bold ${labelAmount(user.bonusLabel) > 0 ? "text-amber-600 dark:text-amber-400" : "text-slate-700 dark:text-slate-300"}`}>
                     {user.currencyCode} {user.bonusLabel.replace(/^\S+\s/, "")}
                   </span>
                   {labelAmount(user.bonusLabel) > 0 && !user.hasDeposited && (
@@ -267,14 +267,14 @@ export default function Header({
                 {menuOpen && (
                   <div className="fade-in absolute right-0 top-full z-50 mt-2 w-60 overflow-hidden rounded-xl border border-line bg-[var(--panel-bg,#121824)] shadow-2xl">
                     <div className="border-b border-line px-4 py-3">
-                      <div className="text-xs text-ink3">{t("common.balance")}</div>
-                      <div className="text-lg font-extrabold text-green-400">{user.balanceLabel}</div>
+                      <div className="text-xs font-medium text-slate-700 dark:text-slate-300">{t("common.balance")}</div>
+                      <div className="text-lg font-extrabold text-green-600 dark:text-green-400">{user.balanceLabel}</div>
                       {labelAmount(user.bonusLabel) > 0 && (
-                        <div className="mt-0.5 flex items-center gap-1 text-[11px] text-ink3">
+                        <div className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-slate-700 dark:text-slate-300">
                           <span>{t("common.bonus", { defaultValue: "Bonus" })}</span>
-                          <span className="font-bold text-amber-400">{user.bonusLabel}</span>
+                          <span className="font-bold text-amber-600 dark:text-amber-400">{user.bonusLabel}</span>
                           {!user.hasDeposited && (
-                            <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase text-amber-400">
+                            <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase text-amber-600 dark:text-amber-400">
                               Locked
                             </span>
                           )}

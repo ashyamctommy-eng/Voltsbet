@@ -19,6 +19,7 @@ import {
   IconPlug,
   IconController,
   IconClock,
+  IconSmartphone,
   IconTelegram,
   IconWhatsApp,
 } from "@/components/icons";
@@ -38,6 +39,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     { resource: "games", href: "/admin/games", label: "Games", Icon: IconCalendar },
     { resource: "users", href: "/admin/users", label: "Users", Icon: IconUsers },
     { resource: "deposits", href: "/admin/deposits", label: "Deposits", Icon: IconDownload },
+    { resource: "mpesa", href: "/admin/mpesa-transactions", label: "M-Pesa Transactions", Icon: IconSmartphone },
     { resource: "vouchers", href: "/admin/vouchers", label: "Vouchers", Icon: IconGift2 },
     { resource: "withdrawals", href: "/admin/withdrawals", label: "Withdrawals", Icon: IconUpload },
     { resource: "currencies", href: "/admin/currencies", label: "Currencies", Icon: IconCoins },

@@ -131,6 +131,11 @@ export default function AdminDashboard() {
           <div className="mt-2 font-bold">Crypto Transactions</div>
           <div className="text-xs text-ink3">Track deposits, confirm payments, review history.</div>
         </Link>
+        <Link href="/admin/mpesa-transactions" className="card card-hover p-5">
+          <IconSmartphone className="h-6 w-6 text-brand" />
+          <div className="mt-2 font-bold">M-Pesa Transactions</div>
+          <div className="text-xs text-ink3">Track STK push logs, C2B/B2C payments, and manual transaction reconciliations</div>
+        </Link>
         <Link href="/admin/users" className="card card-hover p-5">
           <IconUsers className="h-6 w-6 text-brand" />
           <div className="mt-2 font-bold">Users</div>

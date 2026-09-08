@@ -70,10 +70,10 @@ export default function AccountDashboard(props: AccountDashboardProps) {
       {/* Balance card */}
       <div className="card relative overflow-hidden p-6">
         <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-brand/15" />
-        <div className="text-sm text-ink2">{t("dashboard.available_balance")}</div>
-        <div className="mt-1 text-3xl font-extrabold text-green-400">{balanceLabel}</div>
+        <div className="text-sm font-medium text-slate-700 dark:text-slate-300">{t("dashboard.available_balance")}</div>
+        <div className="mt-1 text-3xl font-extrabold text-green-600 dark:text-green-400">{balanceLabel}</div>
         {bonusLabel && (
-          <div className="mt-1 text-xs text-ink3">{t("dashboard.bonus_balance", { label: bonusLabel })}</div>
+          <div className="mt-1 text-xs font-medium text-slate-700 dark:text-slate-300">{t("dashboard.bonus_balance", { label: bonusLabel })}</div>
         )}
         {bonusLabel && !hasDeposited && (
           <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-600 dark:text-amber-300">

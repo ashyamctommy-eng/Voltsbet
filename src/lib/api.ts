@@ -108,14 +108,14 @@ const RESOURCES = [
   "settlements", "bets", "deposits", "withdrawals", "transactions", "crypto",
   "currencies", "languages", "promotions", "banners",
   "users", "notifications", "support", "settings", "statuses", "audit",
-  "vouchers",
+  "vouchers", "mpesa",
 ] as const;
 export type Resource = (typeof RESOURCES)[number];
 
 const ROLE_RESOURCES: Record<string, Resource[]> = {
   SUPER_ADMIN: [...RESOURCES],
   SPORTS_MANAGER: ["dashboard", "sports", "games", "markets", "odds", "results", "live", "settlements", "bets"],
-  FINANCE_MANAGER: ["dashboard", "deposits", "withdrawals", "transactions", "crypto", "currencies", "users", "bets", "vouchers"],
+  FINANCE_MANAGER: ["dashboard", "deposits", "withdrawals", "transactions", "crypto", "mpesa", "currencies", "users", "bets", "vouchers"],
   SUPPORT_MANAGER: ["dashboard", "users", "notifications", "support"],
   CONTENT_MANAGER: ["dashboard", "promotions", "banners", "languages"],
 };
