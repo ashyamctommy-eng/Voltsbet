@@ -124,7 +124,7 @@ export default function AdminApiSettings() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="mx-auto w-full max-w-2xl px-0 sm:px-2">
       <div className="card p-6">
         <div className="flex items-center gap-3">
           <span className="grid h-11 w-11 place-items-center rounded-xl bg-brand/15 text-brand">
@@ -198,19 +198,19 @@ export default function AdminApiSettings() {
       </div>
 
       {/* ── League sync whitelist ─────────────────────────────── */}
-      <div className="card p-6">
+      <div className="card w-full max-w-full box-border overflow-hidden p-4 sm:p-6">
         <h1 className="text-lg font-extrabold">League sync — credit whitelist</h1>
-        <p className="mt-1 text-sm text-ink2">
+        <p className="mt-1 break-words text-sm text-ink2 [overflow-wrap:anywhere]">
           The odds sync costs <b>1 request per league per run</b>. Leave the list empty to sync every
-          bettable league (catalog order, capped by <code className="font-mono text-xs">ODDS_API_FEED_MAX_LEAGUES</code>),
+          bettable league (catalog order, capped by <code className="break-all font-mono text-xs">ODDS_API_FEED_MAX_LEAGUES</code>),
           or add only the leagues you offer — <b>nothing outside the list is ever queried</b>, so no credits
           are wasted on leagues you don&apos;t care about.
         </p>
 
-        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <div className="mt-4 grid w-full grid-cols-1 gap-4 lg:grid-cols-2">
           {/* Left: editor */}
-          <div>
-            <div className="mb-1 flex items-center justify-between">
+          <div className="min-w-0 max-w-full">
+            <div className="mb-1 flex flex-wrap items-center justify-between gap-1">
               <label className="label !mb-0">Leagues to sync (one key per line, in priority order)</label>
               {whitelistOn && (
                 <span className="text-[11px] font-bold text-brand">
@@ -219,7 +219,7 @@ export default function AdminApiSettings() {
               )}
             </div>
             <textarea
-              className="input min-h-[200px] w-full resize-y font-mono text-xs !leading-5"
+              className="input box-border min-h-[200px] w-full max-w-full resize-y break-all font-mono text-xs !leading-5"
               placeholder={"soccer_epl\nsoccer_uefa_champs_league\n# a # prefix ignores a line"}
               value={draft}
               onChange={(e) => { setDraft(e.target.value); setSavedMsg(""); }}
@@ -245,12 +245,12 @@ export default function AdminApiSettings() {
           </div>
 
           {/* Right: live catalog browser */}
-          <div className="flex min-h-[300px] flex-col rounded-xl border border-line bg-card p-3">
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
+          <div className="flex min-h-[300px] w-full min-w-0 max-w-full flex-col overflow-hidden rounded-xl border border-line bg-card p-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <div className="relative min-w-0 flex-1">
                 <IconSearch className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink3" />
                 <input
-                  className="input !py-1.5 !pl-8 text-xs"
+                  className="input box-border w-full max-w-full !py-1.5 !pl-8 text-xs"
                   placeholder={`Search ${syncData?.catalog?.length ?? 0} leagues…`}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -263,7 +263,7 @@ export default function AdminApiSettings() {
 
             {syncData?.catalog?.length ? (
               <>
-                <div className="mt-2 flex flex-wrap gap-1.5">
+                <div className="mt-2 flex w-full max-w-full flex-wrap gap-1.5">
                   {["soccer_", "basketball_", "tennis_", "icehockey_", "americanfootball_"].map((prefix) => {
                     const matches = syncData.catalog!.filter((c) => c.key.startsWith(prefix));
                     const anyOutside = matches.some((c) => !inDraft(c.key));
@@ -271,7 +271,7 @@ export default function AdminApiSettings() {
                       <button
                         key={prefix}
                         type="button"
-                        className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wide transition-colors ${
+                        className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wide transition-colors ${
                           matches.length && anyOutside ? "bg-brand/15 text-brand hover:bg-brand/25" : "bg-card2 text-ink3"
                         }`}
                         onClick={() => {
@@ -299,8 +299,8 @@ export default function AdminApiSettings() {
                           className={`flex w-full items-center gap-2 px-2 py-1.5 text-left transition-colors ${added ? "bg-brand/10" : "hover:bg-hover-tint"}`}
                         >
                           <span className={`w-6 shrink-0 text-center text-xs font-black ${added ? "text-brand" : "text-ink3"}`}>{added ? "✓" : "＋"}</span>
-                          <code className="min-w-0 flex-1 truncate font-mono text-[11px] text-ink">{c.key}</code>
-                          <span className="shrink-0 truncate text-[10px] text-ink3">{c.name}</span>
+                          <code className="min-w-0 max-w-full flex-1 truncate font-mono text-[11px] text-ink">{c.key}</code>
+                          <span className="shrink-0 max-w-[38%] truncate text-[10px] text-ink3">{c.name}</span>
                         </button>
                       </li>
                     );

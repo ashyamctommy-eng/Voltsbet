@@ -68,7 +68,6 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
   /** Committed slip mirror for event handlers — add() reads it to decide
    *  replace-vs-append without stale closures. */
   const itemsRef = useRef<SlipItem[]>([]);
-  const { push } = useToast();
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -169,19 +168,16 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
     // Over/Under, BTTS, HT result…), so picking any other market/outcome
     // from a game that already has a selection REPLACES the existing leg —
     // never stacks an impossible accumulator (the server would reject it).
-    const previous = prev.find((p) => p.gameId === item.gameId);
     const next = [...prev.filter((p) => p.gameId !== item.gameId), item];
     if (next.length >= 2 && prev.length < 2) setMode("MULTIPLE");
     prevCountRef.current = next.length;
     setItems(next);
     setHasOddsChange(false);
-    if (previous) {
-      push(
-        "info",
-        `One selection per match — “${previous.outcome}” (${previous.market}) replaced with “${item.outcome}” (${item.market}).`,
-      );
-    }
-  }, [push]);
+    // Same-match replacement is communicated purely visually — the replaced
+    // selection's odds button de-highlights, the new one highlights, and the
+    // sticky bet slip counter updates. No overlay toast (previously an info
+    // toast here) so rapid multi-market picks never stack popups on the user.
+  }, []);
 
   const remove = useCallback((outcomeId: string) => {
     const prev = itemsRef.current;
