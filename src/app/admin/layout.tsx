@@ -24,6 +24,7 @@ import {
   IconWhatsApp,
 } from "@/components/icons";
 import AdminBroadcastButton from "@/components/admin/BroadcastDrawer";
+import ManualLiveAlertFab from "@/components/admin/ManualLiveAlertFab";
 
 /** Developer contact — Admin-only (hidden from public user views). */
 const DEV_TELEGRAM = "https://t.me/Poriot_ke";
@@ -67,6 +68,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <Link href="/" className="text-ink3 hover:text-ink">← View site</Link>
         </div>
       </div>
+      <ManualLiveAlertFab />
 
       <div className="mt-5 flex gap-6">
         <aside className="hidden w-52 shrink-0 lg:block">

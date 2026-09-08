@@ -22,6 +22,7 @@ import { prisma } from "@/lib/prisma";
 import { LEAGUE_TITLES } from "@/lib/league-titles";
 import { FEED_LEAGUES } from "@/lib/feed";
 import { fetchOddsRetry } from "@/lib/odds-throttle";
+import { reconcileOrphanLiveGames } from "./orphan-live";
 
 const API_KEY = process.env.ODDS_API_KEY ?? "";
 const BASE = "https://api.the-odds-api.com/v4";
@@ -206,7 +207,10 @@ export async function syncWeeklyFixtures(): Promise<ScheduleSyncResult> {
 }
 
 /** Daily midnight purge — delete expired, not-in-play games (markets cascade). */
-export async function purgeExpiredFixtures(): Promise<{ deleted: number; keptWithBets: number; cutoff: Date; maxAgeHours: number }> {
+export async function purgeExpiredFixtures(): Promise<{
+  deleted: number; keptWithBets: number; cutoff: Date; maxAgeHours: number;
+  orphanDeleted?: number; stuckManual?: number;
+}> {
   const cutoff = new Date(Date.now() - MAX_AGE_HOURS * 3600_000);
   // Games with bet selections are never purged (BetSelection.game is
   // Restrict — and bet history/results must survive the cleanup).
@@ -224,5 +228,15 @@ export async function purgeExpiredFixtures(): Promise<{ deleted: number; keptWit
       selections: { some: {} },
     },
   });
-  return { deleted: del.count, keptWithBets, cutoff, maxAgeHours: MAX_AGE_HOURS };
+  // Also close seeded demo rows stuck LIVE (no externalId) so live lists
+  // stay API-driven between visits.
+  const orphan = await reconcileOrphanLiveGames();
+  return {
+    deleted: del.count,
+    keptWithBets,
+    cutoff,
+    maxAgeHours: MAX_AGE_HOURS,
+    orphanDeleted: orphan.orphanDeleted,
+    stuckManual: orphan.stuckManual,
+  };
 }

@@ -32,6 +32,7 @@ import { prisma } from "./prisma";
 import { getSettings } from "./settings";
 import { TheOddsApi } from "./providers/odds-api";
 import { resolveSportSlug, upsertInPlayOdds } from "./sync";
+import { reconcileOrphanLiveGames } from "./orphan-live";
 import { LEAGUE_TITLES } from "./league-titles";
 
 let lastRefresh = 0;
@@ -89,6 +90,8 @@ export async function refreshLiveScores(): Promise<{
   oddsUpdated: number;
   skipped: boolean;
   leagues: string[];
+  orphanDeleted?: number;
+  stuckManual?: number;
 }> {
   const live = await liveConfig();
   const windowMs = Math.max(10, live.scoresThrottleSeconds * 1000);
@@ -191,7 +194,21 @@ export async function refreshLiveScores(): Promise<{
       }
     }
 
-    return { updated, created, oddsUpdated, skipped: false, leagues: [...leagueKeys] };
+    // 6) Orphan cleanup: seeded/manual demo rows stuck LIVE (no externalId,
+    //    no bets, no admin markets, kickoff >6h ago) are deleted so only
+    //    API-driven live games remain visible. Genuine manual fixtures are
+    //    reported for the admin to finish instead of being touched.
+    let orphanDeleted = 0;
+    let stuckManual = 0;
+    try {
+      const orphan = await reconcileOrphanLiveGames();
+      orphanDeleted = orphan.orphanDeleted;
+      stuckManual = orphan.stuckManual;
+    } catch (e) {
+      console.error("[live-scores] orphan cleanup failed:", e instanceof Error ? e.message : e);
+    }
+
+    return { updated, created, oddsUpdated, skipped: false, leagues: [...leagueKeys], orphanDeleted, stuckManual };
   } catch (e) {
     console.error("[live-scores] sweep failed:", e instanceof Error ? e.message : e);
     return { updated: 0, created: 0, oddsUpdated: 0, skipped: false, leagues: [] };
