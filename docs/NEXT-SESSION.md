@@ -125,3 +125,32 @@ Then say: *"read docs/NEXT-SESSION.md and wire the stats feed"* — integration 
 - Live pipeline: `src/lib/live-scores.ts` + `src/lib/providers/odds-api.ts` (`estimateClock`, `parseScoreEvent`).
 - Cron endpoints: `/api/cron/sync|settle|schedule|purge|rates|refresh` (secret via `?secret=` or `x-cron-secret`).
 - Admin surfaces touched recently: API Settings (odds + Soccer Market Engine), Cron Settings (freshness + Run now), Broadcast, Website Settings (broadcast TTL, bet slip, betting).
+
+## 6. Selling / licensing this project (pre-sale checklist)
+
+**Ownership audit (ran 2026-09-10):** the code is clean to sell commercially.
+- 169 packages: 125 MIT, 11 Apache-2.0, 9 ISC, 4 BSD-3-Clause, 2 CC0-1.0, 1 BSD-2, 1 MPL-2.0
+  (`@vercel/og` — file-level copyleft, fine while unmodified). **No GPL / AGPL / SSPL / non-commercial
+  dependencies anywhere** → nothing forces us to publish source or blocks paid distribution.
+- **No licence phone-home or purchase-code hooks** in `src/` → the app never needs a third party's
+  permission to run (a strong selling point vs. CodeCanyon-style scripts).
+- **No secrets tracked**: only `.env.example` / `.env.production.example`; the odds API key exists only as
+  an env var (it *was* pasted in chat — **rotate it before any handover**).
+- Cron endpoints + admin APIs are guard-protected (12 guard usages across `/api/cron/*`).
+
+**Missing before a sale (do these first):**
+1. `LICENSE` + `THIRD-PARTY-NOTICES` files (none exist today) — generate from the lockfile.
+2. Rotate shared keys; each client brings **their own** `ODDS_API_KEY` (+ future `API_FOOTBALL_KEY`) and quota.
+3. **Rebrand away from `UNIBET360`** — "Unibet" is a registered trademark (Kindred); a betting product with a
+   near-identical name is a cease-and-desist risk for us *and* the client. Platform name + client brand are
+   DB-driven already, so this is config + copy.
+4. Write the commercial terms (see shapes below) and an acceptance-criteria list.
+
+**Three sale shapes:** (a) **buyout/assignment** — assign copyright, price highest, you lose resale rights;
+(b) **per-client licence** — keep the IP, sell a right to run one branded deployment (natural white-label fit);
+(c) **hosted SaaS** — you host, charge monthly, never hand over source (best recurring revenue, least leakage).
+
+**Handover package for a client:** repo transfer (or zip + escrow), deployment runbook (env vars, `prisma
+migrate deploy`, cron cadence, first admin), their own API accounts, admin credentials, third-party notices,
+support window + update policy, staged payments (deposit → staging sign-off → production → balance).
+Client's own obligations (gambling licence, KYC/AML, payment merchant accounts) belong in the agreement.
