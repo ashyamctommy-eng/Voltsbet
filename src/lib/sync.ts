@@ -408,6 +408,24 @@ export async function syncGames(providerId?: string) {
     }
   }
 
+  // Freshness audit — surfaced in Admin → Cron Settings so the operator can
+  // see when odds last actually refreshed (and with what selection).
+  try {
+    await setSetting("odds.lastSyncAt", new Date().toISOString());
+    await setSetting(
+      "odds.lastSyncStats",
+      JSON.stringify({
+        mode: whitelistMode ? "whitelist" : "catalog",
+        leagues: sportKeys.length,
+        created,
+        updated,
+        games: games.length,
+      }),
+    );
+  } catch {
+    /* never fail a sync over telemetry */
+  }
+
   return {
     mode: whitelistMode ? "whitelist" : "catalog",
     leagues: sportKeys.length,

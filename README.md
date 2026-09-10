@@ -366,15 +366,23 @@ until migrated).
 
 - **Config:** `trigger.config.ts` (project ref, runtime node, 60s max
   duration, Prisma build extension for `prisma generate`).
-- **Task:** `src/trigger/liveScores.ts` — `schedules.task` id
-  `sync-live-scores`, cron `*/2 * * * *`, driving the same engine the app
-  uses (`refreshLiveScores()`): score/status upserts, in-play odds refresh,
-  seed-orphan deletion and stale (>4h) API live rows force-finished.
-- **Manual trigger:** `POST /api/admin/trigger-sync` (admin + CSRF) →
-  `tasks.trigger("sync-live-scores")`.
+- **Tasks** (all thin wrappers over the app's existing engines):
+  - `sync-live-scores` (`src/trigger/liveScores.ts`) — `*/2 * * * *` — scores,
+    statuses, in-play odds, orphan cleanup, stale >4h live rows finished.
+  - `sync-odds` (`src/trigger/syncOdds.ts`) — `0 */12 * * *` — pre-match odds
+    + fixtures (this is what makes odds refresh "daily"); pings
+    `/api/cron/refresh` afterwards so the homepage cache drops.
+  - `settle-games` — `*/10 * * * *` — settle finished games.
+  - `refresh-calendar` — `30 5 * * *` — rolling 7-day fixtures (0 credits).
+  - `purge-expired` — `30 0 * * *` — expired games + abandoned deposits.
+- **Manual trigger:** `POST /api/admin/trigger-sync` (admin + CSRF) with
+  `{ "task": "live" | "odds" | "settle" | "purge" | "calendar" }`; buttons on
+  Admin → Cron Settings. Cron Settings also shows **odds freshness**
+  (last sync age + created/updated counts) written by every sync.
 - **Deploy:** `npx trigger.dev@latest deploy` (dev: `npx trigger.dev@latest dev`).
 - **Environment variables**
-  - Trigger.dev dashboard (task runtime): `DATABASE_URL`, `ODDS_API_KEY`
+  - Trigger.dev dashboard (task runtime): `DATABASE_URL`, `ODDS_API_KEY`;
+    optionally `APP_URL` + `CRON_SECRET` (post-sync cache-bust ping)
   - Railway app: `TRIGGER_SECRET_KEY` (Trigger → Project → API keys)
   - Local/CI deploy: `TRIGGER_ACCESS_TOKEN` (or `trigger.dev login`)
 - **Credit safety:** the sweep throttle is mirrored in the DB
