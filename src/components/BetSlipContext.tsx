@@ -1,5 +1,6 @@
 "use client";
 
+import { useSiteSettings } from "@/components/SiteSettingsContext";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, ReactNode } from "react";
 import { apiFetch } from "@/lib/client";
 
@@ -58,6 +59,7 @@ const LS_KEY = "vb_slip_v1";
 export function BetSlipProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<SlipItem[]>([]);
   const [open, setOpen] = useState(false);
+  const { betSlipAutoOpen } = useSiteSettings();
   const [mode, setMode] = useState<"SINGLE" | "MULTIPLE">("SINGLE");
   const [stake, setStake] = useState("");
   const [hasOddsChange, setHasOddsChange] = useState(false);
@@ -128,9 +130,10 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Auto-open the slip when the first selection lands (0 → 1). Desktop shows
-  // the rail; mobile opens the sheet once so the user sees where their pick
-  // went — later additions don't yank the sheet open again while browsing.
+  // Auto-open the slip when the first selection lands (0 → 1) — ONLY when the
+  // admin enables it (Website Settings → Betting → "Auto-open bet slip on
+  // first pick"). Default is SILENT: picking a price highlights the cell and
+  // bumps the floating counter, but no sheet/rail is opened.
   const hadItemsRef = useRef(false);
   // Only a real tap on an odds cell may auto-open the slip. Selections
   // restored from localStorage on mount must restore SILENTLY (the badge /
@@ -143,10 +146,10 @@ export function BetSlipProvider({ children }: { children: ReactNode }) {
     }
     const firstSelection = !hadItemsRef.current;
     hadItemsRef.current = true;
-    if (!firstSelection || open || !userTappedRef.current) return;
+    if (!firstSelection || open || !userTappedRef.current || !betSlipAutoOpen) return;
     const t = setTimeout(() => setOpen(true), 0);
     return () => clearTimeout(t);
-  }, [items.length, open]);
+  }, [items.length, open, betSlipAutoOpen]);
 
   // Default the betslip to Accumulator when a 2nd leg is added (one-way: a
   // manual "Singles" tap afterwards is respected; empty slip resets to

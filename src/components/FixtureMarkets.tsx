@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useBetSlip } from "@/components/BetSlipContext";
+import { useSiteSettings } from "@/components/SiteSettingsContext";
 import { IconStar, IconChevronDown } from "@/components/icons";
 import { fmtOdds } from "@/lib/odds";
 import { useTranslation } from "react-i18next";
@@ -103,6 +104,7 @@ function loadStars(): Set<string> {
  */
 export default function FixtureMarkets({ game, markets }: { game: FixtureCtx; markets: FixtureMarket[] }) {
   const { items, add, remove, setOpen } = useBetSlip();
+  const { betSlipAutoOpen } = useSiteSettings();
   const { t } = useTranslation();
   const [cat, setCat] = useState<Category>("all");
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
@@ -178,7 +180,7 @@ export default function FixtureMarkets({ game, markets }: { game: FixtureCtx; ma
       gameStatus: game.status,
       live: game.live,
     });
-    if (typeof window !== "undefined" && window.innerWidth >= 1280) setOpen(true);
+    if (betSlipAutoOpen && typeof window !== "undefined" && window.innerWidth >= 1280) setOpen(true);
   };
 
   /** Handicap boards with line outcomes (Alternate Handicaps, 1st/2nd half

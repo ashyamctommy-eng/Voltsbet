@@ -99,6 +99,11 @@ export type SiteSettings = {
   /** Featured leagues for the per-event pass (Odds API keys). Empty = pass
    *  off. Env ODDS_API_EVENT_MARKET_LEAGUES overrides. */
   oddsEventMarketLeagues: string[];
+  /** Open the bet slip automatically when the first pick is added. Off by
+   *  default: adding a selection is SILENT (the odds cell highlights and the
+   *  floating counter updates) — no sheet/rail is yanked open. Admin →
+   *  Website Settings → Betting. Env BETSLIP_AUTO_OPEN overrides. */
+  betSlipAutoOpen: boolean;
   /** TIER 2 — deep single-event markets fetched ON DEMAND when a user opens
    *  a match detail page (never in the bulk sweep: quota). Env
    *  SOCCER_DETAIL_MARKETS overrides. */
@@ -232,6 +237,7 @@ const DEFAULTS: SiteSettings = {
   liveLookbackHours: 4,
   liveOddsThrottleSeconds: 900,
   liveOddsMarkets: ["h2h"],
+  betSlipAutoOpen: false,
   oddsEventMarketLimit: 4,
   oddsEventMarketLeagues: [
     "soccer_epl",
@@ -398,6 +404,9 @@ export async function getSettings(): Promise<SiteSettings> {
     } catch {
       s.oddsEventMarketLeagues = [];
     }
+    // Bet slip: silent pick-up unless explicitly enabled.
+    const rawAutoOpen = process.env.BETSLIP_AUTO_OPEN ?? raw["betSlip.autoOpen"];
+    if (rawAutoOpen !== undefined) s.betSlipAutoOpen = rawAutoOpen === "true";
     // TIER 2: deep match-detail markets + their cache TTL.
     try {
       const rawDetail = raw["soccer.detailMarkets"] ?? "";

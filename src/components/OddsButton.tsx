@@ -1,6 +1,7 @@
 "use client";
 
 import { useBetSlip, SlipItem } from "@/components/BetSlipContext";
+import { useSiteSettings } from "@/components/SiteSettingsContext";
 import { fmtOdds } from "@/lib/odds";
 import { outcomeSide, sideTextClass } from "@/lib/outcome-tone";
 
@@ -27,6 +28,7 @@ type Props = {
 
 export default function OddsButton(props: Props) {
   const { items, add, remove, setOpen } = useBetSlip();
+  const { betSlipAutoOpen } = useSiteSettings();
   const selected = items.some((i) => i.outcomeId === props.outcomeId);
   // Price missing (0 / unset) or game closed → render a "-" placeholder that
   // is NOT clickable. A SELECTED pick is never disabled: tapping it again
@@ -74,9 +76,11 @@ export default function OddsButton(props: Props) {
           return;
         }
         add(item);
-        // Desktop: the rail opens immediately. Mobile: the floating mini-bar
-        // appears — tapping it (or the Bets tab) opens the sheet.
-        if (window.innerWidth >= 1280) setOpen(true);
+        // SILENT BY DEFAULT (Admin → Website Settings → Betting →
+        // "Auto-open bet slip on first pick"): the cell highlights and the
+        // floating counter updates — nothing is yanked open. When the setting
+        // is on, desktop pops the rail (mobile still uses the mini-bar).
+        if (betSlipAutoOpen && window.innerWidth >= 1280) setOpen(true);
       }}
       className={`odds-btn active:scale-95 ${selected ? "selected" : ""} ${unavailable ? "odds-btn-muted" : ""}`}
       aria-pressed={selected}

@@ -95,7 +95,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             __html: `try{var t=localStorage.getItem("voltbet-theme");if(t==="light"||t==="dark"){document.documentElement.dataset.theme=t;document.documentElement.style.colorScheme=t;}}catch(e){}`,
           }}
         />
-        <SiteSettingsProvider siteName={s.siteName} tagline={s.tagline}>
+        <SiteSettingsProvider siteName={s.siteName} tagline={s.tagline} betSlipAutoOpen={s.betSlipAutoOpen}>
           <ThemeProvider>
             <I18nSync />
             <CurrencyProvider>

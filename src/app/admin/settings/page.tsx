@@ -37,6 +37,7 @@ const GROUPS: { title: string; anchor: string; icon: React.ReactNode; fields: Fi
     anchor: "betting",
     icon: <IconGear className="h-4 w-4" />,
     fields: [
+      { key: "betSlip.autoOpen", label: "Auto-open bet slip on first pick", type: "toggle", hint: "Off (default) = picking a price is SILENT: the odds cell highlights and the floating slip counter updates, but the slip never pops open. Turn on to open the rail/sheet on the first selection." },
       { key: "betting.minStake", label: "Minimum stake", type: "number" },
       { key: "betting.maxStake", label: "Maximum stake", type: "number" },
       { key: "betting.maxPayout", label: "Maximum payout", type: "number" },

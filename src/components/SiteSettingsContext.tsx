@@ -14,7 +14,13 @@ import { apiFetch } from "@/lib/client";
  */
 export type SiteBrand = { siteName: string; tagline: string };
 
-type SiteSettingsValue = SiteBrand & {
+/** Behaviour flags that client components need (not just branding). */
+export type SiteBehaviour = { betSlipAutoOpen: boolean };
+
+/** Server-seeded data (everything except the fetch refresh function). */
+type SiteData = SiteBrand & SiteBehaviour;
+
+type SiteSettingsValue = SiteBrand & SiteBehaviour & {
   /** Re-fetch branding from the server — call after settings are saved. */
   refresh: () => Promise<void>;
 };
@@ -22,26 +28,32 @@ type SiteSettingsValue = SiteBrand & {
 const Ctx = createContext<SiteSettingsValue>({
   siteName: "",
   tagline: "",
+  betSlipAutoOpen: false,
   refresh: async () => {},
 });
 
 export function SiteSettingsProvider({
   siteName,
   tagline,
+  betSlipAutoOpen = false,
   children,
 }: {
   siteName: string;
   tagline: string;
+  /** Seeded from the DB by the root layout. */
+  betSlipAutoOpen?: boolean;
   children: React.ReactNode;
 }) {
-  const [brand, setBrand] = useState<SiteBrand>({ siteName, tagline });
+  const [brand, setBrand] = useState<SiteData>({ siteName, tagline, betSlipAutoOpen });
 
   const refresh = useCallback(async () => {
-    const res = await apiFetch<SiteBrand>("/api/public/settings");
+    const res = await apiFetch<SiteBrand & Partial<SiteBehaviour>>("/api/public/settings");
     if (!res.ok) return;
     setBrand((prev) => ({
+      ...prev,
       siteName: res.data.siteName?.trim() || prev.siteName,
       tagline: res.data.tagline ?? prev.tagline,
+      betSlipAutoOpen: res.data.betSlipAutoOpen ?? prev.betSlipAutoOpen,
     }));
   }, []);
 

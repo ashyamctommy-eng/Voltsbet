@@ -9,5 +9,5 @@ export const revalidate = 0;
 
 export const GET = handle(async () => {
   const s = await getSettings();
-  return ok({ siteName: s.siteName, tagline: s.tagline });
+  return ok({ siteName: s.siteName, tagline: s.tagline, betSlipAutoOpen: s.betSlipAutoOpen });
 });
