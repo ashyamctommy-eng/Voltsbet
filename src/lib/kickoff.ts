@@ -50,7 +50,14 @@ export function liveContext(
   clock: string | null,
   period: string | null,
 ): string | null {
-  if (status === "HALF_TIME" || period?.toLowerCase().includes("halftime")) return "Halftime HT";
+  if (
+    status === "HALF_TIME" ||
+    period?.toLowerCase().includes("halftime") ||
+    period?.trim().toLowerCase() === "ht" ||
+    clock?.trim().toUpperCase() === "HT"
+  ) {
+    return "Halftime HT";
+  }
   const setMatch = period?.match(/^Set\s*(\d+)$/i);
   if (setMatch) {
     const n = Number(setMatch[1]);

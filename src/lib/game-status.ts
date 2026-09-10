@@ -33,6 +33,41 @@ export function isBettableMarket(m: {
   return (m.outcomes ?? []).some((o) => o.status === "ACTIVE" && Number(o.odds) > 1);
 }
 
+/** True when the estimated clock/period says the match is in the interval. */
+export function isHalfTimeScore(s: { period?: string | null; clock?: string | null }): boolean {
+  const p = (s.period ?? "").trim().toLowerCase();
+  const c = (s.clock ?? "").trim().toLowerCase();
+  return p === "ht" || p.includes("half") || c === "ht";
+}
+
+export type ScoreStatusInput = {
+  /** "cancelled"/"postponed" are accepted and treated as not-in-play (the
+   *  sweep has always mapped them to SCHEDULED). */
+  status: "live" | "finished" | "scheduled" | "cancelled" | "postponed";
+  sportKey?: string | null;
+  period?: string | null;
+  clock?: string | null;
+};
+
+/**
+ * Persisted status for a provider score event.
+ *
+ * The Odds API /scores exposes no match minute, so the clock/period are
+ * ESTIMATED from kickoff (45' → 15-min interval → 45'). That model is
+ * soccer's, so HALF_TIME is only ever claimed for soccer: for other sports a
+ * 46-minute-old game is simply LIVE (we must not park a basketball game at
+ * "half time"). Without this the interval left rows at LIVE with a clock of
+ * "HT", which the card rendered as nothing at all.
+ */
+export function scoreToGameStatus(
+  s: ScoreStatusInput,
+): "LIVE" | "HALF_TIME" | "FINISHED" | "SCHEDULED" {
+  if (s.status === "finished") return "FINISHED";
+  if (s.status !== "live") return "SCHEDULED";
+  if ((s.sportKey ?? "").startsWith("soccer") && isHalfTimeScore(s)) return "HALF_TIME";
+  return "LIVE";
+}
+
 /** Number of bettable markets on a card — the "+N Markets" badge count.
  *  Returns 0 when nothing is bettable, so callers can hide the badge. */
 export function activeMarketCount(

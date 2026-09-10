@@ -43,7 +43,7 @@ import { TheOddsApi, getLastQuota } from "./providers/odds-api";
 import { resolveSportSlug, upsertInPlayOdds } from "./sync";
 import { reconcileOrphanLiveGames } from "./orphan-live";
 import { LEAGUE_TITLES } from "./league-titles";
-import { LIVE_STATUSES } from "./game-status";
+import { LIVE_STATUSES, scoreToGameStatus } from "./game-status";
 import { LIVE_FEED_FRESH_MINUTES } from "./live-feed";
 
 let lastRefresh = 0;
@@ -207,8 +207,11 @@ export async function refreshLiveScores(): Promise<{
       if (!sport) continue;
 
       const finished = score.status === "finished";
+      const nextStatus = scoreToGameStatus(score); // LIVE | HALF_TIME | FINISHED | SCHEDULED
+      const halfTime = nextStatus === "HALF_TIME";
       const liveNow = score.status === "live";
-      if (liveNow) liveAfter.add(score.externalId);
+      // Rows that stay on /live and keep their in-play odds refreshed.
+      if (liveNow || halfTime) liveAfter.add(score.externalId);
 
       const existing = await prisma.game.findUnique({ where: { externalId: score.externalId } });
       if (existing) {
@@ -216,15 +219,17 @@ export async function refreshLiveScores(): Promise<{
         // Never downgrade a commenced fixture to SCHEDULED: per the docs an
         // event with commence_time <= now is in-play even when the payload has
         // no scores yet — marking it SCHEDULED would drop it off /live.
-        if (!finished && !liveNow && wasLive) continue;
+        if (!finished && !liveNow && !halfTime && wasLive) continue;
         await prisma.game.update({
           where: { id: existing.id },
           data: {
             ...(score.homeScore !== undefined ? { homeScore: score.homeScore } : {}),
             ...(score.awayScore !== undefined ? { awayScore: score.awayScore } : {}),
-            status: finished ? "FINISHED" : liveNow ? "LIVE" : "SCHEDULED",
+            status: nextStatus,
             ...(finished ? { live: false, clock: null, period: null } : {}),
-            ...(liveNow ? { live: true, clock: score.clock ?? null, period: score.period ?? null } : {}),
+            ...(liveNow || halfTime
+              ? { live: true, clock: score.clock ?? null, period: score.period ?? null }
+              : {}),
           },
         });
         updated++;
@@ -237,12 +242,12 @@ export async function refreshLiveScores(): Promise<{
             homeName: score.homeName,
             awayName: score.awayName,
             startAt: score.startAt,
-            status: finished ? "FINISHED" : "LIVE",
+            status: nextStatus,
             live: !finished,
             homeScore: score.homeScore ?? 0,
             awayScore: score.awayScore ?? 0,
-            clock: liveNow ? score.clock ?? null : null,
-            period: liveNow ? score.period ?? null : null,
+            clock: liveNow || halfTime ? score.clock ?? null : null,
+            period: liveNow || halfTime ? score.period ?? null : null,
             externalId: score.externalId,
             source: "API",
           },

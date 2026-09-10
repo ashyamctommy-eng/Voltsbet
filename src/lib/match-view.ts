@@ -120,6 +120,17 @@ export function apiMatchToFeedGame(view: FeedMatchView): ApiFeedGame {
 
 /** Normalize an elapsed-time string to the display format "87:42'" (seconds
  *  kept — the live clock ticks from it). Handles "87:42", "87:42'", "87". */
+/**
+ * True only for clocks the live ticker can count up ("87:42", "87:42'", "87",
+ * "87'"). Interval markers ("HT") and period labels ("Set 3") are NOT tickable
+ * — callers render the status label instead of an empty timer.
+ */
+export function isTickingClock(clock: string | null | undefined): boolean {
+  if (!clock) return false;
+  const c = clock.trim();
+  return /^(\d{1,2}:\d{2}'?|\d{1,3}'?)$/.test(c);
+}
+
 export function normalizeElapsed(clock: string): string {
   const c = clock.trim();
   if (/^\d{1,2}:\d{2}$/.test(c)) return `${c}'`;

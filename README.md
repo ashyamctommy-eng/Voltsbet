@@ -493,6 +493,11 @@ Verified against the live API (2026-09-10) and the official guide
   `completed=true → FINISHED`; `LIVE` rows with `startAt` older than
   `LIVE_STALE_FINISH_HOURS` (default 4) → `FINISHED`. Upcoming events are never
   created by the live pass (the pre-match sync owns them).
+- **Half time**: /scores carries no match minute, so the clock is estimated
+  from kickoff (45' → 15-minute interval → 45'). When the estimate lands in the
+  interval the sweep persists `HALF_TIME` (soccer only — the model is soccer's,
+  so other sports stay `LIVE`) and the card renders "Halftime HT" instead of a
+  ticking counter. Rows stay on /live and keep having their odds refreshed.
 - **Quota telemetry**: `x-requests-remaining` / `-used` / `-last` are logged on
   every call and persisted to `Setting: odds.lastQuota`, surfaced in
   Admin → API Settings ("last sweep" snapshot).

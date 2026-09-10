@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import OddsButton from "@/components/OddsButton";
 import TeamLogo from "@/components/TeamLogo";
 import { liveContext } from "@/lib/kickoff";
-import { toMatchView } from "@/lib/match-view";
+import { isTickingClock, toMatchView } from "@/lib/match-view";
 import { isTwoWayMarket, outcomeSide, sideTextClass } from "@/lib/outcome-tone";
 import { flagForLeague, countryForLeague } from "@/lib/league-flags";
 import { activeMarketCount, hasAnyOutcomes } from "@/lib/game-status";
@@ -163,7 +163,11 @@ export default function MatchCard({
           {isLive ? (
             <span className="flex items-center gap-1.5 font-bold text-red-400">
               <span className="live-dot" />
-              {view.elapsedMinute ? <LiveElapsed clock={view.elapsedMinute} /> : (ctx ?? t("match.inPlay"))}
+              {isTickingClock(view.elapsedMinute) ? (
+                <LiveElapsed clock={view.elapsedMinute} />
+              ) : (
+                (ctx ?? t("match.inPlay"))
+              )}
             </span>
           ) : mounted ? (
             view.kickoffLabel
