@@ -387,6 +387,35 @@ auth via `?secret=<cron.secret>` or the `x-cron-secret` header.
   (`Setting: live.lastSweepAt`), so cron hits and `/live` visitor sweeps
   never double-spend. Set the cron interval shorter than the throttle and
   extra hits return `skipped`/`throttled` cheaply.
+### Live sweep API contract (The Odds API v4)
+
+Verified against the live API (2026-09-10) and the official guide
+(https://the-odds-api.com/liveapi/guides/v4/):
+
+- **Scores are per-sport**: `GET /v4/sports/{sport}/scores`. There is **no
+  `/sports/upcoming/scores`** endpoint — `upcoming` is a valid pseudo-sport on
+  the **/odds** endpoint only.
+- **`daysFrom` omitted = live + upcoming only, cost 1/league** ("If this
+  parameter is missing, only live and upcoming games are returned"). With
+  `daysFrom=1` the price is 2 and completed games come back. The live sweep
+  therefore omits it, except for leagues that still hold `LIVE` rows — those
+  add `daysFrom=1` narrowed by `eventIds` so the `completed` flag can settle a
+  finished game immediately instead of waiting for the 4h stale sweep.
+- **In-play odds in ONE call**:
+  `GET /v4/sports/upcoming/odds?regions=eu&markets=h2h&oddsFormat=decimal&eventIds=<live ids>`
+  → cost = markets × regions = **1** total (per-league calls would be 1 each);
+  skipped entirely when nothing is live.
+- **Matching**: events are matched strictly by `externalId`; manual/seed rows
+  (no `externalId`) are never touched by the score pass. Scores are read by
+  TEAM NAME from the payload's `scores` array.
+- **State machine**: `completed=false && commence_time <= now → LIVE`;
+  `completed=true → FINISHED`; `LIVE` rows with `startAt` older than
+  `LIVE_STALE_FINISH_HOURS` (default 4) → `FINISHED`. Upcoming events are never
+  created by the live pass (the pre-match sync owns them).
+- **Quota telemetry**: `x-requests-remaining` / `-used` / `-last` are logged on
+  every call and persisted to `Setting: odds.lastQuota`, surfaced in
+  Admin → API Settings ("last sweep" snapshot).
+
 - **Ops visibility:** Admin → Cron Settings shows odds freshness (last sync
   age, league/mode counts) and per-job ready-to-paste configs.
 

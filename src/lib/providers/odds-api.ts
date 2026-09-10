@@ -48,8 +48,25 @@ export type ApiScore = {
 export interface OddsProvider {
   id: string; // "the-odds-api"
   fetchSports(): Promise<{ key: string; name: string }[]>;
-  fetchUpcomingGames(sportKeys: string[]): Promise<ApiGame[]>;
-  fetchLiveScores(sportKeys: string[]): Promise<ApiScore[]>;
+  /** `opts.eventIds` targets specific events (used for in-play odds via the
+   *  `upcoming` pseudo-sport) — when set, the response cache is bypassed
+   *  because live prices must always be fresh. */
+  fetchUpcomingGames(
+    sportKeys: string[],
+    markets?: readonly string[],
+    opts?: { eventIds?: string[] },
+  ): Promise<ApiGame[]>;
+  /**
+   * `opts.completedFor` = leagues for which COMPLETED games must be returned
+   * (adds `daysFrom=1`, cost 2/league; needed to flip finished games
+   * promptly). All other leagues are fetched WITHOUT `daysFrom` per the v4
+   * docs → only live + upcoming games, cost 1/league.
+   * `opts.eventIdsFor` narrows a league to specific event ids.
+   */
+  fetchLiveScores(
+    sportKeys: string[],
+    opts?: { completedFor?: readonly string[]; eventIdsFor?: Record<string, string[]> },
+  ): Promise<ApiScore[]>;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -346,6 +363,71 @@ export function estimateClock(startAt: Date): { clock: string; period: string } 
   return { clock: `${Math.min(mins - 105 + 90, 120)}'`, period: "2H" };
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// Quota telemetry — The Odds API returns x-requests-remaining / -used / -last
+// on every call. Captured per request (logged) and persisted by the sweep.
+// ─────────────────────────────────────────────────────────────────────────
+export type OddsQuota = {
+  remaining: number | null;
+  used: number | null;
+  /** Cost of the last call, as reported by x-requests-last. */
+  last: number | null;
+  path: string;
+  at: string;
+};
+
+let lastQuota: OddsQuota | null = null;
+
+/** Quota snapshot from the most recent API call in this process. */
+export function getLastQuota(): OddsQuota | null {
+  return lastQuota;
+}
+
+const toNum = (v: string | null): number | null => {
+  if (v === null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+
+/**
+ * Parse one /scores event into the internal ApiScore shape.
+ *
+ * The /scores payload reports scores as an array keyed by TEAM NAME (not
+ * "home"/"away"), so participants are matched by name. The v4 docs state a
+ * game is in-play when `commence_time <= now` and completed is false — the
+ * presence of a `scores` array is NOT a reliable signal (early/0-0 games can
+ * arrive with `scores: null`), so kickoff time decides `live` vs `scheduled`.
+ */
+export type ScoreEvent = {
+  id: string;
+  sport_key: string;
+  commence_time: string;
+  completed: boolean;
+  home_team: string;
+  away_team: string;
+  scores?: { name: string; score: string }[] | null;
+};
+
+export function parseScoreEvent(ev: ScoreEvent, now: number = Date.now()): ApiScore {
+  const hs = ev.scores?.find((s) => s.name === ev.home_team)?.score;
+  const as = ev.scores?.find((s) => s.name === ev.away_team)?.score;
+  const startAt = new Date(ev.commence_time);
+  const started = startAt.getTime() <= now; // docs: in-play ⇔ commence_time < now
+  const { clock, period } = estimateClock(startAt);
+  return {
+    externalId: ev.id,
+    sportKey: ev.sport_key,
+    homeName: ev.home_team,
+    awayName: ev.away_team,
+    startAt,
+    status: ev.completed ? "finished" : started ? "live" : "scheduled",
+    homeScore: hs !== undefined ? Number(hs) : undefined,
+    awayScore: as !== undefined ? Number(as) : undefined,
+    period,
+    clock,
+  };
+}
+
 export class TheOddsApi implements OddsProvider {
   id = "the-odds-api";
   private base = "https://api.the-odds-api.com/v4";
@@ -358,6 +440,17 @@ export class TheOddsApi implements OddsProvider {
     // sync fires many requests back-to-back.
     const res = await fetchOddsRetry(url);
     if (!res.ok) throw new Error(`The Odds API ${res.status}: ${await res.text().catch(() => "")}`);
+    // Quota headers (docs: returned on every endpoint).
+    const remaining = res.headers.get("x-requests-remaining");
+    const used = res.headers.get("x-requests-used");
+    const cost = res.headers.get("x-requests-last");
+    if (remaining !== null || used !== null || cost !== null) {
+      const endpoint = path.split("?")[0];
+      lastQuota = { remaining: toNum(remaining), used: toNum(used), last: toNum(cost), path: endpoint, at: new Date().toISOString() };
+      console.log(
+        `[odds-api] quota · ${endpoint} · remaining=${remaining ?? "?"} used=${used ?? "?"} cost=${cost ?? "?"}`,
+      );
+    }
     return res.json();
   }
 
@@ -373,10 +466,11 @@ export class TheOddsApi implements OddsProvider {
    * 422 with the offenders in the message — retry once with them removed so
    * a partial market set never breaks a league. (Error responses cost 0.)
    */
-  private async requestOdds(sportKey: string, regions: string, markets: readonly string[]) {
+  private async requestOdds(sportKey: string, regions: string, markets: readonly string[], eventIds: readonly string[] = []) {
+    const idFilter = eventIds.length ? `&eventIds=${eventIds.join(",")}` : "";
     const attempt = async (ms: readonly string[]) =>
       (await this.get(
-        `/sports/${encodeURIComponent(sportKey)}/odds?regions=${regions}&markets=${ms.join(",")}&oddsFormat=decimal`
+        `/sports/${encodeURIComponent(sportKey)}/odds?regions=${regions}&markets=${ms.join(",")}&oddsFormat=decimal${idFilter}`
       )) as {
         id: string; commence_time: string; home_team: string; away_team: string;
         bookmakers: { markets: { key: string; outcomes: { name: string; price: number; point?: number | null }[] }[] }[];
@@ -398,7 +492,7 @@ export class TheOddsApi implements OddsProvider {
     }
   }
 
-  async fetchUpcomingGames(sportKeys: string[], markets?: readonly string[]) {
+  async fetchUpcomingGames(sportKeys: string[], markets?: readonly string[], opts?: { eventIds?: string[] }) {
     const games: ApiGame[] = [];
     // Free tier serves US-region bookmakers only (regions=us); paid plans add
     // eu/uk/au. Configure via ODDS_API_REGIONS. Odds come as decimals either way.
@@ -413,9 +507,13 @@ export class TheOddsApi implements OddsProvider {
     const effective = markets ?? (await getEffectiveOddsMarkets());
     const listMarkets = effective.filter((m) => (LIST_MARKETS as readonly string[]).includes(m));
     if (!listMarkets.length) return games;
+    // In-play odds are fetched with an explicit event filter and must never be
+    // served from (or written to) the pre-match response cache.
+    const eventIds = (opts?.eventIds ?? []).filter(Boolean);
+    const useCache = eventIds.length === 0;
     for (const sportKey of sportKeys) {
       const cacheKey = `${sportKey}:${regions}:${listMarkets.join(",")}`;
-      const hit = oddsCache.get(cacheKey);
+      const hit = useCache ? oddsCache.get(cacheKey) : undefined;
       let data: {
         id: string; commence_time: string; home_team: string; away_team: string;
         bookmakers: { markets: { key: string; outcomes: { name: string; price: number; point?: number | null }[] }[] }[];
@@ -426,14 +524,14 @@ export class TheOddsApi implements OddsProvider {
         // Per-league fault isolation: a league that 500s/422s/rate-limits
         // must never abort the other leagues' odds. Log + skip the league.
         try {
-          data = await this.requestOdds(sportKey, regions, listMarkets);
+          data = await this.requestOdds(sportKey, regions, listMarkets, eventIds);
         } catch (e) {
           console.warn(
             `[odds-api] league ${sportKey} odds skipped: ${e instanceof Error ? e.message : String(e)}`
           );
           continue;
         }
-        oddsCache.set(cacheKey, { at: Date.now(), data });
+        if (useCache) oddsCache.set(cacheKey, { at: Date.now(), data });
       }
       const now = Date.now();
       for (const ev of data) {
@@ -614,36 +712,31 @@ export class TheOddsApi implements OddsProvider {
     return out;
   }
 
-  async fetchLiveScores(sportKeys: string[]) {
+  /**
+   * Live (and upcoming) scores for the given leagues.
+   *
+   * v4 docs: `daysFrom` is what returns COMPLETED games (valid 1–3, cost 2 per
+   * call); **omitting it returns only live + upcoming games at cost 1**. Live
+   * polling therefore omits it — except for leagues that still hold LIVE rows
+   * in our DB, where the `completed` flag is required to mark finished games
+   * promptly (otherwise a finished match would sit LIVE until the 4h stale
+   * sweep). Those leagues are narrowed with `eventIds` to keep payloads tiny.
+   */
+  async fetchLiveScores(
+    sportKeys: string[],
+    opts?: { completedFor?: readonly string[]; eventIdsFor?: Record<string, string[]> },
+  ) {
     const scores: ApiScore[] = [];
+    const now = Date.now();
     for (const sportKey of sportKeys) {
-      const data = (await this.get(`/sports/${encodeURIComponent(sportKey)}/scores?daysFrom=1`)) as {
-        id: string; sport_key: string; commence_time: string; completed: boolean;
-        home_team: string; away_team: string;
-        scores?: { name: string; score: string }[] | null;
-      }[];
-      for (const ev of data) {
-        // /scores reports scores by TEAM NAME (not "home"/"away") — match them
-        // to the fixture's participants. Upcoming (not started) games have
-        // scores:null and must NOT be marked live.
-        const hs = ev.scores?.find((s) => s.name === ev.home_team)?.score;
-        const as = ev.scores?.find((s) => s.name === ev.away_team)?.score;
-        const started = !!ev.scores;
-        const startAt = new Date(ev.commence_time);
-        const { clock, period } = estimateClock(startAt);
-        scores.push({
-          externalId: ev.id,
-          sportKey: ev.sport_key,
-          homeName: ev.home_team,
-          awayName: ev.away_team,
-          startAt,
-          status: ev.completed ? "finished" : started ? "live" : "scheduled",
-          homeScore: hs !== undefined ? Number(hs) : undefined,
-          awayScore: as !== undefined ? Number(as) : undefined,
-          period,
-          clock,
-        });
-      }
+      const wantsCompleted = opts?.completedFor?.includes(sportKey) ?? false;
+      const ids = opts?.eventIdsFor?.[sportKey] ?? [];
+      const qs = new URLSearchParams();
+      if (wantsCompleted) qs.set("daysFrom", "1"); // cost 2: needed for completed games
+      if (ids.length) qs.set("eventIds", ids.join(","));
+      const suffix = qs.toString() ? `?${qs.toString()}` : "";
+      const data = (await this.get(`/sports/${encodeURIComponent(sportKey)}/scores${suffix}`)) as ScoreEvent[];
+      for (const ev of data) scores.push(parseScoreEvent(ev, now));
     }
     return scores;
   }

@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { handle, ok, ApiError, sharedAdminGuard } from "@/lib/api";
 import { getSettings, setSetting, invalidateSettingsCache } from "@/lib/settings";
 import { revalidatePath } from "next/cache";
+import { prisma } from "@/lib/prisma";
 
 /**
  * Admin Odds engine configuration (Admin → API Settings → Odds engine).
@@ -31,6 +32,19 @@ import { revalidatePath } from "next/cache";
 let quotaCache: { at: number; used: number; remaining: number } | null = null;
 const QUOTA_TTL_MS = 60_000;
 
+/** Quota snapshot captured from the last live sweep's response headers
+ *  (Setting `odds.lastQuota`, written by live-scores). Fresher than the
+ *  /sports probe when the sweep ran more recently. */
+async function fetchSweepQuota(): Promise<{ remaining: number | null; used: number | null; cost: number | null; at: string; path?: string } | null> {
+  try {
+    const row = await prisma.setting.findUnique({ where: { key: "odds.lastQuota" } });
+    if (!row?.value) return null;
+    return JSON.parse(row.value);
+  } catch {
+    return null;
+  }
+}
+
 async function fetchQuota(): Promise<{ used: number; remaining: number } | null> {
   if (quotaCache && Date.now() - quotaCache.at < QUOTA_TTL_MS) {
     return { used: quotaCache.used, remaining: quotaCache.remaining };
@@ -54,7 +68,7 @@ async function fetchQuota(): Promise<{ used: number; remaining: number } | null>
 export const GET = handle(async (req: NextRequest) => {
   await sharedAdminGuard(req, "settings");
   const s = await getSettings();
-  const quota = await fetchQuota();
+  const [quota, lastSweep] = await Promise.all([fetchQuota(), fetchSweepQuota()]);
 
   const env = {
     regions: process.env.ODDS_API_REGIONS,
@@ -88,6 +102,7 @@ export const GET = handle(async (req: NextRequest) => {
     },
     env,
     quota,
+    lastSweep,
   });
 });
 
