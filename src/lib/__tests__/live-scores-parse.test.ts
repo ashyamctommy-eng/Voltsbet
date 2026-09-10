@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseScoreEvent, type ScoreEvent } from "../providers/odds-api";
+import { parseScoreEvent, TheOddsApi, type ScoreEvent } from "../providers/odds-api";
 
 /**
  * State-machine contract for the live sweep (The Odds API v4 /scores):
@@ -64,5 +64,16 @@ describe("parseScoreEvent", () => {
     expect(s.status).toBe("finished");
     expect(s.homeScore).toBe(2);
     expect(s.awayScore).toBe(2);
+  });
+});
+
+describe("fetchUpcomingGames in-play guard", () => {
+  it("makes no API call for an empty eventIds filter", async () => {
+    // No ODDS_API_KEY is set in the test env: if the provider attempted a
+    // request it would throw "ODDS_API_KEY is not set". Returning [] proves
+    // the empty filter short-circuits before any network/quota spend.
+    delete process.env.ODDS_API_KEY;
+    const games = await new TheOddsApi().fetchUpcomingGames(["upcoming"], ["h2h"], { eventIds: [] });
+    expect(games).toEqual([]);
   });
 });

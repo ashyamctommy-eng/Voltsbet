@@ -493,6 +493,13 @@ export class TheOddsApi implements OddsProvider {
   }
 
   async fetchUpcomingGames(sportKeys: string[], markets?: readonly string[], opts?: { eventIds?: string[] }) {
+    // An EMPTY event filter is treated as "nothing to price" and returns before
+    // any settings read, cache work or network call: an unfiltered `upcoming`
+    // request would return the next 8 games across every sport (a paid call)
+    // and price events we never asked for. In-play sweeps therefore cost zero
+    // requests when no match is live.
+    if (opts?.eventIds !== undefined && opts.eventIds.length === 0) return [];
+
     const games: ApiGame[] = [];
     // Free tier serves US-region bookmakers only (regions=us); paid plans add
     // eu/uk/au. Configure via ODDS_API_REGIONS. Odds come as decimals either way.

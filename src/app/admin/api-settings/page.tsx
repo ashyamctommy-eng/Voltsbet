@@ -39,6 +39,8 @@ type OddsConfig = {
   };
   env: Record<string, string | undefined>;
   quota: { used: number; remaining: number } | null;
+  /** Quota headers captured by the most recent live sweep (Setting odds.lastQuota). */
+  lastSweep: { remaining: number | null; used: number | null; cost: number | null; at: string; path?: string } | null;
 };
 
 /** Accept one key per line, comma separated, or a JSON array. */
@@ -345,6 +347,13 @@ export default function AdminApiSettings() {
                 <b>{runsLeft.listRuns.toLocaleString()} full sync runs left</b> on your current balance at {runsLeft.perRun.toLocaleString()} credits/run
                 (list pass only)
                 {runsLeft.deep && " — the deep-market pass adds credits per run; see Event markets below."}
+              </p>
+            )}
+            {odds?.lastSweep && (
+              <p className="mt-2 text-xs text-ink2">
+                Last sweep call: <b>{odds.lastSweep.path ?? "—"}</b> cost{" "}
+                <b>{odds.lastSweep.cost ?? "?"}</b> · remaining <b>{odds.lastSweep.remaining?.toLocaleString() ?? "?"}</b> ·{" "}
+                {String(odds.lastSweep.at).replace("T", " ").slice(0, 16)} UTC
               </p>
             )}
             {!odds?.quota && <p className="mt-2 text-xs text-amber-400">Quota unavailable — is ODDS_API_KEY set in the environment?</p>}

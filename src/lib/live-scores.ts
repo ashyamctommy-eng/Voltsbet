@@ -164,6 +164,11 @@ export async function refreshLiveScores(): Promise<{
     const leagueKeys = new Set<string>();
     // Leagues that still hold LIVE rows need `daysFrom=1` (completed games are
     // only returned with that parameter) — narrowed to our live event ids.
+    //
+    // APPROVED BEHAVIOUR — DO NOT REMOVE. Immediate settlement the moment a
+    // match completes is mandatory UX; a pure omit-daysFrom sweep would leave
+    // finished games LIVE until the 4h stale sweep. The extra 1 credit per
+    // active league (2 instead of 1) is an accepted cost.
     const completedFor = new Set<string>();
     const eventIdsFor: Record<string, string[]> = {};
     for (const g of candidates) {
