@@ -387,6 +387,32 @@ auth via `?secret=<cron.secret>` or the `x-cron-secret` header.
   (`Setting: live.lastSweepAt`), so cron hits and `/live` visitor sweeps
   never double-spend. Set the cron interval shorter than the throttle and
   extra hits return `skipped`/`throttled` cheaply.
+### Two-tier soccer market engine (quota-aware)
+
+Verified against the live API 2026-09-10 (6 probe credits):
+
+| Tier | Where | Markets | Cost |
+|---|---|---|---|
+| **1 — bulk sweep** | `syncGames` (`/api/cron/sync`) | list pass `h2h,spreads,totals` for every whitelisted league; `btts` + `draw_no_bet` via the **per-event pass** for `odds.eventMarketLeagues` (nearest `odds.eventMarketLimit` fixtures) | 3/league list + ~1/market/event |
+| **2 — on demand** | `GET /api/games/{eventId}` and every match-detail page load | `soccer.detailMarkets` (default `alternate_totals, alternate_spreads, h2h_h1, h2h_h2, team_totals`) fetched per event | ~1/served market/event, cached |
+
+- **Admin → API Settings → "Soccer Market Engine"** edits the bulk market chips
+  (`Setting: odds.markets`, recommended `h2h,btts,draw_no_bet,totals`), the deep
+  detail chips (`Setting: soccer.detailMarkets`) and the detail cache TTL
+  (`Setting: soccer.detailCacheTtlSeconds`, default **45s**). Env overrides:
+  `ODDS_API_MARKETS`, `SOCCER_DETAIL_MARKETS`, `SOCCER_DETAIL_CACHE_TTL_SECONDS`.
+- **Caching**: `detail.oddsAt.<gameId>` in `Setting`. A detail-page hit inside
+  the TTL is served from the DB with **zero API cost**; concurrent hits share
+  one in-flight request; a provider failure serves the stored markets (never
+  throws to the page).
+- **Cards (`+N Markets`)**: the badge counts bettable markets only (OPEN market
+  + ACTIVE outcome priced > 1) and is hidden at 0; "Market Suspended" now shows
+  only when the card has **no outcomes at all**.
+- Note from the probe: the list endpoint 422s on `btts`/`draw_no_bet` — the
+  sync's market-validation retry drops them and the per-event pass prices them
+  (error responses cost 0). `team_totals` returned no data from
+  Pinnacle/Bovada for EPL — the detail tier skips markets a book doesn't serve.
+
 ### Public live feed — one predicate
 
 The bottom-nav badge, the `/live` header count and the rendered cards all use

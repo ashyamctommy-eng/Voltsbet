@@ -558,7 +558,7 @@ type MarketWithOutcomes = {
  * + N (new-market creates) + 1 (batched outcome writes) round trips per
  * fixture instead of per-market/per-outcome queries.
  */
-async function upsertMarkets(gameId: string, game: ApiGame, prefetched: MarketWithOutcomes[]) {
+export async function upsertMarkets(gameId: string, game: ApiGame, prefetched: MarketWithOutcomes[]) {
   const byKey = new Map<string, MarketWithOutcomes>();
   for (const m of prefetched) if (!byKey.has(m.key)) byKey.set(m.key, m);
   const ops: Prisma.PrismaPromise<unknown>[] = [];

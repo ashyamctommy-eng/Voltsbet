@@ -98,6 +98,14 @@ export type SiteSettings = {
   /** Featured leagues for the per-event pass (Odds API keys). Empty = pass
    *  off. Env ODDS_API_EVENT_MARKET_LEAGUES overrides. */
   oddsEventMarketLeagues: string[];
+  /** TIER 2 — deep single-event markets fetched ON DEMAND when a user opens
+   *  a match detail page (never in the bulk sweep: quota). Env
+   *  SOCCER_DETAIL_MARKETS overrides. */
+  soccerDetailMarkets: string[];
+  /** TIER 2 cache TTL (seconds) for match-detail odds — a detail page hit
+   *  inside this window is served from the DB with zero API cost. Env
+   *  SOCCER_DETAIL_CACHE_TTL_SECONDS overrides. */
+  soccerDetailCacheTtlSeconds: number;
   /** Bookmaker regions requested per league ("eu" | "us" | "eu,us"). eu
    *  = 3 credits/league (Pinnacle soccer — the default: cheapest and
    *  football-first), eu,us = 6 (adds US books for US sports pricing).
@@ -232,6 +240,14 @@ const DEFAULTS: SiteSettings = {
     "soccer_germany_bundesliga",
     "soccer_france_ligue_one",
   ],
+  soccerDetailMarkets: [
+    "alternate_totals",
+    "alternate_spreads",
+    "h2h_h1",
+    "h2h_h2",
+    "team_totals",
+  ],
+  soccerDetailCacheTtlSeconds: 45,
 };
 
 let cache: SiteSettings | null = null;
@@ -386,6 +402,23 @@ export async function getSettings(): Promise<SiteSettings> {
     } catch {
       s.oddsEventMarketLeagues = [];
     }
+    // TIER 2: deep match-detail markets + their cache TTL.
+    try {
+      const rawDetail = raw["soccer.detailMarkets"] ?? "";
+      const v: unknown = rawDetail.trim().startsWith("[") ? JSON.parse(rawDetail) : rawDetail.split(",");
+      const parsed = Array.isArray(v)
+        ? [...new Set(v.filter((x): x is string => typeof x === "string").map((x) => x.trim()).filter(Boolean))]
+        : [];
+      // An explicitly-cleared list stays empty (admin turned the tier off).
+      s.soccerDetailMarkets = rawDetail !== undefined ? parsed : s.soccerDetailMarkets;
+    } catch {
+      /* keep the default menu */
+    }
+    const rawTtl = Number(raw["soccer.detailCacheTtlSeconds"]);
+    s.soccerDetailCacheTtlSeconds =
+      raw["soccer.detailCacheTtlSeconds"] !== undefined && Number.isFinite(rawTtl) && rawTtl >= 5
+        ? Math.min(3600, Math.round(rawTtl))
+        : s.soccerDetailCacheTtlSeconds;
     // Provider prefs: regions, rate-limit ms, event bookmakers, market set,
     // feed/sync league cap. Env overrides are applied by the consumers.
     const rawRegions = raw["odds.regions"];

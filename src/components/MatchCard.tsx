@@ -9,6 +9,7 @@ import { liveContext } from "@/lib/kickoff";
 import { toMatchView } from "@/lib/match-view";
 import { isTwoWayMarket, outcomeSide, sideTextClass } from "@/lib/outcome-tone";
 import { flagForLeague, countryForLeague } from "@/lib/league-flags";
+import { activeMarketCount, hasAnyOutcomes } from "@/lib/game-status";
 
 type MarketLite = {
   id: string;
@@ -120,7 +121,10 @@ export default function MatchCard({
   const leagueFlag = flagForLeague(view.leagueName);
 
   const candidates = game.markets.filter((m) => m.status === "OPEN" && m.outcomes.some((o) => o.status === "ACTIVE"));
-  const openMarketCount = game.markets.filter((m) => m.status === "OPEN").length;
+  // Badge counts BETTABLE markets only (spec: "+N Markets", hidden at 0).
+  const activeCount = activeMarketCount(game.markets);
+  // "Market Suspended" is reserved for cards with no recorded outcomes at all.
+  const hasOutcomes = hasAnyOutcomes(game.markets);
   const mainMarket =
     (preferMarkets ? candidates.find((m) => preferMarkets.includes(m.key)) : undefined) ??
     candidates.find((m) => m.key === "h2h" || m.key === "MATCH_RESULT") ??
@@ -249,7 +253,7 @@ export default function MatchCard({
             })}
           </div>
         </div>
-      ) : !isFinished ? (
+      ) : !isFinished && !hasOutcomes ? (
         <div className="mt-2 rounded-lg bg-card2 px-3 py-2 text-center text-xs font-semibold text-amber-400">
           {t("match.marketSuspended")}
         </div>
@@ -257,18 +261,18 @@ export default function MatchCard({
 
       {/* Footer: +X Markets green callout badge, bottom right */}
       <div className="mt-2 flex items-center justify-end">
-        {game.isApiMatch ? (
+        {activeCount > 0 && (game.isApiMatch ? (
           <span className="shrink-0 rounded-full bg-brand/10 px-2.5 py-1 text-[11px] font-black text-brand">
-            {t("common.marketsCount", { count: openMarketCount })}
+            {t("common.marketsCount", { count: activeCount })}
           </span>
         ) : (
           <Link
             href={`/fixture/${game.id}`}
             className="shrink-0 rounded-full bg-brand/10 px-2.5 py-1 text-[11px] font-black text-brand transition-colors hover:bg-brand/20"
           >
-            {t("common.marketsCount", { count: openMarketCount })}
+            {t("common.marketsCount", { count: activeCount })}
           </Link>
-        )}
+        ))}
       </div>
     </div>
   );

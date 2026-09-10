@@ -5,6 +5,7 @@ import { formatDateTime, fmtOdds } from "@/lib/odds";
 import BackButton from "@/components/BackButton";
 import TeamLogo from "@/components/TeamLogo";
 import FixtureMarkets from "@/components/FixtureMarkets";
+import { refreshDetailMarkets } from "@/lib/detail-odds";
 
 export const dynamic = "force-dynamic";
 
@@ -20,9 +21,15 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
   });
   if (!game) notFound();
 
+  // TIER 2 — opening a match detail page pulls the deep single-event menu
+  // (cached for soccer.detailCacheTtlSeconds, default 45s). Falls back to the
+  // markets already stored by the bulk sweep when the API has nothing.
+  const detail = await refreshDetailMarkets(game.id);
+  const gameMarkets = detail.markets.length ? detail.markets : game.markets;
+
   const live = game.status === "LIVE" || game.status === "HALF_TIME";
-  const openMarkets = game.markets.filter((m) => m.status === "OPEN");
-  const closedMarkets = game.markets.filter((m) => m.status !== "OPEN");
+  const openMarkets = gameMarkets.filter((m) => m.status === "OPEN");
+  const closedMarkets = gameMarkets.filter((m) => m.status !== "OPEN");
 
   return (
     <div className="mx-auto max-w-[1200px] px-4 pb-8">

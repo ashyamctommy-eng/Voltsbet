@@ -33,6 +33,22 @@ export function isBettableMarket(m: {
   return (m.outcomes ?? []).some((o) => o.status === "ACTIVE" && Number(o.odds) > 1);
 }
 
+/** Number of bettable markets on a card — the "+N Markets" badge count.
+ *  Returns 0 when nothing is bettable, so callers can hide the badge. */
+export function activeMarketCount(
+  markets?: { status: string; outcomes?: { status: string; odds: unknown }[] | null }[] | null,
+): number {
+  return (markets ?? []).filter(isBettableMarket).length;
+}
+
+/** True when the game has ANY recorded outcome, bettable or not — used to
+ *  decide whether a card may say "Market Suspended" (only when truly bare). */
+export function hasAnyOutcomes(
+  markets?: { status?: string; outcomes?: { status: string; odds: unknown }[] | null }[] | null,
+): boolean {
+  return (markets ?? []).some((m) => (m.outcomes?.length ?? 0) > 0);
+}
+
 /** True when a game has any bettable market (drives /live visibility). */
 export function hasBettableMarkets(
   markets?: { status: string; outcomes?: { status: string; odds: unknown }[] | null }[] | null,

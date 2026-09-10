@@ -82,6 +82,8 @@ export const GET = handle(async (req: NextRequest) => {
     liveLookbackHours: process.env.LIVE_SCORES_LOOKBACK_HOURS,
     liveOddsThrottleSeconds: process.env.LIVE_ODDS_THROTTLE_SECONDS,
     liveOddsMarkets: process.env.ODDS_API_LIVE_MARKETS,
+    detailMarkets: process.env.SOCCER_DETAIL_MARKETS,
+    detailCacheTtlSeconds: process.env.SOCCER_DETAIL_CACHE_TTL_SECONDS,
   };
 
   return ok({
@@ -99,6 +101,8 @@ export const GET = handle(async (req: NextRequest) => {
       liveLookbackHours: s.liveLookbackHours,
       liveOddsThrottleSeconds: s.liveOddsThrottleSeconds,
       liveOddsMarkets: s.liveOddsMarkets,
+      detailMarkets: s.soccerDetailMarkets,
+      detailCacheTtlSeconds: s.soccerDetailCacheTtlSeconds,
     },
     env,
     quota,
@@ -145,6 +149,9 @@ export const PUT = handle(async (req: NextRequest) => {
   if (body.liveLookbackHours !== undefined) updates.push({ key: "live.lookbackHours", value: num(body.liveLookbackHours, 1) });
   if (body.liveOddsThrottleSeconds !== undefined) updates.push({ key: "live.oddsThrottleSeconds", value: num(body.liveOddsThrottleSeconds, 10) });
   if (body.liveOddsMarkets !== undefined) updates.push({ key: "live.oddsMarkets", value: list(body.liveOddsMarkets) });
+  // TIER 2 — match-detail deep markets + cache TTL
+  if (body.detailMarkets !== undefined) updates.push({ key: "soccer.detailMarkets", value: list(body.detailMarkets) });
+  if (body.detailCacheTtlSeconds !== undefined) updates.push({ key: "soccer.detailCacheTtlSeconds", value: num(body.detailCacheTtlSeconds, 5) });
 
   for (const u of updates) await setSetting(u.key, u.value);
   invalidateSettingsCache();
