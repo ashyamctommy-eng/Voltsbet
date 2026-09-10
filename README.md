@@ -358,6 +358,31 @@ app appends automatically — **no console webhook registration needed**.
 
 ---
 
+## Trigger.dev (background jobs & live sync)
+
+External cron schedulers can be replaced with **Trigger.dev v3** for the
+live-score pipeline (they can coexist; cron remains for sync/settle/purge
+until migrated).
+
+- **Config:** `trigger.config.ts` (project ref, runtime node, 60s max
+  duration, Prisma build extension for `prisma generate`).
+- **Task:** `src/trigger/liveScores.ts` — `schedules.task` id
+  `sync-live-scores`, cron `*/2 * * * *`, driving the same engine the app
+  uses (`refreshLiveScores()`): score/status upserts, in-play odds refresh,
+  seed-orphan deletion and stale (>4h) API live rows force-finished.
+- **Manual trigger:** `POST /api/admin/trigger-sync` (admin + CSRF) →
+  `tasks.trigger("sync-live-scores")`.
+- **Deploy:** `npx trigger.dev@latest deploy` (dev: `npx trigger.dev@latest dev`).
+- **Environment variables**
+  - Trigger.dev dashboard (task runtime): `DATABASE_URL`, `ODDS_API_KEY`
+  - Railway app: `TRIGGER_SECRET_KEY` (Trigger → Project → API keys)
+  - Local/CI deploy: `TRIGGER_ACCESS_TOKEN` (or `trigger.dev login`)
+- **Credit safety:** the sweep throttle is mirrored in the DB
+  (`Setting: live.lastSweepAt`), so Trigger runs and `/live` visitor sweeps
+  never double-spend API credits.
+
+---
+
 ## Manual custom markets
 
 Admins can inject **manual markets/outcomes** on any game — player props,

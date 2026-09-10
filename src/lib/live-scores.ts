@@ -92,15 +92,39 @@ export async function refreshLiveScores(): Promise<{
   leagues: string[];
   orphanDeleted?: number;
   stuckManual?: number;
+  staleFinished?: number;
 }> {
   const live = await liveConfig();
   const windowMs = Math.max(10, live.scoresThrottleSeconds * 1000);
   const now = Date.now();
-  if (now - lastRefresh < windowMs) return { updated: 0, created: 0, oddsUpdated: 0, skipped: true, leagues: [] };
+
+  // Cross-process coordination: /live visitors AND the Trigger.dev scheduled
+  // task both drive this sweep from different processes, so the throttle is
+  // mirrored in the DB (Setting: live.lastSweepAt). Without it the two
+  // orchestrators would double-spend API credits.
+  let lastDb = 0;
+  try {
+    const marker = await prisma.setting.findUnique({ where: { key: "live.lastSweepAt" } });
+    lastDb = marker ? Number(marker.value) || 0 : 0;
+  } catch {
+    /* marker unavailable — fall back to the in-process throttle */
+  }
+  if (now - Math.max(lastRefresh, lastDb) < windowMs) {
+    return { updated: 0, created: 0, oddsUpdated: 0, skipped: true, leagues: [] };
+  }
 
   // Record the attempt even on failure — acts as a backoff so a quota window
   // doesn't get re-hit on every poll.
   lastRefresh = now;
+  try {
+    await prisma.setting.upsert({
+      where: { key: "live.lastSweepAt" },
+      update: { value: String(now) },
+      create: { key: "live.lastSweepAt", value: String(now) },
+    });
+  } catch {
+    /* non-fatal */
+  }
 
   try {
     const provider = new TheOddsApi();
@@ -200,15 +224,17 @@ export async function refreshLiveScores(): Promise<{
     //    reported for the admin to finish instead of being touched.
     let orphanDeleted = 0;
     let stuckManual = 0;
+    let staleFinished = 0;
     try {
       const orphan = await reconcileOrphanLiveGames();
       orphanDeleted = orphan.orphanDeleted;
       stuckManual = orphan.stuckManual;
+      staleFinished = orphan.staleFinished;
     } catch (e) {
       console.error("[live-scores] orphan cleanup failed:", e instanceof Error ? e.message : e);
     }
 
-    return { updated, created, oddsUpdated, skipped: false, leagues: [...leagueKeys], orphanDeleted, stuckManual };
+    return { updated, created, oddsUpdated, skipped: false, leagues: [...leagueKeys], orphanDeleted, stuckManual, staleFinished };
   } catch (e) {
     console.error("[live-scores] sweep failed:", e instanceof Error ? e.message : e);
     return { updated: 0, created: 0, oddsUpdated: 0, skipped: false, leagues: [] };
