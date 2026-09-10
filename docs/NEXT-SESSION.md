@@ -141,14 +141,21 @@ Then say: *"read docs/NEXT-SESSION.md and wire the stats feed"* — integration 
 **Missing before a sale (do these first):**
 1. `LICENSE` + `THIRD-PARTY-NOTICES` files (none exist today) — generate from the lockfile.
 2. Rotate shared keys; each client brings **their own** `ODDS_API_KEY` (+ future `API_FOOTBALL_KEY`) and quota.
-3. **Rebrand away from `UNIBET360`** — "Unibet" is a registered trademark (Kindred); a betting product with a
-   near-identical name is a cease-and-desist risk for us *and* the client. Platform name + client brand are
-   DB-driven already, so this is config + copy.
+3. **Brand = `Voltbets`** (confirmed by the owner 2026-09-10). The `UNIBET360` label used in early briefs is an
+   internal persona name only — never put it on the product, in marketing, or in the repo, because "Unibet" is a
+   registered trademark (Kindred). Optional hygiene: a trademark search on "Voltbets" in the markets you sell into.
+   Client branding is DB-driven, so per-client names are config + copy — not code.
 4. Write the commercial terms (see shapes below) and an acceptance-criteria list.
 
 **Three sale shapes:** (a) **buyout/assignment** — assign copyright, price highest, you lose resale rights;
 (b) **per-client licence** — keep the IP, sell a right to run one branded deployment (natural white-label fit);
 (c) **hosted SaaS** — you host, charge monthly, never hand over source (best recurring revenue, least leakage).
+
+**Decision pending (owner is thinking it over):** *per-client licence* vs *hosted SaaS*. Architectural
+implication — the app is **single-tenant today** (one brand in `Setting`, one `DATABASE_URL`, API keys in env), so:
+per-client licence = **one instance per client** (works with what we have, cheapest to ship); hosted SaaS needs
+**tenant isolation** (schema/DB per tenant), per-tenant API keys + quotas, admin scoping and billing — a real
+build. Sketch both with effort estimates before client #2.
 
 **Handover package for a client:** repo transfer (or zip + escrow), deployment runbook (env vars, `prisma
 migrate deploy`, cron cadence, first admin), their own API accounts, admin credentials, third-party notices,
