@@ -141,10 +141,10 @@ Then say: *"read docs/NEXT-SESSION.md and wire the stats feed"* — integration 
 **Missing before a sale (do these first):**
 1. `LICENSE` + `THIRD-PARTY-NOTICES` files (none exist today) — generate from the lockfile.
 2. Rotate shared keys; each client brings **their own** `ODDS_API_KEY` (+ future `API_FOOTBALL_KEY`) and quota.
-3. **Brand = `Voltbets`** (confirmed by the owner 2026-09-10). The `UNIBET360` label used in early briefs is an
-   internal persona name only — never put it on the product, in marketing, or in the repo, because "Unibet" is a
-   registered trademark (Kindred). Optional hygiene: a trademark search on "Voltbets" in the markets you sell into.
-   Client branding is DB-driven, so per-client names are config + copy — not code.
+3. **Brand = `Voltbets`** ✅ **de-brand pass done** (17 files swept: docs, env templates, comments, seed default
+   email → `admin@voltbets.test`, outbound user-agent). The `UNIBET360` label survives only in this handover note as
+   the historical reference; never put it on the product or in marketing ("Unibet" is a Kindred trademark). Optional
+   hygiene: a trademark search on "Voltbets" in the markets you sell into.
 4. Write the commercial terms (see shapes below) and an acceptance-criteria list.
 
 **Three sale shapes:** (a) **buyout/assignment** — assign copyright, price highest, you lose resale rights;
@@ -156,6 +156,11 @@ implication — the app is **single-tenant today** (one brand in `Setting`, one 
 per-client licence = **one instance per client** (works with what we have, cheapest to ship); hosted SaaS needs
 **tenant isolation** (schema/DB per tenant), per-tenant API keys + quotas, admin scoping and billing — a real
 build. Sketch both with effort estimates before client #2.
+
+**SaaS operations:** see `docs/SAAS-PLAYBOOK.md` — fleet vs multi-tenant, packaging/economics, per-client
+provisioning (`scripts/provision-client.sh`, dry-run first), env template (`docs/templates/client.env.example`),
+cron cadence, acceptance tests, backups/restore drill, update rollout, billing, owner console spec, the Phase-2
+multi-tenant design (row-level `tenantId` + scoped Prisma client) and the switch triggers.
 
 **Handover package for a client:** repo transfer (or zip + escrow), deployment runbook (env vars, `prisma
 migrate deploy`, cron cadence, first admin), their own API accounts, admin credentials, third-party notices,
