@@ -1,4 +1,4 @@
-# UNIBET360 — Sportsbook Platform
+# Voltbets — Sportsbook Platform
 
 Full-stack, database-driven sportsbook: customer frontend, admin panel, betting
 engine, settlement, **crypto + M-Pesa (Palpluss) + voucher** deposits,
@@ -131,10 +131,10 @@ pnpm dev                      # http://localhost:3000
 
 | Role | Login | Password | Notes |
 |---|---|---|---|
-| Super Admin | `admin@unibet360.test` | `Admin123!` | `/admin` — dev only |
-| Customer | `demo@unibet360.test` | `Demo123!` | Wallet KSh 24,800 |
-| Customer | `pending@unibet360.test` | `Demo123!` | Pending verification |
-| Customer | `suspended@unibet360.test` | `Demo123!` | Fully locked |
+| Super Admin | `admin@voltbets.test` | `Admin123!` | `/admin` — dev only |
+| Customer | `demo@voltbets.test` | `Demo123!` | Wallet KSh 24,800 |
+| Customer | `pending@voltbets.test` | `Demo123!` | Pending verification |
+| Customer | `suspended@voltbets.test` | `Demo123!` | Fully locked |
 
 ---
 
@@ -169,7 +169,7 @@ build — the compile itself still succeeds.
 | `APP_URL` | ✅ | — | Public HTTPS base URL — builds webhook callback URLs + cron configs |
 | `ODDS_API_KEY` | ✅ | — | the-odds-api.com v4 — pre-match odds, live scores, live odds, settlement |
 | `CRON_SECRET` | ✅ | — | Guards `/api/cron/*` (`?secret=` or `x-cron-secret`) — `openssl rand -hex 32` |
-| `SEED_ADMIN_EMAIL` | seed | `admin@unibet360.test` | Super-admin email created by the seed |
+| `SEED_ADMIN_EMAIL` | seed | `admin@voltbets.test` | Super-admin email created by the seed |
 | `SEED_ADMIN_PASSWORD` | seed | — | **No production fallback** — seed skips admin if unset |
 | `ODDS_API_REGIONS` | — | `eu` (DB setting `odds.regions`, Admin → API Settings) | Bookmaker regions — `eu` (default) = 3 credits/league, Pinnacle soccer only; `eu,us` = 6 credits/league and adds US books so MLB/NFL/NBA/NHL can be priced. |
 | `ODDS_API_MARKETS` | — | `h2h,spreads,totals,btts,double_chance,draw_no_bet,correct_score` | List-endpoint markets + per-event extended markets; unsupported ones are auto-dropped |
@@ -763,4 +763,4 @@ public pages, keeping the site white-label for end users). Links live in
 ## Responsible gambling
 
 Deposit/stake/session limits and self-exclusion at `/responsible-gambling`.
-UNIBET360 is 18+ only.
+Voltbets is 18+ only.
