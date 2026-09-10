@@ -6,6 +6,7 @@ import { useToast } from "@/components/BetSlipContext";
 import { useRouter } from "next/navigation";
 import { useSiteSettings } from "@/components/SiteSettingsContext";
 import { IconWhatsApp, IconTelegram, IconCoins, IconSmartphone, IconGear, IconGlobe, IconGift2, IconPencil } from "@/components/icons";
+import { IconBell } from "@/components/icons";
 
 type FieldType = "text" | "password" | "number" | "toggle" | "select" | "copy";
 type Field = {
@@ -30,6 +31,14 @@ const GROUPS: { title: string; anchor: string; icon: React.ReactNode; fields: Fi
       { key: "branding.primaryColor", label: "Primary color", type: "text", hint: "Hex, e.g. #00e676" },
       { key: "branding.secondaryColor", label: "Background color", type: "text", hint: "Hex, e.g. #0b1220" },
       { key: "branding.accentColor", label: "Accent color", type: "text", hint: "Hex, e.g. #7c3aed" },
+    ],
+  },
+  {
+    title: "Broadcast",
+    anchor: "broadcast",
+    icon: <IconBell className="h-4 w-4" />,
+    fields: [
+      { key: "broadcast.ttlHours", label: "Broadcast banner lifetime (hours)", type: "number", hint: "How long a Broadcast stays visible site-wide before it disappears on its own. 72 = three days (default), 0 = never expires. Deactivating a broadcast hides it immediately without deleting the history." },
     ],
   },
   {

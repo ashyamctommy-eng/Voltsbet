@@ -358,6 +358,28 @@ app appends automatically — **no console webhook registration needed**.
 
 ---
 
+## Broadcast (site-wide announcements)
+
+One system, one history. **Admin → Broadcast** (`/admin/broadcast`) composes a
+message and lists every send with its audience, status and expiry.
+
+- **Delivery**: a dismissible banner site-wide (public `/api/broadcasts`, polled
+  every 60s) plus a mirror in the notification centre (bell/unread).
+- **Audiences**: everyone · signed-in users only · specific users (accepts ids,
+  emails or @usernames).
+- **Lifecycle** (no schema migration — kept in `Setting: broadcast.meta`):
+  - **Deactivate / Reactivate** — hides it immediately, keeps the record.
+  - **Delete** — removes the broadcast *and* its mirrored notification rows.
+  - **Expiry** — `broadcast.ttlHours` (default **72h**, 0 = never; env
+    `BROADCAST_TTL_HOURS`) plus an optional per-send override.
+  - **Reuse** — prefill the composer from any past send.
+- **Legacy sends**: the old "Announcements" page wrote `Notification` rows
+  directly (bell only, never a banner, no history). Those are listed on the same
+  page under "Announcement messages" with remove-one / remove-all-copies
+  actions; `/admin/notifications` now redirects to `/admin/broadcast`.
+
+---
+
 ## Background jobs (native Railway Cron)
 
 All background work runs through secret-protected HTTP cron endpoints hit by

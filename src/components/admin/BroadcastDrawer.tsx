@@ -5,7 +5,7 @@ import { apiFetch } from "@/lib/client";
 import { useToast } from "@/components/BetSlipContext";
 import { IconBell, IconSend, IconX } from "@/components/icons";
 
-type Broadcast = {
+type BroadcastRow = {
   id: string;
   title: string;
   message: string;
@@ -26,7 +26,7 @@ export default function AdminBroadcastButton() {
         onClick={() => setOpen(true)}
         className="inline-flex items-center gap-1.5 rounded-full bg-brand/15 px-3 py-1 text-sm font-semibold text-brand transition-colors hover:bg-brand/25"
       >
-        <IconBell className="h-4 w-4" /> Announce
+        <IconBell className="h-4 w-4" /> Broadcast
       </button>
       {open && <BroadcastDrawer onClose={() => setOpen(false)} />}
     </>
@@ -37,10 +37,10 @@ function BroadcastDrawer({ onClose }: { onClose: () => void }) {
   const { push } = useToast();
   const [form, setForm] = useState(EMPTY);
   const [loading, setLoading] = useState(false);
-  const [history, setHistory] = useState<Broadcast[]>([]);
+  const [history, setHistory] = useState<BroadcastRow[]>([]);
 
   const reload = () => {
-    apiFetch<{ broadcasts: Broadcast[] }>("/api/admin/broadcast").then((res) => {
+    apiFetch<{ broadcasts: BroadcastRow[] }>("/api/admin/broadcast").then((res) => {
       if (res.ok) setHistory(res.data.broadcasts);
     });
   };
@@ -55,7 +55,7 @@ function BroadcastDrawer({ onClose }: { onClose: () => void }) {
   async function send(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const res = await apiFetch<{ broadcast: Broadcast }>("/api/admin/broadcast", {
+    const res = await apiFetch<{ broadcast: BroadcastRow }>("/api/admin/broadcast", {
       method: "POST",
       body: {
         title: form.title,
@@ -66,17 +66,17 @@ function BroadcastDrawer({ onClose }: { onClose: () => void }) {
     });
     setLoading(false);
     if (!res.ok) return push("error", res.error.message);
-    push("success", "Announcement broadcast sent");
+    push("success", "Broadcast sent");
     setForm(EMPTY);
     reload();
   }
 
   return (
-    <div className="fixed inset-0 z-[90]" role="dialog" aria-modal="true" aria-label="Broadcast announcement">
+    <div className="fixed inset-0 z-[90]" role="dialog" aria-modal="true" aria-label="Send broadcast">
       <button aria-label="Close" onClick={onClose} className="absolute inset-0 bg-black/60" />
       <aside className="absolute right-0 top-0 flex h-full w-full max-w-md flex-col border-l border-line bg-card shadow-2xl">
         <div className="flex items-center justify-between border-b border-line px-5 py-4">
-          <h2 className="text-base font-extrabold">Broadcast Announcement</h2>
+          <h2 className="text-base font-extrabold">Send Broadcast</h2>
           <button onClick={onClose} className="rounded-lg p-1.5 text-ink3 hover:bg-hover-tint hover:text-ink" aria-label="Close">
             <IconX className="h-5 w-5" />
           </button>
@@ -137,7 +137,12 @@ function BroadcastDrawer({ onClose }: { onClose: () => void }) {
         </form>
 
         <div className="flex-1 overflow-y-auto border-t border-line px-5 py-4">
-          <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-ink3">Recent broadcasts</h3>
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="text-xs font-bold uppercase tracking-wide text-ink3">Recent broadcasts</h3>
+            <a href="/admin/broadcast" className="text-[11px] font-bold text-brand hover:underline">
+              Manage all →
+            </a>
+          </div>
           {history.length === 0 ? (
             <p className="text-sm text-ink3">No broadcasts sent yet.</p>
           ) : (

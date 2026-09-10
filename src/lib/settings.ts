@@ -104,6 +104,9 @@ export type SiteSettings = {
    *  floating counter updates) — no sheet/rail is yanked open. Admin →
    *  Website Settings → Betting. Env BETSLIP_AUTO_OPEN overrides. */
   betSlipAutoOpen: boolean;
+  /** How long a broadcast banner stays live (hours). 0 = never expires.
+   *  Admin → Website Settings → Broadcast. Env BROADCAST_TTL_HOURS overrides. */
+  broadcastTtlHours: number;
   /** TIER 2 — deep single-event markets fetched ON DEMAND when a user opens
    *  a match detail page (never in the bulk sweep: quota). Env
    *  SOCCER_DETAIL_MARKETS overrides. */
@@ -238,6 +241,7 @@ const DEFAULTS: SiteSettings = {
   liveOddsThrottleSeconds: 900,
   liveOddsMarkets: ["h2h"],
   betSlipAutoOpen: false,
+  broadcastTtlHours: 72,
   oddsEventMarketLimit: 4,
   oddsEventMarketLeagues: [
     "soccer_epl",
@@ -404,6 +408,12 @@ export async function getSettings(): Promise<SiteSettings> {
     } catch {
       s.oddsEventMarketLeagues = [];
     }
+    // Broadcast banner lifetime (hours; 0 = never expires).
+    const rawBcastTtl = Number(raw["broadcast.ttlHours"]);
+    s.broadcastTtlHours =
+      raw["broadcast.ttlHours"] !== undefined && Number.isFinite(rawBcastTtl) && rawBcastTtl >= 0
+        ? Math.round(rawBcastTtl)
+        : s.broadcastTtlHours;
     // Bet slip: silent pick-up unless explicitly enabled.
     const rawAutoOpen = process.env.BETSLIP_AUTO_OPEN ?? raw["betSlip.autoOpen"];
     if (rawAutoOpen !== undefined) s.betSlipAutoOpen = rawAutoOpen === "true";
