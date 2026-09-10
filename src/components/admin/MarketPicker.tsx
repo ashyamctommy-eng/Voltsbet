@@ -54,8 +54,19 @@ export default function MarketPicker({
         {m.name}
         <span className="font-mono text-[10px] opacity-60">{m.key}</span>
         {m.settle === "manual" && (
-          <span className="rounded bg-amber-500/15 px-1 text-[9px] font-black uppercase text-amber-600 dark:text-amber-400">
+          <span
+            className="rounded bg-amber-500/15 px-1 text-[9px] font-black uppercase text-amber-600 dark:text-amber-400"
+            title="No result feed for this market — outcomes are settled by hand in Admin → Ops → Settlement Review."
+          >
             manual
+          </span>
+        )}
+        {m.settle === "auto-ht" && (
+          <span
+            className="rounded bg-sky-500/15 px-1 text-[9px] font-black uppercase text-sky-600 dark:text-sky-400"
+            title="Auto-settles once the half-time score is entered (Admin → Games) — the API feed has no half-time scores."
+          >
+            needs HT
           </span>
         )}
       </button>

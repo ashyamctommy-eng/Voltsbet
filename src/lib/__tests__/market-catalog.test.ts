@@ -60,14 +60,43 @@ describe("soccer market catalog integrity", () => {
     expect(RECOMMENDED_DETAIL_MARKETS).toContain("alternate_totals_corners");
   });
 
-  it("flags settlement honestly (no auto-settle claim without score data)", () => {
-    // Half-time / corners / cards / qualification cannot be resolved from
-    // /scores — they must be labelled manual for the admin queue.
-    for (const key of ["h2h_h1", "totals_h1", "alternate_totals_corners", "corners_1x2", "to_qualify"]) {
-      expect(catalog.get(key)?.settle, key).toBe("manual");
-    }
-    for (const key of ["h2h", "totals", "btts", "draw_no_bet", "double_chance", "correct_score"]) {
+  it("flags settlement exactly as the resolver behaves", () => {
+    // Resolvable from the FINAL score in /scores.
+    for (const key of [
+      "h2h",
+      "h2h_3_way",
+      "totals",
+      "alternate_totals",
+      "btts",
+      "draw_no_bet",
+      "double_chance",
+      "correct_score",
+      "spreads",
+      "alternate_spreads",
+      "team_totals",
+      "alternate_team_totals",
+    ]) {
       expect(catalog.get(key)?.settle, key).toBe("auto");
+    }
+    // Resolver exists but needs the half-time score (not in the API feed).
+    for (const key of ["totals_h1", "totals_h2", "btts_h1", "halftime_fulltime"]) {
+      expect(catalog.get(key)?.settle, key).toBe("auto-ht");
+    }
+    // No resolver at all → admin review queue.
+    for (const key of [
+      "h2h_h1",
+      "h2h_h2",
+      "spreads_h1",
+      "spreads_h2",
+      "alternate_totals_h1",
+      "correct_score_h1",
+      "double_chance_h1",
+      "team_totals_h1",
+      "alternate_totals_corners",
+      "corners_1x2",
+      "to_qualify",
+    ]) {
+      expect(catalog.get(key)?.settle, key).toBe("manual");
     }
   });
 });

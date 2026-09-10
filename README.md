@@ -397,9 +397,18 @@ league whitelist.
 
 - Groups: **Core** (list pass: h2h/spreads/totals), **Goals & results**,
   **Halves**, **Corners & cards**, **Extras**.
-- Each entry is flagged `settle: auto | manual`. **Corners, cards, halves and
-  qualification have no data source in `/scores`, so they settle from the admin
-  review queue** — the picker labels them `manual` so nobody is surprised.
+- Each entry carries a settlement flag (matches `src/lib/auto-settle.ts`):
+  - **`auto`** — resolved from the final score in `/scores`: 1X2 (incl. 3-way),
+    totals/goal lines, BTTS, Draw No Bet, Double Chance, Correct Score,
+    handicaps, team totals.
+  - **`needs HT`** — the resolver exists but requires the half-time score, which
+    `/scores` does not provide: 1st/2nd-half totals, 1st-half BTTS, HT/FT. These
+    settle automatically **after** an admin enters the HT score
+    (Admin → Games).
+  - **`manual`** — no resolver at all: corners, cards, half result/handicap/
+    correct score, qualification, player props. The outcome stays unsettled and
+    is resolved by hand at **Admin → Ops → Settlement Review**
+    (`POST /api/admin/settle/{outcomeId}`).
 - A unit test asserts every selectable key exists in the provider `MARKET_MAP`
   (a selectable-but-unmappable market would burn credits and store nothing).
 
