@@ -43,6 +43,8 @@ import { TheOddsApi, getLastQuota } from "./providers/odds-api";
 import { resolveSportSlug, upsertInPlayOdds } from "./sync";
 import { reconcileOrphanLiveGames } from "./orphan-live";
 import { LEAGUE_TITLES } from "./league-titles";
+import { LIVE_STATUSES } from "./game-status";
+import { LIVE_FEED_FRESH_MINUTES } from "./live-feed";
 
 let lastRefresh = 0;
 let lastOddsRefresh = 0;
@@ -102,6 +104,8 @@ export async function refreshLiveScores(): Promise<{
   orphanDeleted?: number;
   stuckManual?: number;
   staleFinished?: number;
+  flagsNormalized?: number;
+  staleHidden?: number;
   quotaRemaining?: number | null;
   quotaUsed?: number | null;
   quotaCost?: number | null;
@@ -282,6 +286,42 @@ export async function refreshLiveScores(): Promise<{
       console.error("[live-scores] orphan cleanup failed:", e instanceof Error ? e.message : e);
     }
 
+    // 7) Live hygiene.
+    //    a) The legacy `live` boolean drifted from `status` (finished rows still
+    //       flagged live inflated the public /live count to 42 vs the badge's
+    //       3). The feed now trusts status only; this keeps the flag honest for
+    //       every other consumer.
+    //    b) Rows still marked live that the API has NOT reported within
+    //       LIVE_FEED_FRESH_MINUTES (default 30) are excluded from the public
+    //       live feed by liveFeedWhere() — no odds/scores for >30 min past
+    //       kickoff means they are untrustworthy/unbettable. They are counted
+    //       and logged here; the 4h stale sweep flips their status permanently
+    //       (faster than that would risk settling a match still in play).
+    let flagsNormalized = 0;
+    let staleHidden = 0;
+    try {
+      const norm = await prisma.game.updateMany({
+        where: { live: true, status: { notIn: [...LIVE_STATUSES] } },
+        data: { live: false },
+      });
+      flagsNormalized = norm.count;
+      staleHidden = await prisma.game.count({
+        where: {
+          status: { in: [...LIVE_STATUSES] },
+          externalId: { not: null },
+          updatedAt: { lt: new Date(now - LIVE_FEED_FRESH_MINUTES * 60_000) },
+        },
+      });
+      if (flagsNormalized || staleHidden) {
+        console.warn(
+          `[live-scores] live hygiene: ${flagsNormalized} stale live flag(s) cleared, ` +
+            `${staleHidden} live row(s) hidden from the public feed (no API touch in ${LIVE_FEED_FRESH_MINUTES}m)`,
+        );
+      }
+    } catch (e) {
+      console.error("[live-scores] live hygiene failed:", e instanceof Error ? e.message : e);
+    }
+
     // Quota telemetry — last snapshot from the API response headers.
     const quota = getLastQuota();
     if (quota) {
@@ -305,6 +345,8 @@ export async function refreshLiveScores(): Promise<{
       orphanDeleted,
       stuckManual,
       staleFinished,
+      flagsNormalized,
+      staleHidden,
       quotaRemaining: quota?.remaining ?? null,
       quotaUsed: quota?.used ?? null,
       quotaCost: quota?.last ?? null,

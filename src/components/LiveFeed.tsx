@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import MatchCard from "@/components/MatchCard";
 import { SportIcon } from "@/components/SportIcon";
 import { IconTv } from "@/components/icons";
-import { isLiveStatus } from "@/lib/game-status";
+import { hasBettableMarkets, isLiveStatus } from "@/lib/game-status";
 
 type FeedGame = {
   id: string;
@@ -64,10 +64,12 @@ export default function LiveFeed({
     return () => clearInterval(t);
   }, [router, refreshSeconds]);
 
+  // Defensive client-side twin of liveFeedWhere(): never render a row without
+  // a bettable market (those cards showed "Market Suspended / +0 Markets").
   const live = useMemo(
     () =>
       [...games]
-        .filter((g) => isLiveStatus(g.status, g.live))
+        .filter((g) => isLiveStatus(g.status) && hasBettableMarkets(g.markets))
         .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime()),
     [games],
   );

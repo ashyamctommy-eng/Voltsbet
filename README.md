@@ -387,6 +387,24 @@ auth via `?secret=<cron.secret>` or the `x-cron-secret` header.
   (`Setting: live.lastSweepAt`), so cron hits and `/live` visitor sweeps
   never double-spend. Set the cron interval shorter than the throttle and
   extra hits return `skipped`/`throttled` cheaply.
+### Public live feed — one predicate
+
+The bottom-nav badge, the `/live` header count and the rendered cards all use
+**`liveFeedWhere()`** (`src/lib/live-feed.ts`), so they can never disagree:
+
+- `status ∈ (LIVE, HALF_TIME, IN_PLAY)` — `status` is the only live signal; the
+  legacy `live` boolean is ignored for visibility (the sweep normalizes it).
+- `externalId IS NOT NULL` and `source = API` — orphan/seed rows never appear.
+- at least one **bettable** market (OPEN market + ACTIVE outcome with price > 1)
+  — no "Market Suspended / +0 Markets" cards on the live tab or its fallback.
+- `updatedAt` within `LIVE_FEED_FRESH_MINUTES` (default 30) — a live row the
+  API stopped reporting drops off the public feed instead of lingering; the 4h
+  stale sweep still flips its status permanently.
+
+**Homepage feed cache is now shared across instances** (`Setting: feed.snapshot`
+/ `feed.snapshotAt`): one process fetches per TTL window and the others read the
+snapshot, so expiry no longer re-spends a full league sweep per Railway instance.
+
 ### Live sweep API contract (The Odds API v4)
 
 Verified against the live API (2026-09-10) and the official guide

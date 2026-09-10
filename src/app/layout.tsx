@@ -3,6 +3,7 @@ import "./globals.css";
 import { getSettings } from "@/lib/settings";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { liveFeedWhere } from "@/lib/live-feed";
 import { formatMoney } from "@/lib/currency";
 import { BetSlipProvider, ToastProvider } from "@/components/BetSlipContext";
 import { ThemeProvider } from "@/components/ThemeProvider";
@@ -45,7 +46,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const [s, user, liveGames, sports] = await Promise.all([
     getSettings(),
     getCurrentUser(),
-    prisma.game.count({ where: { status: { in: ["LIVE", "HALF_TIME"] } } }),
+    // Canonical live-feed predicate — identical to the /live header count and
+    // the rendered cards (see src/lib/live-feed.ts).
+    prisma.game.count({ where: liveFeedWhere() }),
     prisma.sport.findMany({ where: { active: true }, orderBy: [{ isPopular: "desc" }, { sortOrder: "asc" }], take: 8 }),
   ]);
 

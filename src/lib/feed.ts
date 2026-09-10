@@ -21,6 +21,7 @@ import { TheOddsApi, type ApiGame } from "@/lib/providers/odds-api";
 import { getSettings } from "@/lib/settings";
 import { leagueRank } from "@/lib/league-rank";
 import { apiGameToMatchView, type FeedMatchView } from "@/lib/match-view";
+import { prisma } from "@/lib/prisma";
 import { LEAGUE_TITLES } from "./league-titles";
 
 export { apiMatchToFeedGame } from "@/lib/match-view";
@@ -82,6 +83,63 @@ let cache: { at: number; matches: FeedMatchView[]; source: FeedSource } | null =
  * to commence_time > now, and the DB fallback filters startAt > now — a
  * match that already kicked off is not pre-match, it belongs on /live.
  */
+/**
+ * Cross-instance feed snapshot.
+ *
+ * Every Railway instance keeps its OWN in-memory cache, so on expiry each one
+ * independently ran a full league sweep (≈1 request per league per market —
+ * the biggest hidden quota drain). The snapshot is mirrored into Setting so
+ * exactly ONE process pays per TTL window and all instances serve the same
+ * matches.
+ */
+const FEED_SNAPSHOT_KEY = "feed.snapshot";
+const FEED_SNAPSHOT_AT_KEY = "feed.snapshotAt";
+
+async function readDbSnapshot(ttlMs: number): Promise<{ matches: FeedMatchView[]; at: number } | null> {
+  try {
+    const [atRow, snapRow] = await Promise.all([
+      prisma.setting.findUnique({ where: { key: FEED_SNAPSHOT_AT_KEY } }),
+      prisma.setting.findUnique({ where: { key: FEED_SNAPSHOT_KEY } }),
+    ]);
+    const at = atRow ? Number(atRow.value) || 0 : 0;
+    if (!at || Date.now() - at >= ttlMs || !snapRow?.value) return null;
+    const matches = JSON.parse(snapRow.value) as FeedMatchView[];
+    return Array.isArray(matches) && matches.length ? { matches, at } : null;
+  } catch {
+    return null;
+  }
+}
+
+async function writeDbSnapshot(matches: FeedMatchView[]): Promise<void> {
+  try {
+    const value = JSON.stringify(matches);
+    const at = String(Date.now());
+    await prisma.setting.upsert({ where: { key: FEED_SNAPSHOT_KEY }, update: { value }, create: { key: FEED_SNAPSHOT_KEY, value } });
+    await prisma.setting.upsert({ where: { key: FEED_SNAPSHOT_AT_KEY }, update: { value: at }, create: { key: FEED_SNAPSHOT_AT_KEY, value: at } });
+  } catch {
+    /* snapshot is an optimisation — never fail the feed over it */
+  }
+}
+
+/** Claim the window so peers skip the paid fetch while we run it. */
+async function claimDbSnapshot(): Promise<void> {
+  try {
+    const at = String(Date.now());
+    await prisma.setting.upsert({ where: { key: FEED_SNAPSHOT_AT_KEY }, update: { value: at }, create: { key: FEED_SNAPSHOT_AT_KEY, value: at } });
+  } catch {
+    /* non-fatal */
+  }
+}
+
+/** Release the claim after a failed/empty fetch so the next request retries. */
+async function releaseDbSnapshot(): Promise<void> {
+  try {
+    await prisma.setting.delete({ where: { key: FEED_SNAPSHOT_AT_KEY } });
+  } catch {
+    /* nothing claimed */
+  }
+}
+
 export async function getPrematchFeed(
   limit: number = FEED_EVENTS,
 ): Promise<{ matches: FeedMatchView[]; source: FeedSource }> {
@@ -90,8 +148,16 @@ export async function getPrematchFeed(
     return { matches: cache.matches, source: cache.source };
   }
 
+  // Another instance fetched within the window → serve its snapshot (0 credits).
+  const snapshot = await readDbSnapshot(ttlMs);
+  if (snapshot) {
+    cache = { at: snapshot.at, matches: snapshot.matches, source: "the-odds-api" };
+    return { matches: snapshot.matches, source: "the-odds-api" };
+  }
+
   // 1) The Odds API — the only pre-match source.
   if (process.env.ODDS_API_KEY) {
+    await claimDbSnapshot();
     try {
       const provider = new TheOddsApi();
       const sports = await provider.fetchSports();
@@ -147,12 +213,15 @@ export async function getPrematchFeed(
           .map(apiGameToMatchView);
         if (matches.length) {
           cache = { at: Date.now(), matches, source: "the-odds-api" };
+          await writeDbSnapshot(matches); // share with the other instances
           return { matches, source: "the-odds-api" };
         }
+        await releaseDbSnapshot(); // nothing priced → allow a retry
       }
     } catch {
-      /* fall through to the synced DB */
-    }
+        await releaseDbSnapshot();
+        /* fall through to the synced DB */
+      }
   }
 
   // 2) Stale snapshot while every source is down, else empty (DB covers).

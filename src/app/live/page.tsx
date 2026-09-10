@@ -3,6 +3,7 @@ import { getSettings } from "@/lib/settings";
 import { refreshLiveScores } from "@/lib/live-scores";
 import LiveFeed from "@/components/LiveFeed";
 import { LIVE_STATUSES } from "@/lib/game-status";
+import { BETTABLE_MARKET_PREDICATE, LIVE_FEED_INCLUDE, LIVE_FEED_TAKE, liveFeedWhere } from "@/lib/live-feed";
 
 export const dynamic = "force-dynamic";
 
@@ -12,32 +13,34 @@ export default async function LivePage() {
   // at most one sweep per active league per LIVE_SCORES_THROTTLE_SECONDS
   // window) before reading the DB.
   await refreshLiveScores();
-  // The badge and the rendered cards must count the SAME set: every row the
-  // feed's isLiveStatus() filter accepts (status in LIVE_STATUSES OR live:true).
-  const liveGames = await prisma.game.findMany({
-    where: {
-      OR: [{ status: { in: [...LIVE_STATUSES] } }, { live: true }],
-      ...(s.hideSeededGames ? { source: "API" } : {}),
-    },
-    include: { sport: true, markets: { include: { outcomes: true }, orderBy: { sortOrder: "asc" } } },
-    orderBy: [{ status: "asc" }, { startAt: "asc" }],
-    take: 60,
-  });
-
-  // Dead-hour fallback: today's next kickoffs so /live is never an empty
-  // dead end (matches the sport-feed "fall back to upcoming" philosophy).
-  const soon = await prisma.game.findMany({
-    where: {
-      status: { notIn: ["FINISHED", "CANCELLED", ...LIVE_STATUSES] },
-      startAt: { gte: new Date() },
-      ...(s.hideSeededGames ? { source: "API" } : {}),
-    },
-    include: { sport: true, markets: { include: { outcomes: true }, orderBy: { sortOrder: "asc" } } },
-    orderBy: { startAt: "asc" },
-    take: 6,
-  });
-
-  const liveCount = liveGames.length;
+  // Badge, header count and cards ALL use liveFeedWhere() (status-driven,
+  // API rows only, bettable market required, API-touched within 30 min) — the
+  // previous mismatch came from the page also counting stale `live: true` rows.
+  const where = liveFeedWhere();
+  const [liveCount, liveGames, soon] = await Promise.all([
+    prisma.game.count({ where }),
+    prisma.game.findMany({
+      where,
+      include: LIVE_FEED_INCLUDE,
+      orderBy: [{ startAt: "asc" }],
+      take: LIVE_FEED_TAKE,
+    }),
+    // Dead-hour fallback: next kickoffs so /live is never a dead end. Also
+    // must be bettable — a card with no markets renders as "Market Suspended
+    // (+0 Markets)", which is exactly what we are removing from this page.
+    prisma.game.findMany({
+      where: {
+        status: { notIn: ["FINISHED", "CANCELLED", ...LIVE_STATUSES] },
+        startAt: { gte: new Date() },
+        source: "API",
+        externalId: { not: null },
+        markets: { some: BETTABLE_MARKET_PREDICATE },
+      },
+      include: LIVE_FEED_INCLUDE,
+      orderBy: { startAt: "asc" },
+      take: 6,
+    }),
+  ]);
 
   return (
     <div className="mx-auto w-full max-w-full overflow-x-hidden px-4 pb-32 md:pb-10">
