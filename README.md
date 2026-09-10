@@ -387,6 +387,34 @@ auth via `?secret=<cron.secret>` or the `x-cron-secret` header.
   (`Setting: live.lastSweepAt`), so cron hits and `/live` visitor sweeps
   never double-spend. Set the cron interval shorter than the throttle and
   extra hits return `skipped`/`throttled` cheaply.
+### Market catalog (tap-to-select) + corners
+
+`src/lib/market-catalog.ts` is the single source of truth for every valid
+soccer market key (from the official betting-markets page, retrieved
+2026-09-10). Admin → API Settings renders it as a **tap-to-select catalog**
+(search + groups + Recommended/Clear) for both tiers — same interaction as the
+league whitelist.
+
+- Groups: **Core** (list pass: h2h/spreads/totals), **Goals & results**,
+  **Halves**, **Corners & cards**, **Extras**.
+- Each entry is flagged `settle: auto | manual`. **Corners, cards, halves and
+  qualification have no data source in `/scores`, so they settle from the admin
+  review queue** — the picker labels them `manual` so nobody is surprised.
+- A unit test asserts every selectable key exists in the provider `MARKET_MAP`
+  (a selectable-but-unmappable market would burn credits and store nothing).
+
+Corners coverage verified live 2026-09-10 (Aston Villa v Nottingham Forest):
+
+| Market | Pinnacle | Bovada |
+|---|---|---|
+| `alternate_totals_corners` | 10 lines (9.0–11.0) | 10 lines |
+| `alternate_spreads_corners` | 10 lines | 6 lines |
+| `alternate_team_totals_corners` | 4 (per team) | 4 (per team) |
+| `corners_1x2` | — | 1.51 / 8.25 / 3.00 |
+
+Team-scoped outcomes carry a provider `description` (the team/player); it is now
+prefixed onto the outcome name so both teams' lines stay distinct.
+
 ### Two-tier soccer market engine (quota-aware)
 
 Verified against the live API 2026-09-10 (6 probe credits):

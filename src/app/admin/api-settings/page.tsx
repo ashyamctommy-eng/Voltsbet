@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/client";
+import MarketPicker from "@/components/admin/MarketPicker";
+import { RECOMMENDED_BULK_MARKETS, RECOMMENDED_DETAIL_MARKETS } from "@/lib/market-catalog";
 import { useToast } from "@/components/BetSlipContext";
 import { IconSend, IconPlug, IconCheck, IconX, IconSearch, IconCopy } from "@/components/icons";
 
@@ -44,31 +46,6 @@ type OddsConfig = {
   /** Quota headers captured by the most recent live sweep (Setting odds.lastQuota). */
   lastSweep: { remaining: number | null; used: number | null; cost: number | null; at: string; path?: string } | null;
 };
-
-/** TIER 1 bulk-sweep candidates (list-endpoint trio + per-event football menu). */
-const BULK_MARKET_OPTIONS = [
-  "h2h",
-  "spreads",
-  "totals",
-  "btts",
-  "draw_no_bet",
-  "double_chance",
-  "correct_score",
-  "alternate_totals",
-  "alternate_spreads",
-  "h2h_h1",
-  "h2h_h2",
-  "team_totals",
-] as const;
-
-/** TIER 2 match-detail deep menu (on demand only). */
-const DETAIL_MARKET_OPTIONS = ["alternate_totals", "alternate_spreads", "h2h_h1", "h2h_h2", "team_totals"] as const;
-
-/** Toggle a comma-separated market key on/off. */
-function toggleCsvList(csv: string, key: string): string {
-  const cur = csv.split(",").map((x) => x.trim()).filter(Boolean);
-  return (cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key]).join(",");
-}
 
 /** Accept one key per line, comma separated, or a JSON array. */
 function parseLeagues(v: string): string[] {
@@ -456,7 +433,8 @@ export default function AdminApiSettings() {
           <div>
             <h1 className="text-lg font-extrabold">Event markets (deep markets)</h1>
             <p className="text-sm text-ink2">
-              Correct Score, BTTS, half-time, alternates, corners/cards — fetched per event from the featured leagues. ~1 credit per served market per event.
+              Which leagues get the per-event pass, and how many fixtures per league. The markets priced there are selected in
+              the Soccer Market Engine below. ~1 credit per served market per event.
             </p>
           </div>
           <button className="btn btn-primary btn-sm" disabled={savingOdds === "ev"} onClick={() => saveOdds("ev")}>
@@ -490,8 +468,10 @@ export default function AdminApiSettings() {
           <div>
             <h1 className="text-lg font-extrabold">Soccer Market Engine</h1>
             <p className="text-sm text-ink2">
-              Two tiers: a cheap <b>bulk sweep</b> across the whitelisted leagues, and a <b>deep on-demand</b> menu when a
-              punter opens a match detail page (cached {fm.detailTtl || 45}s).
+              Tap to select/deselect markets. <b>Tier 1</b> prices the bulk sweep (list pass + the per-event pass for the
+              featured leagues above); <b>Tier 2</b> prices the deep menu when a punter opens a match detail page (cached{" "}
+              {fm.detailTtl || 45}s). Markets tagged <b>manual</b> have no data source in /scores and settle from the admin
+              review queue.
             </p>
           </div>
           <button className="btn btn-primary btn-sm" disabled={savingOdds === "soccer"} onClick={() => saveOdds("soccer")}>
@@ -500,66 +480,34 @@ export default function AdminApiSettings() {
         </div>
 
         <div className="mt-4">
-          <label className="label">Tier 1 — bulk sweep markets</label>
-          <div className="flex flex-wrap gap-1.5">
-            {BULK_MARKET_OPTIONS.map((k) => {
-              const active = fm.markets.split(",").map((x) => x.trim()).filter(Boolean).includes(k);
-              return (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => setFm((f) => ({ ...f, markets: toggleCsvList(f.markets, k) }))}
-                  className={`rounded-full border px-2.5 py-1.5 font-mono text-[11px] font-bold transition-colors ${
-                    active ? "border-brand bg-brand/15 text-brand" : "border-line bg-card2 text-ink2 hover:text-ink"
-                  }`}
-                >
-                  {k}
-                </button>
-              );
-            })}
-          </div>
-          <p className="mt-1 text-[11px] text-ink3">
-            Recommended: <b>h2h,btts,draw_no_bet,totals</b>. The list endpoint serves h2h/spreads/totals (cheap, every
-            league); <b>btts &amp; draw_no_bet are priced through the per-event pass</b> for the featured leagues below.
-            Empty = the built-in full football menu.
-          </p>
-          {envTag("markets")}
+          <MarketPicker
+            label="Tier 1 — bulk sweep markets"
+            selected={fm.markets}
+            onChange={(next) => setFm((f) => ({ ...f, markets: next }))}
+            recommended={RECOMMENDED_BULK_MARKETS}
+            hint="h2h/spreads/totals are served by the cheap list pass for every whitelisted league; everything else (btts, draw_no_bet, corners, halves…) is priced per event for the featured leagues. Empty = the built-in full menu."
+            envTag={envTag("markets")}
+          />
         </div>
 
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className="label">Tier 2 — match detail deep markets</label>
-            <div className="flex flex-wrap gap-1.5">
-              {DETAIL_MARKET_OPTIONS.map((k) => {
-                const active = fm.detailMarkets.split(",").map((x) => x.trim()).filter(Boolean).includes(k);
-                return (
-                  <button
-                    key={k}
-                    type="button"
-                    onClick={() => setFm((f) => ({ ...f, detailMarkets: toggleCsvList(f.detailMarkets, k) }))}
-                    className={`rounded-full border px-2.5 py-1.5 font-mono text-[11px] font-bold transition-colors ${
-                      active ? "border-brand bg-brand/15 text-brand" : "border-line bg-card2 text-ink2 hover:text-ink"
-                    }`}
-                  >
-                    {k}
-                  </button>
-                );
-              })}
-            </div>
-            <p className="mt-1 text-[11px] text-ink3">
-              Fetched <b>only</b> when someone opens that match (~1 credit per served market per event). Empty = detail
-              tier off.
-            </p>
-            {envTag("detailMarkets")}
-          </div>
-          <div>
-            <label className="label">Detail cache TTL (seconds)</label>
-            <input className="input" type="number" min={5} max={3600} value={fm.detailTtl} onChange={(e) => setFm((f) => ({ ...f, detailTtl: e.target.value }))} />
-            <p className="mt-1 text-[11px] text-ink3">
-              Repeat visits inside this window are served from the DB at <b>zero API cost</b> (default 45s).
-            </p>
-            {envTag("detailCacheTtlSeconds")}
-          </div>
+        <div className="mt-5">
+          <MarketPicker
+            label="Tier 2 — match detail deep markets"
+            selected={fm.detailMarkets}
+            onChange={(next) => setFm((f) => ({ ...f, detailMarkets: next }))}
+            recommended={RECOMMENDED_DETAIL_MARKETS}
+            hint="Fetched only when someone opens that match, then cached for the TTL below. Corners are included in the recommended set."
+            envTag={envTag("detailMarkets")}
+          />
+        </div>
+
+        <div className="mt-4 max-w-xs">
+          <label className="label">Detail cache TTL (seconds)</label>
+          <input className="input" type="number" min={5} max={3600} value={fm.detailTtl} onChange={(e) => setFm((f) => ({ ...f, detailTtl: e.target.value }))} />
+          <p className="mt-1 text-[11px] text-ink3">
+            Repeat visits inside this window are served from the DB at <b>zero API cost</b> (default 45s).
+          </p>
+          {envTag("detailCacheTtlSeconds")}
         </div>
         {oddsMsg && <p className="mt-3 text-xs font-semibold text-green-600 dark:text-green-400">{oddsMsg}</p>}
       </div>

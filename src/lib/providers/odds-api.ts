@@ -180,7 +180,7 @@ export async function getEffectiveOddsMarkets(): Promise<string[]> {
   return settings.oddsMarkets.length ? settings.oddsMarkets : [...ODDS_MARKETS];
 }
 
-const MARKET_MAP: {
+export const MARKET_MAP: {
   key: string;
   local: string;
   name: string;
@@ -196,6 +196,18 @@ const MARKET_MAP: {
   { key: "spreads_h2", local: "SPREAD_2H", name: "2nd Half Handicap" },
   { key: "alternate_spreads", local: "ALTERNATE_SPREAD", name: "Alternate Handicaps" },
   { key: "alternate_totals", local: "ALTERNATE_TOTALS", name: "Goal Line" },
+  // Team totals (outcomes carry a `description` = the team) — docs 2026-09-10
+  { key: "team_totals", local: "TEAM_TOTALS", name: "Team Totals" },
+  { key: "alternate_team_totals", local: "ALTERNATE_TEAM_TOTALS", name: "Alternate Team Totals" },
+  { key: "h2h_3_way", local: "MATCH_RESULT_3WAY", name: "Match Result (3-way)" },
+  { key: "alternate_totals_h1", local: "ALTERNATE_TOTALS_1H", name: "1st Half - Goal Lines" },
+  { key: "alternate_totals_h2", local: "ALTERNATE_TOTALS_2H", name: "2nd Half - Goal Lines" },
+  { key: "alternate_spreads_h1", local: "ALTERNATE_SPREAD_1H", name: "1st Half - Alternate Handicaps" },
+  { key: "alternate_spreads_h2", local: "ALTERNATE_SPREAD_2H", name: "2nd Half - Alternate Handicaps" },
+  { key: "team_totals_h1", local: "TEAM_TOTALS_1H", name: "1st Half - Team Totals" },
+  { key: "team_totals_h2", local: "TEAM_TOTALS_2H", name: "2nd Half - Team Totals" },
+  { key: "alternate_team_totals_h1", local: "ALTERNATE_TEAM_TOTALS_1H", name: "1st Half - Alternate Team Totals" },
+  { key: "alternate_team_totals_h2", local: "ALTERNATE_TEAM_TOTALS_2H", name: "2nd Half - Alternate Team Totals" },
   { key: "correct_score", local: "CORRECT_SCORE", name: "Correct Score" },
   { key: "btts", local: "BTTS", name: "Both Teams to Score" },
   { key: "double_chance", local: "DOUBLE_CHANCE", name: "Double Chance" },
@@ -299,10 +311,14 @@ function totalsName(outcomes: { name: string; price?: number | null }[], fallbac
  */
 const LINE_TOTAL_LOCALS = new Set([
   "OVER_UNDER", "OVER_UNDER_1H", "OVER_UNDER_2H", "ALTERNATE_TOTALS",
+  "ALTERNATE_TOTALS_1H", "ALTERNATE_TOTALS_2H",
+  "TEAM_TOTALS", "TEAM_TOTALS_1H", "TEAM_TOTALS_2H",
+  "ALTERNATE_TEAM_TOTALS", "ALTERNATE_TEAM_TOTALS_1H", "ALTERNATE_TEAM_TOTALS_2H",
   "TOTAL_CORNERS", "TOTAL_BOOKINGS", "TEAM_CORNERS",
 ]);
 const LINE_SPREAD_LOCALS = new Set([
   "SPREAD", "SPREAD_1H", "SPREAD_2H", "ALTERNATE_SPREAD",
+  "ALTERNATE_SPREAD_1H", "ALTERNATE_SPREAD_2H",
   "CORNERS_HANDICAP", "CARDS_HANDICAP",
 ]);
 
@@ -473,7 +489,7 @@ export class TheOddsApi implements OddsProvider {
         `/sports/${encodeURIComponent(sportKey)}/odds?regions=${regions}&markets=${ms.join(",")}&oddsFormat=decimal${idFilter}`
       )) as {
         id: string; commence_time: string; home_team: string; away_team: string;
-        bookmakers: { markets: { key: string; outcomes: { name: string; price: number; point?: number | null }[] }[] }[];
+        bookmakers: { markets: { key: string; outcomes: { name: string; price: number; point?: number | null; description?: string | null }[] }[] }[];
       }[];
 
     try {
@@ -523,7 +539,7 @@ export class TheOddsApi implements OddsProvider {
       const hit = useCache ? oddsCache.get(cacheKey) : undefined;
       let data: {
         id: string; commence_time: string; home_team: string; away_team: string;
-        bookmakers: { markets: { key: string; outcomes: { name: string; price: number; point?: number | null }[] }[] }[];
+        bookmakers: { markets: { key: string; outcomes: { name: string; price: number; point?: number | null; description?: string | null }[] }[] }[];
       }[];
       if (hit && Date.now() - hit.at < ODDS_CACHE_TTL_MS) {
         data = hit.data as typeof data; // served from cache — 0 API cost
@@ -569,7 +585,13 @@ export class TheOddsApi implements OddsProvider {
             // "Team -0.5") — without it every line of a market is a duplicate
             // bare name on the eu/bovada feed.
             outcomes: pricedOutcomes(
-              m.outcomes.map((o) => ({ name: stampPointName(spec.local, o.name, o.point), price: o.price })),
+              m.outcomes.map((o) => {
+                // Participant-scoped outcomes (team totals, team corners,
+                // player props) carry `description`; prefix it so the two
+                // teams' lines never collapse into one outcome name.
+                const stamped = stampPointName(spec.local, o.name, o.point);
+                return { name: o.description ? `${o.description} ${stamped}` : stamped, price: o.price };
+              }),
               (await getSettings()).oddsMarginPercent,
             ),
           });
@@ -624,7 +646,7 @@ export class TheOddsApi implements OddsProvider {
         const hit = oddsCache.get(cacheKey);
         let data: {
           id: string; sport_key: string; commence_time: string; home_team: string; away_team: string;
-          bookmakers?: { key: string; markets: { key: string; outcomes: { name: string; price?: number | null; point?: number | null }[] }[] }[];
+          bookmakers?: { key: string; markets: { key: string; outcomes: { name: string; price?: number | null; point?: number | null; description?: string | null }[] }[] }[];
         }[];
         if (hit && Date.now() - hit.at < ODDS_CACHE_TTL_MS) {
           data = hit.data as typeof data;
@@ -682,7 +704,13 @@ export class TheOddsApi implements OddsProvider {
           // field is stamped into totals/spread names first (see
           // stampPointName) and invalid prices dropped before they reach the DB.
           const priced = pricedOutcomes(
-            m.outcomes.map((o) => ({ name: stampPointName(spec.local, o.name, o.point), price: o.price })),
+            m.outcomes.map((o) => {
+              // Outcomes scoped to a participant (team totals, team corners,
+              // player props) carry `description`; prefix it so the two teams'
+              // lines never collapse into the same outcome name.
+              const stamped = stampPointName(spec.local, o.name, o.point);
+              return { name: o.description ? `${o.description} ${stamped}` : stamped, price: o.price };
+            }),
             (await getSettings()).oddsMarginPercent,
           );
           if (!priced.length) continue;

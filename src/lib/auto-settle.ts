@@ -109,7 +109,7 @@ export function resolveOutcome(
   // ── Match result family (1 / X / 2) — FULL-TIME markets only. HT_RESULT /
   //    2H_RESULT are intentionally NOT here: The Odds API /scores does not
   //    expose half-time scores — they go to admin review.
-  if (["MATCH_RESULT", "h2h"].includes(marketKey)) {
+  if (["MATCH_RESULT", "h2h", "MATCH_RESULT_3WAY"].includes(marketKey)) {
     const isHome = label === "1" || name === game.homeName.toLowerCase();
     const isAway = label === "2" || name === game.awayName.toLowerCase();
     const isDraw = label === "x" || name === "draw";

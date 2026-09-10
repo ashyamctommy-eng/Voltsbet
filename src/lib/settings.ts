@@ -1,4 +1,5 @@
 import { prisma } from "./prisma";
+import { RECOMMENDED_DETAIL_MARKETS } from "./market-catalog";
 
 export type SiteSettings = {
   siteName: string;
@@ -240,13 +241,8 @@ const DEFAULTS: SiteSettings = {
     "soccer_germany_bundesliga",
     "soccer_france_ligue_one",
   ],
-  soccerDetailMarkets: [
-    "alternate_totals",
-    "alternate_spreads",
-    "h2h_h1",
-    "h2h_h2",
-    "team_totals",
-  ],
+  // Includes the corners family so they show on match detail out of the box.
+  soccerDetailMarkets: [...RECOMMENDED_DETAIL_MARKETS],
   soccerDetailCacheTtlSeconds: 45,
 };
 
