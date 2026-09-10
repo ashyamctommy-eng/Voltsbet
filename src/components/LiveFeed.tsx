@@ -91,8 +91,9 @@ export default function LiveFeed({
   const liveShown = bySport(live);
   const fallbackShown = sport === "all" ? (fallback ?? []) : bySport(fallback ?? []);
 
+  /** 36px-tall pills (mobile-friendly tap target) with press feedback. */
   const pill = (active: boolean) =>
-    `flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${
+    `flex min-h-9 shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold transition-all active:scale-95 ${
       active
         ? "bg-brand text-[#052e16]"
         : "border border-line bg-card2 text-ink2 hover:border-brand/40 hover:text-ink"
@@ -101,7 +102,7 @@ export default function LiveFeed({
   return (
     <>
       {sportOptions.length > 1 && (
-        <div className="no-scrollbar -mx-4 mt-4 flex w-full max-w-full items-center gap-1.5 overflow-x-auto px-4 pb-0.5 sm:mx-0 sm:px-0">
+        <div className="no-scrollbar -mx-4 mt-4 flex w-full max-w-full snap-x items-center gap-1.5 overflow-x-auto overscroll-x-contain px-4 pb-1 sm:mx-0 sm:px-0" aria-label="Filter live games by sport">
           <button type="button" onClick={() => setSport("all")} className={pill(sport === "all")}>
             All Sports
           </button>
@@ -114,30 +115,48 @@ export default function LiveFeed({
         </div>
       )}
 
-      <div className="relative z-40 flex w-full max-w-full items-center gap-2 text-[11px] font-semibold text-ink3">
+      <div className="relative flex w-full max-w-full items-center gap-2 text-[11px] font-semibold text-ink3">
         <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-red-400" />
         Live — updates automatically every {refreshSeconds}s
       </div>
 
       <div className="mt-4 w-full max-w-full overflow-x-hidden">
         {liveShown.length === 0 ? (
-          fallbackShown.length > 0 ? (
+          // A sport filter that yields nothing must SAY so (and offer a way
+          // back) — a silent dead tap reads as "the page is broken".
+          sport !== "all" ? (
+            <div className="card p-6 text-center sm:p-8">
+              <p className="text-sm font-semibold">
+                No {sportOptions.find(([slug]) => slug === sport)?.[1].name ?? sport} matches live right now
+              </p>
+              <button
+                type="button"
+                onClick={() => setSport("all")}
+                className="btn btn-ghost mt-3 min-h-11 w-full px-4 text-sm font-bold text-brand sm:w-auto"
+              >
+                Show all sports
+              </button>
+            </div>
+          ) : fallbackShown.length > 0 ? (
             <div>
               <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold text-ink3">
                 <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-400" />
                 No live matches right now — these kick off soon
               </div>
-              <div className="mt-3 grid gap-4 [&>*]:min-w-0 md:grid-cols-2 2xl:grid-cols-3">
+              <div className="mt-3 grid gap-4 [&>*]:min-w-0 md:grid-cols-2 lg:grid-cols-3">
                 {fallbackShown.map((g) => (
                   <MatchCard key={g.id} game={g} />
                 ))}
               </div>
-              <Link href="/" className="mt-3 inline-block text-xs font-bold text-brand hover:underline">
+              <Link
+                href="/"
+                className="mt-3 flex min-h-11 w-full items-center justify-center gap-1 rounded-xl border border-line bg-card2 px-4 text-sm font-bold text-brand transition-colors hover:border-brand/40 hover:bg-card active:scale-[0.99] sm:mt-3 sm:min-h-0 sm:w-auto sm:justify-start sm:rounded-none sm:border-0 sm:bg-transparent sm:px-0 sm:text-xs sm:hover:bg-transparent sm:hover:underline"
+              >
                 View all matches →
               </Link>
             </div>
           ) : (
-            <div className="card p-12 text-center">
+            <div className="card p-8 text-center sm:p-12">
               <IconTv className="mx-auto h-10 w-10 text-ink3" />
               <p className="mt-3 font-semibold">No live matches right now</p>
               <p className="mt-1 text-sm text-ink3">
@@ -146,7 +165,7 @@ export default function LiveFeed({
             </div>
           )
         ) : (
-          <div className="grid gap-4 [&>*]:min-w-0 md:grid-cols-2 2xl:grid-cols-3">
+          <div className="grid gap-4 [&>*]:min-w-0 md:grid-cols-2 lg:grid-cols-3">
             {liveShown.map((g) => (
               <MatchCard key={g.id} game={g} />
             ))}

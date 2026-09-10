@@ -201,7 +201,7 @@ export default function MatchCard({
           </div>
 
           <div
-            className={`mt-2 grid gap-2 ${odds.length === 2 ? "grid-cols-2" : "grid-cols-3"} [&_.odds-btn]:h-9 [&_.odds-btn]:w-full [&_.odds-btn]:flex-none [&_.odds-btn]:text-xs`}
+            className={`mt-2 grid gap-2 ${odds.length === 2 ? "grid-cols-2" : "grid-cols-3"} [&_.odds-btn]:h-10 [&_.odds-btn]:w-full [&_.odds-btn]:flex-none [&_.odds-btn]:text-xs sm:[&_.odds-btn]:h-9`}
           >
             {outcomeRows.map((row, i) => {
               const tone = twoWay

@@ -7,7 +7,6 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
 import MatchCard from "@/components/MatchCard";
-import OddsButton from "@/components/OddsButton";
 import { IconChevronDown } from "@/components/icons";
 import { leagueRank } from "@/lib/league-rank";
 import { buildDateOptions, dayWindow, dateParamToValue, valueToDateParam } from "@/lib/feed-dates";
@@ -603,14 +602,14 @@ export default function MatchFeed({
                   <span className="h-1 w-1 rounded-full bg-brand" />{" "}
                   {country === "__other__" ? t("common.other") : country}
                 </h3>
-                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
                   {games.map((g) => <MatchCard key={g.id} game={g} preferMarkets={marketKeys} />)}
                 </div>
               </div>
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
             {pageItems.map((g) => <MatchCard key={g.id} game={g} preferMarkets={marketKeys} />)}
           </div>
         )}

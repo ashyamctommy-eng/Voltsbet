@@ -43,11 +43,11 @@ export default async function LivePage() {
   ]);
 
   return (
-    <div className="mx-auto w-full max-w-full overflow-x-hidden px-4 pb-32 md:pb-10">
-      <div className="mt-6 flex items-center gap-2">
-        <span className="live-dot h-3 w-3" />
-        <h1 className="text-2xl font-extrabold">Live Betting</h1>
-        <span className="rounded-full bg-red-500/15 px-2.5 py-0.5 text-xs font-bold text-red-400">{liveCount} live</span>
+    <div className="mx-auto w-full max-w-full overflow-x-hidden px-3 pb-32 sm:px-4 md:pb-10">
+      <div className="mt-6 flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="live-dot h-3 w-3 shrink-0" />
+        <h1 className="text-xl font-extrabold sm:text-2xl">Live Betting</h1>
+        <span className="shrink-0 rounded-full bg-red-500/15 px-2.5 py-0.5 text-xs font-bold text-red-400">{liveCount} live</span>
       </div>
 
       <div className="mt-6">
