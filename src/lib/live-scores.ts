@@ -43,7 +43,7 @@ import { TheOddsApi, getLastQuota } from "./providers/odds-api";
 import { resolveSportSlug, upsertInPlayOdds } from "./sync";
 import { reconcileOrphanLiveGames } from "./orphan-live";
 import { LEAGUE_TITLES } from "./league-titles";
-import { LIVE_STATUSES, scoreToGameStatus } from "./game-status";
+import { LIVE_STATUSES, isExtraTimePeriod, isPenaltiesPeriod, scoreToGameStatus } from "./game-status";
 import { LIVE_FEED_FRESH_MINUTES } from "./live-feed";
 
 let lastRefresh = 0;
@@ -220,16 +220,26 @@ export async function refreshLiveScores(): Promise<{
         // event with commence_time <= now is in-play even when the payload has
         // no scores yet — marking it SCHEDULED would drop it off /live.
         if (!finished && !liveNow && !halfTime && wasLive) continue;
+        // A match that finished past normal time keeps a marker ("AET"/"PENS")
+        // so settlement can tell the final score may include extra-time goals
+        // (90-minute markets must go to admin review, not auto-settle).
+        const finishMark = finished
+          ? isPenaltiesPeriod(existing.period)
+            ? "PENS"
+            : isExtraTimePeriod(existing.period)
+              ? "AET"
+              : null
+          : null;
         await prisma.game.update({
           where: { id: existing.id },
           data: {
             ...(score.homeScore !== undefined ? { homeScore: score.homeScore } : {}),
             ...(score.awayScore !== undefined ? { awayScore: score.awayScore } : {}),
             status: nextStatus,
-            ...(finished ? { live: false, clock: null, period: null } : {}),
+            ...(finished ? { live: false, clock: null, period: finishMark } : {}),
             ...(liveNow || halfTime
               ? { live: true, clock: score.clock ?? null, period: score.period ?? null }
-              : {}),
+              : {}), // includes ET1/ET2/PENS phase labels
           },
         });
         updated++;

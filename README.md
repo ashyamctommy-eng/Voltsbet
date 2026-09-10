@@ -498,6 +498,16 @@ Verified against the live API (2026-09-10) and the official guide
   interval the sweep persists `HALF_TIME` (soccer only — the model is soccer's,
   so other sports stay `LIVE`) and the card renders "Halftime HT" instead of a
   ticking counter. Rows stay on /live and keep having their odds refreshed.
+- **Extra time & penalties**: also estimated (no ET/shootout marker in /scores),
+  with a stoppage allowance so added time can never trip it — a normal 90-minute
+  match is over by ~113 real minutes. Phases are `period` = `ET1` / `ET2` /
+  `PENS` (status stays `LIVE`), shown as an `ET` / `PENS` badge plus the ticking
+  clock. ET/penalty games stay on /live and keep their odds refreshed.
+  - **Settlement**: when such a game finishes it is stamped `AET` / `PENS` and
+    auto-settlement SKIPS it — the feed's final score may include extra-time (or
+    shootout) goals while 1X2/totals/BTTS settle on 90 minutes, so those games go
+    to Admin → Ops → Settlement Review. Opt into full-result settlement with
+    `LIVE_ET_SETTLE=auto`.
 - **Quota telemetry**: `x-requests-remaining` / `-used` / `-last` are logged on
   every call and persisted to `Setting: odds.lastQuota`, surfaced in
   Admin → API Settings ("last sweep" snapshot).

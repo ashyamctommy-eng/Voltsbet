@@ -40,6 +40,23 @@ export function isHalfTimeScore(s: { period?: string | null; clock?: string | nu
   return p === "ht" || p.includes("half") || c === "ht";
 }
 
+/** Estimated extra-time half ("ET1"/"ET2"). */
+export function isExtraTimePeriod(period: string | null | undefined): boolean {
+  return /^et[12]?$/i.test((period ?? "").trim());
+}
+
+/** Shootout ("PENS") or the persisted finish marker. */
+export function isPenaltiesPeriod(period: string | null | undefined): boolean {
+  return /^(pens?|penalt|shootout)/i.test((period ?? "").trim());
+}
+
+/** A match whose finish left normal time — 90-minute markets must NOT be
+ *  auto-settled from a score that may include extra time / shootout goals. */
+export function isKnockoutFinishPeriod(period: string | null | undefined): boolean {
+  const p = (period ?? "").trim().toUpperCase();
+  return p === "AET" || isPenaltiesPeriod(p);
+}
+
 export type ScoreStatusInput = {
   /** "cancelled"/"postponed" are accepted and treated as not-in-play (the
    *  sweep has always mapped them to SCHEDULED). */

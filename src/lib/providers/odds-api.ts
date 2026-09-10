@@ -371,12 +371,34 @@ function pricedOutcomes(raw: { name: string; price?: number | null }[], marginPe
  * (45+15+45). Live cards show the estimate with a tick; the authoritative
  * source remains the /scores `completed` flag + scores.
  */
-export function estimateClock(startAt: Date): { clock: string; period: string } {
+/**
+ * Minute thresholds (real time since kickoff) for the knockout phases.
+ * /scores carries no match minute and no extra-time/penalty marker, so these
+ * are ESTIMATES with a stoppage allowance: a normal 90-minute match (45 + 15
+ * break + 45 + ~8 of added time) is over by ~113 real minutes, so ET is only
+ * claimed beyond that — added time can never trip it.
+ */
+const ET_START_MINUTES = 113; // 90' + ~8' stoppage → 91' of extra time
+const ET1_END_MINUTES = 128; // 15 min ET half
+const PENS_START_MINUTES = 145; // ET2 end + the short ET interval
+
+export function estimateClock(
+  startAt: Date,
+  sportKey?: string | null,
+): { clock: string; period: string } {
   const mins = Math.floor((Date.now() - startAt.getTime()) / 60_000);
   if (mins <= 45) return { clock: `${Math.max(0, mins)}'`, period: "1H" };
   if (mins <= 60) return { clock: "HT", period: "HT" };
   if (mins <= 105) return { clock: `${mins - 60 + 45}'`, period: "2H" };
-  return { clock: `${Math.min(mins - 105 + 90, 120)}'`, period: "2H" };
+  // Only soccer has the 45/15/45 + ET model; other sports keep the old
+  // (unchanged) estimate so we never invent extra time for them.
+  if (!(sportKey ?? "").startsWith("soccer")) {
+    return { clock: `${Math.min(mins - 105 + 90, 120)}'`, period: "2H" };
+  }
+  if (mins < ET_START_MINUTES) return { clock: `${Math.min(mins - 15, 99)}'`, period: "2H" };
+  if (mins < ET1_END_MINUTES) return { clock: `${Math.min(mins - ET_START_MINUTES + 91, 105)}'`, period: "ET1" };
+  if (mins < PENS_START_MINUTES) return { clock: `${Math.min(mins - ET1_END_MINUTES + 106, 120)}'`, period: "ET2" };
+  return { clock: "PENS", period: "PENS" };
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -429,7 +451,7 @@ export function parseScoreEvent(ev: ScoreEvent, now: number = Date.now()): ApiSc
   const as = ev.scores?.find((s) => s.name === ev.away_team)?.score;
   const startAt = new Date(ev.commence_time);
   const started = startAt.getTime() <= now; // docs: in-play ⇔ commence_time < now
-  const { clock, period } = estimateClock(startAt);
+  const { clock, period } = estimateClock(startAt, ev.sport_key);
   return {
     externalId: ev.id,
     sportKey: ev.sport_key,

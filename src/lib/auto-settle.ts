@@ -2,6 +2,7 @@ import { prisma } from "./prisma";
 import { settleOutcome } from "./settle";
 import { getSettings } from "./settings";
 import { ApiError } from "./api";
+import { isKnockoutFinishPeriod } from "@/lib/game-status";
 
 /**
  * Auto-settlement — resolves finished games' markets from the final score and
@@ -42,6 +43,18 @@ export async function autoSettleFinishedGames(): Promise<{ settled: string[]; sk
   const settledBetCodes = new Set<string>();
 
   for (const game of games) {
+    // KNOCKOUT FINISHES: the feed's final score can include extra-time (and
+    // shootout) goals, while 1X2 / totals / BTTS settle on 90 MINUTES. Settling
+    // those automatically would pay the wrong side — leave the game for the
+    // admin review queue. Opt in with LIVE_ET_SETTLE=auto if your rules settle
+    // on the full result instead.
+    if (isKnockoutFinishPeriod(game.period) && process.env.LIVE_ET_SETTLE !== "auto") {
+      console.warn(
+        `[auto-settle] ${game.homeName} vs ${game.awayName}: finished beyond normal time (${game.period}) — left for admin review`,
+      );
+      skipped.push(game.id);
+      continue;
+    }
     for (const market of game.markets) {
       const unsettled = market.outcomes.filter((o) => !o.settled);
       if (unsettled.length === 0) continue;

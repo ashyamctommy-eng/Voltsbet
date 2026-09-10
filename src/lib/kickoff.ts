@@ -58,6 +58,8 @@ export function liveContext(
   ) {
     return "Halftime HT";
   }
+  if (/^(pens?|penalt|shootout)/i.test(period ?? "")) return "Penalties";
+  if (/^et[12]?$/i.test(period ?? "") && !clock) return "Extra time";
   const setMatch = period?.match(/^Set\s*(\d+)$/i);
   if (setMatch) {
     const n = Number(setMatch[1]);

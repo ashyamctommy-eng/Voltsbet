@@ -125,6 +125,15 @@ export function apiMatchToFeedGame(view: FeedMatchView): ApiFeedGame {
  * "87'"). Interval markers ("HT") and period labels ("Set 3") are NOT tickable
  * — callers render the status label instead of an empty timer.
  */
+/** Knockout phase badge for a card ("ET" | "PENS"), else null. */
+export function livePhase(period: string | null | undefined): "ET" | "PENS" | null {
+  const p = (period ?? "").trim();
+  if (!p) return null;
+  if (/^(pens?|penalt|shootout)/i.test(p)) return "PENS";
+  if (/^et[12]?$/i.test(p) || /extra/i.test(p)) return "ET";
+  return null;
+}
+
 export function isTickingClock(clock: string | null | undefined): boolean {
   if (!clock) return false;
   const c = clock.trim();
