@@ -3,76 +3,126 @@ import { handle, ok } from "@/lib/api";
 import { checkCronSecret } from "@/lib/cron-guard";
 import { syncGames } from "@/lib/sync";
 import { refreshLiveScores } from "@/lib/live-scores";
+import { reconcileOrphanLiveGames } from "@/lib/orphan-live";
 import { clearPrematchFeedCache } from "@/lib/feed";
+import { prisma } from "@/lib/prisma";
 
 /**
- * Cron endpoint — automated pre-match sync + live-score refresh.
+ * GET|POST /api/cron/sync — the single source of truth for background work.
+ * Driven by **Railway Cron** (native scheduler), protected by CRON_SECRET
+ * (query `?secret=` or `x-cron-secret` header; Admin → Automation).
  *
- * Runs the pre-match sync (The Odds API) to refresh fixtures + odds in the
- * DB, then pulls fresh in-play scores (The Odds API /scores, throttled). The homepage feed reads the API directly (no sync
- * needed to display); this keeps the DB fresh for /live, fixture pages,
- * settlement and the admin Games page.
+ *   GET https://voltbets.me/api/cron/sync?secret=<cron.secret>
+ *
+ * Each run performs, in order:
+ *  1. PRE-MATCH PASS (paid, throttled) — `syncGames()` refreshes fixtures +
+ *     odds from The Odds API for the whitelisted leagues.
+ *  2. LIVE SCORE SWEEP — `refreshLiveScores()` upserts scores **by
+ *     `externalId`** via Prisma and applies the state machine:
+ *       completed === false && kickoff reached → status = "LIVE"
+ *       completed === true                      → status = "FINISHED"
+ *     (plus in-play odds on their own throttle/lookback window).
+ *  3. STALE SWEEP — `reconcileOrphanLiveGames()` force-flips API rows
+ *     (`externalId` set) stuck at LIVE past LIVE_STALE_FINISH_HOURS
+ *     (default 4h) to FINISHED, and deletes seed/manual placeholders stuck
+ *     LIVE with zero bets.
+ *  4. Cache bust — drops the in-process homepage feed cache.
  *
  * Quota conservation:
- *  - THROTTLE: at most ONE sync per SYNC_THROTTLE_MINUTES (default 60) —
- *    overlapping/duplicate cron triggers return { throttled: true } instead
- *    of burning quota. Escape hatch: ?force=1.
- *  - COALESCE: concurrent triggers share a single in-flight sync.
- *  - The provider's in-memory odds cache (30 min TTL) means repeated admin
- *    syncs / cold bootstraps within the window cost 0 additional requests.
- *
- * Budget: a full sync is 1 request per league per market (default
- * h2h+spreads+totals → 3 credits/league; ~90 credits for the ~30 mapped
- * leagues). Paid plans handle 3–4×/day; on the free 500/mo tier schedule
- * every-other-day or rely on ?force sparingly.
- *
- * Protect with the cron secret (Admin → Website Settings → Automation, or
- * CRON_SECRET env). Call from any scheduler, e.g.:
- *
- *   GET https://your-app/api/cron/sync?secret=<cron.secret>
+ *  - The PAID pass is throttled to one run per SYNC_THROTTLE_MINUTES
+ *    (default 60) — checked both in-process and against the DB marker
+ *    `Setting: odds.lastSyncAt`, so restarts/multiple instances can't
+ *    double-spend. Escape hatch: `?force=1`.
+ *  - Live sweeps keep their own throttle (LIVE_SCORES_THROTTLE_SECONDS,
+ *    default 300) mirrored in the DB (`Setting: live.lastSweepAt`), so cron
+ *    hits and /live visitor sweeps share one budget.
+ *  - Steps 2–4 ALWAYS run even when the pre-match pass is throttled —
+ *    scores and statuses therefore stay fresh on a frequent cron schedule
+ *    without paying for a full odds sync every minute.
  *
  * 200 with counts · 401 without the secret · 503 if unconfigured.
  */
 const SYNC_THROTTLE_MS = (Number(process.env.SYNC_THROTTLE_MINUTES) || 60) * 60 * 1000;
 let lastSyncAt = 0;
-let inFlight: Promise<Record<string, unknown>> | null = null;
+let inFlight: Promise<SyncOutcome> | null = null;
 
-type SyncOutcome = { ok: boolean; synced: unknown; live: unknown; at: string; throttled?: boolean; retryInSeconds?: number; coalesced?: boolean };
+type SyncOutcome = {
+  ok: boolean;
+  synced: unknown;
+  live: unknown;
+  staleSweep: unknown;
+  at: string;
+  throttled?: boolean;
+  retryInSeconds?: number;
+  coalesced?: boolean;
+};
 
-async function runSync(): Promise<SyncOutcome> {
-  const [sync, live] = await Promise.allSettled([
-    syncGames(),
-    refreshLiveScores(),
-  ]);
-  const syncResult = sync.status === "fulfilled" ? sync.value : { error: sync.reason instanceof Error ? sync.reason.message : String(sync.reason) };
-  const liveResult = live.status === "fulfilled" ? live.value : { error: live.reason instanceof Error ? live.reason.message : String(live.reason) };
+/** Paid pre-match pass is due only if BOTH the process and the DB agree the
+ *  throttle window has elapsed (DB marker survives restarts / other instances). */
+async function isPrematchDue(now: number, force: boolean): Promise<{ due: boolean; dbLastSyncAt: number | null }> {
+  if (force) return { due: true, dbLastSyncAt: null };
+  let dbLastSyncAt: number | null = null;
+  try {
+    const row = await prisma.setting.findUnique({ where: { key: "odds.lastSyncAt" } });
+    if (row?.value) {
+      const t = new Date(row.value).getTime();
+      if (Number.isFinite(t)) dbLastSyncAt = t;
+    }
+  } catch {
+    /* marker unavailable — fall back to the in-process guard */
+  }
+  const inProcOk = lastSyncAt === 0 || now - lastSyncAt >= SYNC_THROTTLE_MS;
+  const dbOk = dbLastSyncAt === null || now - dbLastSyncAt >= SYNC_THROTTLE_MS;
+  return { due: inProcOk && dbOk, dbLastSyncAt };
+}
+
+async function runSync(force: boolean): Promise<SyncOutcome> {
+  const now = Date.now();
+  const { due, dbLastSyncAt } = await isPrematchDue(now, force);
+
+  // 1) Pre-match odds/fixtures (paid) — only when the window has elapsed.
+  let synced: unknown;
+  if (due) {
+    const r = await Promise.allSettled([syncGames()]);
+    synced = r[0].status === "fulfilled" ? r[0].value : { error: r[0].reason instanceof Error ? r[0].reason.message : String(r[0].reason) };
+  } else {
+    const last = Math.max(lastSyncAt, dbLastSyncAt ?? 0);
+    synced = {
+      skipped: true,
+      reason: "throttled",
+      retryInSeconds: Math.max(1, Math.ceil((SYNC_THROTTLE_MS - (now - last)) / 1000)),
+    };
+  }
+
+  // 2) Live score sweep + state machine (throttled internally, DB-shared).
+  const liveRes = await Promise.allSettled([refreshLiveScores()]);
+  const live = liveRes[0].status === "fulfilled" ? liveRes[0].value : { error: liveRes[0].reason instanceof Error ? liveRes[0].reason.message : String(liveRes[0].reason) };
+
+  // 3) Stale sweep — ALWAYS, independent of the score throttle (DB-only, 0 credits).
+  let staleSweep: unknown;
+  try {
+    staleSweep = await reconcileOrphanLiveGames();
+  } catch (e) {
+    staleSweep = { error: e instanceof Error ? e.message : String(e) };
+  }
+
+  // 4) In-process homepage feed cache.
   clearPrematchFeedCache();
-  return { ok: true, synced: syncResult, live: liveResult, at: new Date().toISOString() };
+
+  return { ok: true, synced, live, staleSweep, at: new Date().toISOString() };
 }
 
 export const GET = handle(async (req: NextRequest) => {
   await checkCronSecret(req);
   const force = req.nextUrl.searchParams.get("force") === "1";
 
-  // Once-per-window guard: overlapping scheduler triggers don't re-sync.
-  if (!force) {
-    const elapsed = Date.now() - lastSyncAt;
-    if (lastSyncAt > 0 && elapsed < SYNC_THROTTLE_MS) {
-      return ok({
-        ok: true, throttled: true,
-        retryInSeconds: Math.ceil((SYNC_THROTTLE_MS - elapsed) / 1000),
-        lastSyncAt: new Date(lastSyncAt).toISOString(),
-      });
-    }
-  }
-
-  // Coalesce concurrent triggers onto the running sync.
+  // Coalesce concurrent triggers onto the running sweep.
   if (inFlight) {
     const result = await inFlight;
     return ok({ ...result, coalesced: true });
   }
 
-  inFlight = runSync();
+  inFlight = runSync(force);
   try {
     return ok(await inFlight);
   } finally {

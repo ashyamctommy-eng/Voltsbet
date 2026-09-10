@@ -9,13 +9,10 @@
     "lint": "eslint",
     "test": "vitest run",
     "check:schemas": "bash scripts/check-schema-sync.sh",
-    "postinstall": "prisma generate",
-    "trigger:dev": "npx trigger.dev@latest dev",
-    "trigger:deploy": "npx trigger.dev@latest deploy"
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
-    "@trigger.dev/sdk": "^4.5.16",
     "bcryptjs": "^3.0.3",
     "i18next": "^26.4.0",
     "lucide-react": "^1.38.0",
@@ -28,7 +25,6 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@trigger.dev/build": "^4.5.16",
     "@types/bcryptjs": "^3.0.0",
     "@types/node": "^20",
     "@types/react": "^19",

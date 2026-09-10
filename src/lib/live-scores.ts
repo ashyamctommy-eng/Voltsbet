@@ -98,10 +98,10 @@ export async function refreshLiveScores(): Promise<{
   const windowMs = Math.max(10, live.scoresThrottleSeconds * 1000);
   const now = Date.now();
 
-  // Cross-process coordination: /live visitors AND the Trigger.dev scheduled
-  // task both drive this sweep from different processes, so the throttle is
-  // mirrored in the DB (Setting: live.lastSweepAt). Without it the two
-  // orchestrators would double-spend API credits.
+  // Cross-process coordination: Railway Cron hits and /live visitor sweeps
+  // drive this from different processes, so the throttle is mirrored in the
+  // DB (Setting: live.lastSweepAt). Without it the two orchestrators would
+  // double-spend API credits.
   let lastDb = 0;
   try {
     const marker = await prisma.setting.findUnique({ where: { key: "live.lastSweepAt" } });

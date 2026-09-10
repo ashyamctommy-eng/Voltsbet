@@ -2,7 +2,6 @@ import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { CRON_JOBS } from "@/lib/cron-jobs";
 import CronJobsAdmin from "@/components/admin/CronJobsAdmin";
-import TriggerActions from "@/components/admin/TriggerActions";
 
 export const dynamic = "force-dynamic";
 
@@ -52,14 +51,11 @@ export default async function CronJobsPage() {
                 ({stats.mode} · {stats.leagues} leagues · {stats.created} created / {stats.updated} updated · {stats.games} fixtures)
               </span>
             )}
-            {stale && <div className="mt-1 text-amber-700 dark:text-amber-300">No sync in &gt;26h — check the Trigger.dev “sync-odds” task / ODDS_API_KEY.</div>}
+            {stale && <div className="mt-1 text-amber-700 dark:text-amber-300">No sync in &gt;26h — check the Railway Cron hit on /api/cron/sync and that ODDS_API_KEY is set.</div>}
           </>
         ) : (
-          <b>No odds sync recorded yet — run “Sync odds” below (or wait for the schedule).</b>
+          <b>No odds sync recorded yet — trigger /api/cron/sync?secret=… (or use Run now below) to populate.</b>
         )}
-      </div>
-      <div className="mt-3">
-        <TriggerActions />
       </div>
       <p className="mt-1 text-sm text-ink3">
         The four scheduled jobs behind {s.siteName}. Trigger them from any scheduler — Railway Cron, UptimeRobot,

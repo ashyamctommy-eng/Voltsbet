@@ -8,9 +8,10 @@ import { invalidateSettingsCache } from "@/lib/settings";
  * Cron cache-bust endpoint — drops the in-process homepage feed cache and the
  * settings cache so freshly synced odds/settings are visible immediately.
  *
- * Called by the Trigger.dev "sync-odds" task after a successful sync
- * (set APP_URL + CRON_SECRET in the Trigger.dev environment). Safe to call
- * manually:  POST /api/cron/refresh?secret=<cron.secret>
+ * Useful on multi-instance deploys: clearing the feed cache inside
+ * /api/cron/sync only affects the instance that served the request, so point
+ * a Railway Cron (or a post-sync step) at this endpoint to bust the others:
+ *   GET|POST /api/cron/refresh?secret=<cron.secret>
  */
 export const POST = handle(async (req: NextRequest) => {
   await checkCronSecret(req);

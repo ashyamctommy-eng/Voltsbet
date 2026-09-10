@@ -358,36 +358,37 @@ app appends automatically — **no console webhook registration needed**.
 
 ---
 
-## Trigger.dev (background jobs & live sync)
+## Background jobs (native Railway Cron)
 
-External cron schedulers can be replaced with **Trigger.dev v3** for the
-live-score pipeline (they can coexist; cron remains for sync/settle/purge
-until migrated).
+All background work runs through secret-protected HTTP cron endpoints hit by
+**Railway Cron** (no external job runner). Base URL `https://voltbets.me`,
+auth via `?secret=<cron.secret>` or the `x-cron-secret` header.
 
-- **Config:** `trigger.config.ts` (project ref, runtime node, 60s max
-  duration, Prisma build extension for `prisma generate`).
-- **Tasks** (all thin wrappers over the app's existing engines):
-  - `sync-live-scores` (`src/trigger/liveScores.ts`) — `*/2 * * * *` — scores,
-    statuses, in-play odds, orphan cleanup, stale >4h live rows finished.
-  - `sync-odds` (`src/trigger/syncOdds.ts`) — `0 */12 * * *` — pre-match odds
-    + fixtures (this is what makes odds refresh "daily"); pings
-    `/api/cron/refresh` afterwards so the homepage cache drops.
-  - `settle-games` — `*/10 * * * *` — settle finished games.
-  - `refresh-calendar` — `30 5 * * *` — rolling 7-day fixtures (0 credits).
-  - `purge-expired` — `30 0 * * *` — expired games + abandoned deposits.
-- **Manual trigger:** `POST /api/admin/trigger-sync` (admin + CSRF) with
-  `{ "task": "live" | "odds" | "settle" | "purge" | "calendar" }`; buttons on
-  Admin → Cron Settings. Cron Settings also shows **odds freshness**
-  (last sync age + created/updated counts) written by every sync.
-- **Deploy:** `npx trigger.dev@latest deploy` (dev: `npx trigger.dev@latest dev`).
-- **Environment variables**
-  - Trigger.dev dashboard (task runtime): `DATABASE_URL`, `ODDS_API_KEY`;
-    optionally `APP_URL` + `CRON_SECRET` (post-sync cache-bust ping)
-  - Railway app: `TRIGGER_SECRET_KEY` (Trigger → Project → API keys)
-  - Local/CI deploy: `TRIGGER_ACCESS_TOKEN` (or `trigger.dev login`)
-- **Credit safety:** the sweep throttle is mirrored in the DB
-  (`Setting: live.lastSweepAt`), so Trigger runs and `/live` visitor sweeps
-  never double-spend API credits.
+| Endpoint | Recommended schedule | Purpose | API cost |
+|---|---|---|---|
+| `/api/cron/sync` | every 5–12h (or 2–5 min for scores-first) | pre-match odds/fixtures **+ live score & status sweep** + stale sweep | paid (throttled) |
+| `/api/cron/settle` | every 10 min | settle finished games/bets | 0 |
+| `/api/cron/schedule` | daily | rolling 7-day fixtures `/events` | 0 |
+| `/api/cron/purge` | daily | expired games + abandoned deposits | 0 |
+| `/api/cron/rates` | daily | FX rate refresh | 0 |
+| `/api/cron/refresh` | on demand | clear homepage feed + settings caches | 0 |
+
+- **`/api/cron/sync` is the source of truth for live sync.** Each run:
+  1. upserts pre-match fixtures + odds (paid pass, throttled by
+     `SYNC_THROTTLE_MINUTES`, default 60; `?force=1` bypasses);
+  2. sweeps scores **by `externalId`** and applies the state machine —
+     `completed === false` + kickoff reached → `LIVE`, `completed === true`
+     → `FINISHED` (plus in-play odds on their own throttle);
+  3. force-finishes stale `LIVE` rows: API rows (`externalId` set) older
+     than `LIVE_STALE_FINISH_HOURS` (default 4) → `FINISHED`;
+  4. deletes seed/manual placeholder rows stuck `LIVE` (no externalId,
+     >6h, zero bets) and clears the homepage feed cache.
+- **Credit safety:** the live sweep throttle is mirrored in the DB
+  (`Setting: live.lastSweepAt`), so cron hits and `/live` visitor sweeps
+  never double-spend. Set the cron interval shorter than the throttle and
+  extra hits return `skipped`/`throttled` cheaply.
+- **Ops visibility:** Admin → Cron Settings shows odds freshness (last sync
+  age, league/mode counts) and per-job ready-to-paste configs.
 
 ---
 
