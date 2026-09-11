@@ -40,6 +40,8 @@ type OddsConfig = {
     liveOddsThrottleSeconds: number; liveOddsMarkets: string[];
     /** TIER 2 — deep match-detail markets + cache TTL. */
     detailMarkets: string[]; detailCacheTtlSeconds: number;
+    statsProvider: string; statsDailyBudget: number; statsSettleCorners: boolean;
+    statsSettleHalfTime: boolean; statsKeySet: boolean; statsKeyFromEnv: boolean; statsBudgetUsedToday: number;
   };
   env: Record<string, string | undefined>;
   quota: { used: number; remaining: number } | null;
@@ -89,8 +91,13 @@ export default function AdminApiSettings() {
     liveOddsMarkets: "h2h",
     detailMarkets: "alternate_totals, alternate_spreads, h2h_h1, h2h_h2, team_totals",
     detailTtl: "45",
+    statsProvider: "off",
+    statsKey: "",
+    statsBudget: "90",
+    statsCorners: false,
+    statsHalfTime: false,
   });
-  const [savingOdds, setSavingOdds] = useState<"" | "ev" | "prefs" | "live" | "soccer">("");
+  const [savingOdds, setSavingOdds] = useState<"" | "ev" | "prefs" | "live" | "soccer" | "stats">("");
   const [oddsMsg, setOddsMsg] = useState("");
 
   useEffect(() => {
@@ -159,6 +166,11 @@ export default function AdminApiSettings() {
         liveOddsMarkets: (r.data.stored.liveOddsMarkets ?? ["h2h"]).join(", "),
         detailMarkets: (r.data.stored.detailMarkets ?? []).join(", ") || "alternate_totals, alternate_spreads, h2h_h1, h2h_h2, team_totals",
         detailTtl: String(r.data.stored.detailCacheTtlSeconds ?? 45),
+        statsProvider: r.data.stored.statsProvider ?? "off",
+        statsKey: "",
+        statsBudget: String(r.data.stored.statsDailyBudget ?? 90),
+        statsCorners: !!r.data.stored.statsSettleCorners,
+        statsHalfTime: !!r.data.stored.statsSettleHalfTime,
       });
     });
     const t = setInterval(() => {
@@ -175,13 +187,21 @@ export default function AdminApiSettings() {
       </span>
     ) : null;
 
-  async function saveOdds(kind: "ev" | "prefs" | "live" | "soccer") {
+  async function saveOdds(kind: "ev" | "prefs" | "live" | "soccer" | "stats") {
     setSavingOdds(kind);
     setOddsMsg("");
     const body =
       kind === "ev"
         ? { eventMarketLimit: Number(fm.evLimit || 0), eventMarketLeagues: fm.evLeagues }
-        : kind === "soccer"
+        : kind === "stats"
+          ? {
+              statsProvider: fm.statsProvider,
+              ...(fm.statsKey ? { statsApiKey: fm.statsKey } : {}),
+              statsDailyBudget: Number(fm.statsBudget || 90),
+              statsSettleCorners: fm.statsCorners,
+              statsSettleHalfTime: fm.statsHalfTime,
+            }
+          : kind === "soccer"
           ? {
               markets: fm.markets,
               detailMarkets: fm.detailMarkets,
@@ -508,6 +528,75 @@ export default function AdminApiSettings() {
             Repeat visits inside this window are served from the DB at <b>zero API cost</b> (default 45s).
           </p>
           {envTag("detailCacheTtlSeconds")}
+        </div>
+        {oddsMsg && <p className="mt-3 text-xs font-semibold text-green-600 dark:text-green-400">{oddsMsg}</p>}
+      </div>
+
+      {/* ── Settlement stats feed (API-Football) ─────────────── */}
+      <div className="card p-6">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h1 className="text-lg font-extrabold">Settlement stats feed (API-Football)</h1>
+            <p className="text-sm text-ink2">
+              Supplies what the score feed cannot: <b>corners, cards and half-time scores</b> — so those markets stop
+              needing a human. Fetched on demand for finished matches, budget-guarded.
+            </p>
+          </div>
+          <button className="btn btn-primary btn-sm" disabled={savingOdds === "stats"} onClick={() => saveOdds("stats")}>
+            {savingOdds === "stats" ? "Saving…" : "Save stats feed"}
+          </button>
+        </div>
+
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="label">Provider</label>
+            <select className="input" value={fm.statsProvider} onChange={(e) => setFm((f) => ({ ...f, statsProvider: e.target.value }))}>
+              <option value="off">Off (today&apos;s behaviour — manual settlement)</option>
+              <option value="api-football">API-Football (api-sports.io)</option>
+            </select>
+            <p className="mt-1 text-[11px] text-ink3">
+              Free tier is enough for settlement: 100 requests/day, and finished-match stats are served for
+              <b> today → +2 days</b> (past dates are blocked). Paid plans remove the date/season limits.
+            </p>
+            {envTag("statsProvider")}
+          </div>
+          <div>
+            <label className="label">API key {odds?.stored.statsKeySet ? "(already set)" : ""}</label>
+            <input
+              className="input font-mono text-xs"
+              type="password"
+              value={fm.statsKey}
+              onChange={(e) => setFm((f) => ({ ...f, statsKey: e.target.value }))}
+              placeholder={odds?.stored.statsKeyFromEnv ? "set via env API_FOOTBALL_KEY" : odds?.stored.statsKeySet ? "•••••••• (leave blank to keep)" : "paste the api-sports.io key"}
+            />
+            <p className="mt-1 text-[11px] text-ink3">
+              Stored in settings; env <code>API_FOOTBALL_KEY</code> overrides. Server-side only — never sent to browsers.
+            </p>
+            {envTag("statsApiKey")}
+          </div>
+          <div>
+            <label className="label">Daily request budget</label>
+            <input className="input" type="number" min={0} value={fm.statsBudget} onChange={(e) => setFm((f) => ({ ...f, statsBudget: e.target.value }))} />
+            <p className="mt-1 text-[11px] text-ink3">
+              Hard ceiling (default 90, leaving headroom under the free 100/day). Used today:{" "}
+              <b>{odds?.stored.statsBudgetUsedToday ?? 0}</b>. When spent, games stay in the review queue.
+            </p>
+            {envTag("statsDailyBudget")}
+          </div>
+          <div className="space-y-2">
+            <label className="label">What may it settle?</label>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={fm.statsCorners} onChange={(e) => setFm((f) => ({ ...f, statsCorners: e.target.checked }))} />
+              Corners &amp; cards markets
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={fm.statsHalfTime} onChange={(e) => setFm((f) => ({ ...f, statsHalfTime: e.target.checked }))} />
+              Half-time markets (1H totals, 1H BTTS, HT/FT)
+            </label>
+            <p className="text-[11px] text-ink3">
+              Leave both off and the feed only collects data. Unchecked markets keep their current behaviour.
+            </p>
+          </div>
         </div>
         {oddsMsg && <p className="mt-3 text-xs font-semibold text-green-600 dark:text-green-400">{oddsMsg}</p>}
       </div>

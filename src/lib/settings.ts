@@ -104,6 +104,16 @@ export type SiteSettings = {
    *  floating counter updates) — no sheet/rail is yanked open. Admin →
    *  Website Settings → Betting. Env BETSLIP_AUTO_OPEN overrides. */
   betSlipAutoOpen: boolean;
+  /** Settlement stats feed: "off" (default) | "api-football". Env STATS_PROVIDER overrides. */
+  statsProvider: string;
+  /** API-Football key. Env API_FOOTBALL_KEY overrides (recommended for prod). */
+  statsApiKey: string;
+  /** Hard daily request ceiling for the stats feed (free tier = 100). Env STATS_DAILY_BUDGET. */
+  statsDailyBudget: number;
+  /** Allow the stats feed to settle corners/cards markets (flips them auto). */
+  statsSettleCorners: boolean;
+  /** Allow the stats feed to settle half-time markets via the real HT score. */
+  statsSettleHalfTime: boolean;
   /** How long a broadcast banner stays live (hours). 0 = never expires.
    *  Admin → Website Settings → Broadcast. Env BROADCAST_TTL_HOURS overrides. */
   broadcastTtlHours: number;
@@ -242,6 +252,11 @@ const DEFAULTS: SiteSettings = {
   liveOddsMarkets: ["h2h"],
   betSlipAutoOpen: false,
   broadcastTtlHours: 72,
+  statsProvider: "off",
+  statsApiKey: "",
+  statsDailyBudget: 90,
+  statsSettleCorners: false,
+  statsSettleHalfTime: false,
   oddsEventMarketLimit: 4,
   oddsEventMarketLeagues: [
     "soccer_epl",
@@ -408,6 +423,19 @@ export async function getSettings(): Promise<SiteSettings> {
     } catch {
       s.oddsEventMarketLeagues = [];
     }
+    // Settlement stats feed (API-Football): provider, key, budget, toggles.
+    const rawProvider = (process.env.STATS_PROVIDER ?? raw["stats.provider"] ?? "").trim().toLowerCase();
+    if (rawProvider) s.statsProvider = rawProvider === "api-football" ? "api-football" : "off";
+    if (raw["stats.apiKey"] !== undefined) s.statsApiKey = String(raw["stats.apiKey"]).trim();
+    const rawBudget = Number(process.env.STATS_DAILY_BUDGET ?? raw["stats.dailyBudget"]);
+    if (Number.isFinite(rawBudget) && rawBudget >= 0) s.statsDailyBudget = Math.round(rawBudget);
+    for (const [key, field] of [
+      ["stats.settleCorners", "statsSettleCorners"],
+      ["stats.settleHalfTime", "statsSettleHalfTime"],
+    ] as const) {
+      if (raw[key] !== undefined) s[field] = raw[key] === "true";
+    }
+
     // Broadcast banner lifetime (hours; 0 = never expires).
     const rawBcastTtl = Number(raw["broadcast.ttlHours"]);
     s.broadcastTtlHours =
