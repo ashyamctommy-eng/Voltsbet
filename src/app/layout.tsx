@@ -17,6 +17,7 @@ import Header, { HeaderUser } from "@/components/Header";
 import Footer from "@/components/Footer";
 import MobileNav from "@/components/MobileNav";
 import SupportWidget from "@/components/SupportWidget";
+import ScrollToTopButton from "@/components/ScrollToTopButton";
 import BetSlip from "@/components/BetSlip";
 import BroadcastBanner from "@/components/BroadcastBanner";
 import VoltBetSplashLoader from "@/components/VoltBetSplashLoader";
@@ -161,6 +162,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                         telegram: s.telegram,
                       }}
                     />
+                    <ScrollToTopButton />
                     <BetSlip />
                   </DrawerProvider>
                 </BetSlipProvider>
