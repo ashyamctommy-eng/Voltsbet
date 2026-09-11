@@ -562,7 +562,7 @@ model WebhookEvent {
   source      String    @default("settle-worker")
   gameId      String?
   status      String    @default("RECEIVED") // RECEIVED | PROCESSED | NEEDS_REVIEW | FAILED
-  payload     String?   // raw JSON body (audit; truncated on write)
+  payload     String?   @db.Text // raw JSON body (audit; truncated on write)
   payloadHash String?   // sha256 of the raw body
   settled     Int       @default(0)
   voided      Int       @default(0)
