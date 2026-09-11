@@ -232,45 +232,62 @@ export default function MatchCard({
             <span className="shrink-0 font-bold uppercase tracking-wider text-ink3">{mainMarket.name}</span>
           </div>
 
-          {/* Unified outcome cells — label on top (wraps), odds below. Up to 3
-              across, so long team names get a second line instead of an
-              ellipsis. Over/Under boards pair 2-up per line. */}
-          <div className="mt-2 grid gap-2">
-            {layoutRows.map((row) => (
-              <div
-                key={row.key}
-                className="grid gap-2"
-                style={{ gridTemplateColumns: `repeat(${gridColumns(row.cells.length)}, minmax(0,1fr))` }}
-              >
-                {row.cells.map((cell) =>
-                  cell.outcome ? (
-                    <OddsButton
-                      key={cell.outcome.id}
-                      outcomeId={cell.outcome.id}
-                      gameId={game.id}
-                      sport={game.sport.name}
-                      competition={view.leagueName}
-                      home={view.homeTeam}
-                      away={view.awayTeam}
-                      startAt={game.startAt.toISOString()}
-                      market={mainMarket.name}
-                      marketKey={mainMarket.key}
-                      outcome={cell.outcome.name}
-                      label={cell.outcome.label}
-                      displayLabel={cell.label}
-                      odds={Number(cell.outcome.odds)}
-                      gameStatus={game.status}
-                      live={isLive}
-                    />
-                  ) : (
-                    <span key={cell.label} className="odds-placeholder" title={t("match.priceUnavailable")}>
-                      <span className="odds-label">{cell.label}</span>
-                      <span className="odds-price">-</span>
-                    </span>
-                  ),
-                )}
-              </div>
-            ))}
+          {/* Feed quick-pick: the outcome label is a COLUMN HEADER above the
+              box ("1  X  2"), and the box itself shows only the price. Over/
+              Under boards pair 2-up per line, each pair with its own header. */}
+          <div className="mt-2 grid gap-2.5">
+            {layoutRows.map((row) => {
+              const cols = gridColumns(row.cells.length);
+              const template = { gridTemplateColumns: `repeat(${cols}, minmax(0,1fr))` };
+              return (
+                <div key={row.key}>
+                  <div className="grid gap-2" style={template}>
+                    {row.cells.map((cell) => (
+                      <span
+                        key={`h-${cell.outcome?.id ?? cell.label}`}
+                        className="truncate text-center text-[10px] font-bold tracking-wide text-ink3"
+                        title={cell.label}
+                      >
+                        {cell.label}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="mt-1 grid gap-2" style={template}>
+                    {row.cells.map((cell) =>
+                      cell.outcome ? (
+                        <OddsButton
+                          key={cell.outcome.id}
+                          outcomeId={cell.outcome.id}
+                          gameId={game.id}
+                          sport={game.sport.name}
+                          competition={view.leagueName}
+                          home={view.homeTeam}
+                          away={view.awayTeam}
+                          startAt={game.startAt.toISOString()}
+                          market={mainMarket.name}
+                          marketKey={mainMarket.key}
+                          outcome={cell.outcome.name}
+                          label={cell.outcome.label}
+                          displayLabel={cell.label}
+                          odds={Number(cell.outcome.odds)}
+                          gameStatus={game.status}
+                          live={isLive}
+                          oddsOnly
+                        />
+                      ) : (
+                        <span
+                          key={`p-${cell.label}`}
+                          className="odds-placeholder"
+                          title={t("match.priceUnavailable")}
+                        >
+                          <span className="odds-price">-</span>
+                        </span>
+                      ),
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       ) : !isFinished && game.markets.length === 0 ? (

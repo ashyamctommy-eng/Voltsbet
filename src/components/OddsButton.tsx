@@ -29,6 +29,13 @@ type Props = {
    * though it still carries a price.
    */
   disabled?: boolean;
+  /**
+   * Render the box with the price ONLY, no label. Used by the home/live feed
+   * cards, where the outcome label is a column header above the box ("1 X 2")
+   * rather than text inside it. The label is still announced to screen readers
+   * via aria-label so the control never becomes a nameless number.
+   */
+  oddsOnly?: boolean;
 };
 
 /**
@@ -89,9 +96,10 @@ export default function OddsButton(props: Props) {
       }}
       className={`odds-btn active:scale-[0.99] ${selected ? "selected" : ""} ${noPrice ? "odds-btn-muted" : ""}`}
       aria-pressed={selected}
+      aria-label={props.oddsOnly ? `${leftText} @ ${noPrice ? "unavailable" : fmtOdds(props.odds)}` : undefined}
       title={disabled ? (noPrice ? "Price unavailable" : "Betting closed for this game") : `Add ${leftText} @ ${fmtOdds(props.odds)}`}
     >
-      <span className="odds-label">{leftText}</span>
+      {!props.oddsOnly && <span className="odds-label">{leftText}</span>}
       <span className="odds-price">{noPrice ? "-" : fmtOdds(props.odds)}</span>
     </button>
   );
