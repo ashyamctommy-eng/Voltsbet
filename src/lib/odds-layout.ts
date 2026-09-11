@@ -3,16 +3,19 @@
  * out on screen, shared by the home/live feed cards (MatchCard) and the match
  * detail board (FixtureMarkets) so every surface renders identically.
  *
- * Rule (matches the design reference):
+ * The cell itself is stacked (label on top, odds below — see `.odds-btn`), so
+ * long option names have room to WRAP instead of being cut off. That is what
+ * makes a 3-across grid viable for long names like "Racing Santander & yes".
+ *
+ * Grid rule:
  *   - Over/Under line markets pair 2-up per line, ascending —
  *       Over 2.5 [2.29] | Under 2.5 [1.66]
- *   - every other board stacks full-width, one outcome per row —
- *       1X2, Double Chance, Draw No Bet, BTTS, "who will win", 1st goal …
+ *   - every other board lays out in a 2- or 3-column grid (see gridColumns)
  *
  * The pairing is decided by the OUTCOME NAME SHAPE ("Over 2.5" / "Under 2.5",
  * incl. team totals like "Arsenal Over 1.5"), not by market key — so it works
  * for any totals-style key a provider invents, and any board that is not a
- * clean Over/Under set safely falls back to stacked rows.
+ * clean Over/Under set safely falls back to the plain grid.
  */
 
 export type OutcomeLike = { id: string; name: string; label?: string | null };
@@ -30,11 +33,11 @@ export type OuGroup<T> = { prefix: string; cells: T[] };
  * line — "Over 2.5 / Under 2.5" and "Over 3.5 / Under 3.5" are two different
  * rows. (Keying by prefix alone would collapse a multi-line board to its last
  * line.) Returns `null` when the board is not a clean Over/Under set, or when
- * any line is missing one of its two sides — the caller then stacks.
+ * any line is missing one of its two sides — the caller then uses the grid.
  *
- * The prefix is what lets a MIXED team board ("Team Totals" — both teams in
- * one accordion) render the team name once as a group sub-header instead of
- * repeating "West Ham United …" inside every pill.
+ * The prefix is what lets a MIXED team board ("Team Totals" / "Team Total
+ * Corners" — both teams in one accordion) render the team name once as a group
+ * sub-header instead of repeating it inside every cell.
  */
 export function pairOverUnderGroups<T extends OutcomeLike>(
   outcomes: readonly T[],
@@ -67,16 +70,17 @@ export function pairOverUnderGroups<T extends OutcomeLike>(
 }
 
 /**
- * Group Over/Under outcomes into rows. Returns rows of TWO outcomes (Over then
- * Under, sorted by line) for a clean totals board, otherwise one outcome per
- * row so the caller can simply stack them.
+ * Column count for a market grid (labels WRAP, so 3-across is fine even for
+ * long team names):
+ *   - a lone outcome → 1 column (full width)
+ *   - 2 outcomes → 2 columns (Yes/No, Draw No Bet, a handicap pair)
+ *   - exactly 4 outcomes → 2 columns, so the second row isn't a lone orphan
+ *   - everything else → 3 columns (1X2, Double Chance, Correct Score, the
+ *     6-way "1X2 & BTTS" combos → two neat rows of three)
  */
-export function pairOverUnderRows<T extends OutcomeLike>(outcomes: readonly T[]): T[][] {
-  const groups = pairOverUnderGroups(outcomes);
-  return groups ? groups.map((g) => g.cells) : outcomes.map((x) => [x]);
-}
-
-/** True when a board pairs into 2-up rows (i.e. it is a clean Over/Under set). */
-export function isPairedBoard<T extends OutcomeLike>(outcomes: readonly T[]): boolean {
-  return pairOverUnderGroups(outcomes) !== null;
+export function gridColumns(count: number): 1 | 2 | 3 {
+  if (count <= 1) return 1;
+  if (count <= 2) return 2;
+  if (count === 4) return 2;
+  return 3;
 }

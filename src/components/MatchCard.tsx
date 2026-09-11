@@ -7,7 +7,7 @@ import OddsButton from "@/components/OddsButton";
 import TeamLogo from "@/components/TeamLogo";
 import { liveContext } from "@/lib/kickoff";
 import { isTickingClock, livePhase, toMatchView } from "@/lib/match-view";
-import { pairOverUnderGroups } from "@/lib/odds-layout";
+import { gridColumns, pairOverUnderGroups } from "@/lib/odds-layout";
 import { displayOutcomeName } from "@/lib/market-labels";
 import { flagForLeague, countryForLeague } from "@/lib/league-flags";
 import { activeMarketCount, hasAnyOutcomes } from "@/lib/game-status";
@@ -158,10 +158,15 @@ export default function MatchCard({
             label: displayOutcomeName(o.name, mainMarket.key, view.homeTeam, view.awayTeam),
           })),
         }))
-      : outcomeRows.map((row, i) => ({
-          key: String(i),
-          cells: [{ outcome: row.outcome, label: row.label ?? shortOutcomeLabel(row.leg) }],
-        }));
+      : [
+          {
+            key: "row0",
+            cells: outcomeRows.map((row) => ({
+              outcome: row.outcome,
+              label: row.label ?? shortOutcomeLabel(row.leg),
+            })),
+          },
+        ];
 
   return (
     <div className="card card-hover p-2.5 sm:p-3">
@@ -227,62 +232,42 @@ export default function MatchCard({
             <span className="shrink-0 font-bold uppercase tracking-wider text-ink3">{mainMarket.name}</span>
           </div>
 
-          {/* Unified outcome pills — outcome label left, odds right. Over/Under
-              line markets pair 2-up per line; every other board stacks. */}
+          {/* Unified outcome cells — label on top (wraps), odds below. Up to 3
+              across, so long team names get a second line instead of an
+              ellipsis. Over/Under boards pair 2-up per line. */}
           <div className="mt-2 grid gap-2">
             {layoutRows.map((row) => (
-              <div key={row.key} className={row.cells.length === 2 ? "grid grid-cols-2 gap-2" : ""}>
-                {row.cells.length === 2 ? (
-                  row.cells.map((cell) =>
-                    cell.outcome ? (
-                      <OddsButton
-                        key={cell.outcome.id}
-                        outcomeId={cell.outcome.id}
-                        gameId={game.id}
-                        sport={game.sport.name}
-                        competition={view.leagueName}
-                        home={view.homeTeam}
-                        away={view.awayTeam}
-                        startAt={game.startAt.toISOString()}
-                        market={mainMarket.name}
-                        marketKey={mainMarket.key}
-                        outcome={cell.outcome.name}
-                        label={cell.outcome.label}
-                        displayLabel={cell.label}
-                        odds={Number(cell.outcome.odds)}
-                        gameStatus={game.status}
-                        live={isLive}
-                      />
-                    ) : (
-                      <span key={cell.label} className="odds-placeholder" title={t("match.priceUnavailable")}>
-                        <span className="odds-label">{cell.label}</span>
-                        <span className="odds-price">-</span>
-                      </span>
-                    ),
-                  )
-                ) : row.cells[0].outcome ? (
-                  <OddsButton
-                    outcomeId={row.cells[0].outcome.id}
-                    gameId={game.id}
-                    sport={game.sport.name}
-                    competition={view.leagueName}
-                    home={view.homeTeam}
-                    away={view.awayTeam}
-                    startAt={game.startAt.toISOString()}
-                    market={mainMarket.name}
-                    marketKey={mainMarket.key}
-                    outcome={row.cells[0].outcome.name}
-                    label={row.cells[0].outcome.label}
-                    displayLabel={row.cells[0].label}
-                    odds={Number(row.cells[0].outcome.odds)}
-                    gameStatus={game.status}
-                    live={isLive}
-                  />
-                ) : (
-                  <span className="odds-placeholder" title={t("match.priceUnavailable")}>
-                    <span className="odds-label">{row.cells[0].label}</span>
-                    <span className="odds-price">-</span>
-                  </span>
+              <div
+                key={row.key}
+                className="grid gap-2"
+                style={{ gridTemplateColumns: `repeat(${gridColumns(row.cells.length)}, minmax(0,1fr))` }}
+              >
+                {row.cells.map((cell) =>
+                  cell.outcome ? (
+                    <OddsButton
+                      key={cell.outcome.id}
+                      outcomeId={cell.outcome.id}
+                      gameId={game.id}
+                      sport={game.sport.name}
+                      competition={view.leagueName}
+                      home={view.homeTeam}
+                      away={view.awayTeam}
+                      startAt={game.startAt.toISOString()}
+                      market={mainMarket.name}
+                      marketKey={mainMarket.key}
+                      outcome={cell.outcome.name}
+                      label={cell.outcome.label}
+                      displayLabel={cell.label}
+                      odds={Number(cell.outcome.odds)}
+                      gameStatus={game.status}
+                      live={isLive}
+                    />
+                  ) : (
+                    <span key={cell.label} className="odds-placeholder" title={t("match.priceUnavailable")}>
+                      <span className="odds-label">{cell.label}</span>
+                      <span className="odds-price">-</span>
+                    </span>
+                  ),
                 )}
               </div>
             ))}

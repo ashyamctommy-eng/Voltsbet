@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { pairOverUnderGroups, pairOverUnderRows, isPairedBoard } from "@/lib/odds-layout";
+import { pairOverUnderGroups, gridColumns } from "@/lib/odds-layout";
 
 const o = (name: string, id = name) => ({ id, name, label: null as string | null });
 
@@ -74,21 +74,20 @@ describe("pairOverUnderGroups", () => {
   });
 });
 
-describe("pairOverUnderRows", () => {
-  it("falls back to one outcome per row for non-totals boards", () => {
-    expect(pairOverUnderRows([o("Yes"), o("No")]).map((r) => r.length)).toEqual([1, 1]);
+describe("gridColumns", () => {
+  it("lays 1X2 / Double Chance / Correct Score out three across", () => {
+    expect(gridColumns(3)).toBe(3);
+    expect(gridColumns(6)).toBe(3); // "1X2 & BTTS" → two rows of three
+    expect(gridColumns(9)).toBe(3); // HT/FT
+    expect(gridColumns(20)).toBe(3); // correct score
   });
 
-  it("pairs totals boards", () => {
-    expect(pairOverUnderRows([o("Over 2.5"), o("Under 2.5")])).toEqual([
-      [o("Over 2.5"), o("Under 2.5")],
-    ]);
+  it("uses two columns for a pair, and for four so no row is an orphan", () => {
+    expect(gridColumns(2)).toBe(2);
+    expect(gridColumns(4)).toBe(2);
   });
-});
 
-describe("isPairedBoard", () => {
-  it("is true only for Over/Under sets", () => {
-    expect(isPairedBoard([o("Over 0.5"), o("Under 0.5")])).toBe(true);
-    expect(isPairedBoard([o("1"), o("X"), o("2")])).toBe(false);
+  it("uses a single full-width column for a lone outcome", () => {
+    expect(gridColumns(1)).toBe(1);
   });
 });

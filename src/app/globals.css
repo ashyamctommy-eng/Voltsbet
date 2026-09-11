@@ -140,31 +140,38 @@ body {
   }
   .label { @apply mb-1.5 block text-xs font-medium text-ink2; }
 
-  /* ── Odds buttons (unified outcome pill) ─────────────────────
+  /* ── Odds buttons (unified outcome cell) ─────────────────────
    * ONE canonical widget for every bookable outcome on the platform —
-   * home feed, live lists and match detail all render this. Horizontal
-   * pill: outcome label on the LEFT, odds multiplier on the RIGHT.
+   * home feed, live lists and match detail all render this.
+   *
+   * STACKED cell: the outcome label sits on TOP and may WRAP onto a second
+   * or third line; the odds multiplier sits BELOW it, larger and bold. That
+   * is what gives long option names room — "Racing Santander & yes" or
+   * "Deportivo Alaves" wrap inside their column instead of being cut off
+   * with an ellipsis. Cells are laid out 2–3 per row (see the market
+   * components), which is only viable because the label can wrap.
    *
    * Theme follows the app convention: the base block is the DARK spec and
    * html[data-theme="light"] overrides it (so the pre-paint bootstrap and
-   * the no-attribute case both land on dark). Values are explicit slate /
-   * emerald so text contrast stays crisp in both modes. */
+   * the no-attribute case both land on dark). */
   .odds-btn {
-    @apply flex w-full items-center justify-between rounded-[14px] px-3 py-2 whitespace-nowrap text-xs transition-all duration-100 select-none sm:text-sm;
+    @apply flex w-full flex-col items-center justify-center gap-0.5 rounded-[14px] px-2 py-2 text-center transition-all duration-100 select-none;
     min-height: 44px;                              /* 44px tap target */
     background: rgb(30 41 59 / 0.8);               /* dark: slate-800/80 */
     border: 1px solid #334155;
     color: #e2e8f0;                                /* dark: slate-200 */
     -webkit-tap-highlight-color: transparent;
   }
-  /* No truncate/overflow-hidden here: labels are already sanitized (team
-     prefixes stripped) so they must never ellipsise while there is room. */
+  /* Wrapping label — NO truncate, NO nowrap, NO ellipsis. `anywhere` keeps a
+     pathologically long single word from overflowing the cell. */
   .odds-btn .odds-label {
-    @apply min-w-0 font-medium;
+    @apply w-full font-medium text-[11px] leading-tight sm:text-xs;
     color: #e2e8f0;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
   .odds-btn .odds-price {
-    @apply ml-2 shrink-0 font-bold tabular-nums;
+    @apply font-bold text-[15px] leading-tight tabular-nums sm:text-base;
     color: #34d399;                                /* dark: emerald-400 */
   }
   .odds-btn:hover { background: #334155; }         /* dark: slate-700 */
@@ -198,14 +205,18 @@ body {
   /* Empty cell where an outcome has no price yet — same shell as .odds-btn
      so a missing price never breaks the row rhythm. */
   .odds-placeholder {
-    @apply flex w-full items-center justify-between rounded-[14px] px-3 py-2 whitespace-nowrap text-xs sm:text-sm;
+    @apply flex w-full flex-col items-center justify-center gap-0.5 rounded-[14px] px-2 py-2 text-center;
     min-height: 44px;
     background: rgb(30 41 59 / 0.8);
     border: 1px solid #334155;
     color: #64748b;
   }
-  .odds-placeholder .odds-label { @apply min-w-0 font-medium; }
-  .odds-placeholder .odds-price { @apply ml-2 shrink-0 font-bold tabular-nums; }
+  .odds-placeholder .odds-label {
+    @apply w-full font-medium text-[11px] leading-tight sm:text-xs;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .odds-placeholder .odds-price { @apply font-bold text-[15px] leading-tight tabular-nums sm:text-base; }
 
   /* ── Misc ─────────────────────────────────────────────────── */
   .skeleton {
@@ -319,11 +330,11 @@ html[data-theme="light"] .skeleton {
  * ~2.5:1 and on emerald-600 ~3.8:1 (both below AA for 14px text), while -700
  * reaches ~5.5:1. The press is still felt via the active:scale transform. */
 html[data-theme="light"] .odds-btn {
-  background: rgb(226 232 240 / 0.9);   /* slate-200/90 */
-  border-color: transparent;
+  background: #ffffff;                   /* white cell */
+  border-color: #cbd5e1;                 /* light grey outline */
   color: #0f172a;                        /* slate-900 */
 }
-html[data-theme="light"] .odds-btn .odds-label { color: #0f172a; }
+html[data-theme="light"] .odds-btn .odds-label { color: #64748b; }  /* grey label */
 /* emerald-400 is unreadable on a light pill; emerald-700 keeps the same hue
    while clearing AA (5.0:1 on slate-200). */
 html[data-theme="light"] .odds-btn .odds-price { color: #047857; }
@@ -346,8 +357,8 @@ html[data-theme="light"] .odds-btn:disabled {
 html[data-theme="light"] .odds-btn:disabled .odds-label,
 html[data-theme="light"] .odds-btn:disabled .odds-price { color: #64748b; }
 html[data-theme="light"] .odds-placeholder {
-  background: rgb(226 232 240 / 0.7);
-  border-color: transparent;
+  background: #ffffff;
+  border-color: #e2e8f0;
   color: #94a3b8;
 }
 

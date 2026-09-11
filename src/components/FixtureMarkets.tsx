@@ -7,7 +7,7 @@ import { IconStar, IconChevronDown } from "@/components/icons";
 import { useTranslation } from "react-i18next";
 import { tMarket } from "@/lib/i18n";
 import { displayOutcomeName, groupHandicapPairs, HANDICAP_MARKET_KEYS, TEAM_MARKET_SCOPE } from "@/lib/market-labels";
-import { pairOverUnderGroups } from "@/lib/odds-layout";
+import { gridColumns, pairOverUnderGroups } from "@/lib/odds-layout";
 
 type FixtureOutcome = {
   id: string;
@@ -51,9 +51,6 @@ const TOTALS_KEYS = ["OVER_UNDER", "totals", "TOTAL_CORNERS", "TOTAL_BOOKINGS"];
 const FIRST_HALF_KEYS = ["HT_RESULT", "HALF_TIME_RESULT", "HT_OVER_UNDER", "h2h_h1", "totals_h1", "OVER_UNDER_1H", "FIRST_HALF_BTTS"];
 const SECOND_HALF_KEYS = ["2H_RESULT", "h2h_h2", "totals_h2", "OVER_UNDER_2H"];
 const CORRECT_SCORE_KEYS = ["CORRECT_SCORE", "correct_score"];
-
-/** Correct-score boards are long — keep the dense scoreboard grid for these. */
-const SCORE_GRID_KEYS = new Set(["CORRECT_SCORE", "correct_score"]);
 
 /** Result boards whose outcome label ("1" / "X" / "2") IS the display text.
  *  Everywhere else the sanitized outcome name is shown instead. */
@@ -210,7 +207,6 @@ export default function FixtureMarkets({ game, markets }: { game: FixtureCtx; ma
         const hasPriced = m.outcomes.some((o) => Number(o.odds) > 0);
         const outcomeIds = new Set(m.outcomes.map((o) => o.id));
         const selectedCount = items.filter((i) => outcomeIds.has(i.outcomeId)).length;
-        const isScore = SCORE_GRID_KEYS.has(m.key);
 
         return (
           <section key={m.id} className="border-b border-line last:border-b-0">
@@ -266,30 +262,35 @@ export default function FixtureMarkets({ game, markets }: { game: FixtureCtx; ma
                 {isHandicapBoard(m) ? (
                   <div className="grid gap-2">
                     {groupHandicapPairs(m.outcomes, game.homeName, game.awayName).map((pair) => (
-                      <div key={pair.line} className="grid grid-cols-2 gap-2">
+                      <div
+                        key={pair.line}
+                        className="grid gap-2"
+                        style={{ gridTemplateColumns: "repeat(2, minmax(0,1fr))" }}
+                      >
                         {[pair.home, pair.away].map((side, i) =>
                           side ? pill(m, side as FixtureOutcome) : <span key={`${pair.line}-${i}`} />,
                         )}
                       </div>
                     ))}
                   </div>
-                ) : isScore ? (
-                  <div className="grid grid-cols-3 gap-2">{m.outcomes.map((o) => pill(m, o))}</div>
                 ) : (
                   (() => {
                     /* Over/Under boards pair 2-up per line. On a MIXED team
                        board (both teams in one accordion) the pairs are grouped
                        by the team prefix — show it once as a sub-header rather
-                       than repeating "West Ham United …" inside every pill. On
+                       than repeating "West Ham United …" inside every cell. On
                        single-team boards the accordion header already names the
-                       side, so no sub-header is needed. */
+                       side, so no sub-header is needed. Everything else lays
+                       out in a 2- or 3-column grid of stacked cells. */
                     const groups = pairOverUnderGroups(m.outcomes);
                     if (!groups) {
+                      const cols = gridColumns(m.outcomes.length);
                       return (
-                        <div className="grid gap-2">
-                          {m.outcomes.map((o) => (
-                            <div key={o.id}>{pill(m, o)}</div>
-                          ))}
+                        <div
+                          className="grid gap-2"
+                          style={{ gridTemplateColumns: `repeat(${cols}, minmax(0,1fr))` }}
+                        >
+                          {m.outcomes.map((o) => pill(m, o))}
                         </div>
                       );
                     }
@@ -304,7 +305,10 @@ export default function FixtureMarkets({ game, markets }: { game: FixtureCtx; ma
                               {newTeam && (
                                 <div className="truncate text-[11px] font-semibold text-ink3">{g.prefix}</div>
                               )}
-                              <div className="grid grid-cols-2 gap-2">
+                              <div
+                                className="grid gap-2"
+                                style={{ gridTemplateColumns: "repeat(2, minmax(0,1fr))" }}
+                              >
                                 {g.cells.map((o) => pill(m, o))}
                               </div>
                             </div>
