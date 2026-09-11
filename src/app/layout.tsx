@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import "./globals.css";
 import { getSettings } from "@/lib/settings";
+import MaintenanceScreen from "@/components/MaintenanceScreen";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { liveFeedWhere } from "@/lib/live-feed";
@@ -51,6 +53,37 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     prisma.game.count({ where: liveFeedWhere() }),
     prisma.sport.findMany({ where: { active: true }, orderBy: [{ isPopular: "desc" }, { sortOrder: "asc" }], take: 8 }),
   ]);
+
+  // ── Maintenance gate (DB toggle from Admin → Website Settings) ──────────
+  // Staff see the real site, and the auth/admin surfaces stay reachable so an
+  // admin can sign in and switch maintenance back OFF without a redeploy.
+  // The env kill-switch (MAINTENANCE_MODE) also lands here via getSettings,
+  // and is enforced independently in proxy.ts for the DB-down case.
+  const pathname = (await headers()).get("x-pathname") ?? "";
+  const isStaff = !!user && user.role !== "CUSTOMER";
+  const maintenanceExempt =
+    pathname === "/login" ||
+    pathname === "/register" ||
+    pathname === "/maintenance" ||
+    pathname.startsWith("/admin");
+  if (s.maintenanceEnabled && !isStaff && !maintenanceExempt) {
+    return (
+      <html
+        lang="en"
+        style={
+          {
+            "--vb-primary": s.primaryColor,
+            "--vb-secondary": s.secondaryColor,
+            "--vb-accent": s.accentColor,
+          } as React.CSSProperties
+        }
+      >
+        <body className="min-h-screen">
+          <MaintenanceScreen brand={s.siteName} message={s.maintenanceMessage} />
+        </body>
+      </html>
+    );
+  }
 
   let headerUser: HeaderUser = null;
   if (user) {

@@ -26,9 +26,45 @@ export function fail(status: number, message: string, code = "ERROR") {
 
 export type RouteCtx = { params: Promise<Record<string, string | string[]>> };
 
+/**
+ * Maintenance gate for API routes. Everything is blocked while maintenance is
+ * on EXCEPT the surfaces that must keep working (health probe, cron, provider
+ * webhooks) and the ones staff need to switch it back off (admin, auth, public).
+ * Fail-open: a settings read error must never take the API down.
+ */
+const MAINTENANCE_EXEMPT = [
+  "/api/health",
+  "/api/cron",
+  "/api/webhooks",
+  "/api/admin",
+  "/api/auth",
+  "/api/public",
+];
+
+async function maintenanceBlocks(req: NextRequest): Promise<boolean> {
+  const path = req.nextUrl.pathname;
+  if (MAINTENANCE_EXEMPT.some((p) => path.startsWith(p))) return false;
+  try {
+    const { getSettings } = await import("@/lib/settings");
+    return (await getSettings()).maintenanceEnabled;
+  } catch {
+    return false;
+  }
+}
+
 export function handle<C = RouteCtx>(fn: (req: NextRequest, ctx: C) => Promise<NextResponse>) {
   return async (req: NextRequest, ctx: C) => {
     try {
+      if (await maintenanceBlocks(req)) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: { code: "MAINTENANCE", message: "Scheduled maintenance — please try again shortly." },
+            data: null,
+          },
+          { status: 503, headers: { "retry-after": "300" } }
+        );
+      }
       return await fn(req, ctx);
     } catch (e) {
       if (e instanceof ApiError) {

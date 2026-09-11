@@ -42,6 +42,15 @@ const GROUPS: { title: string; anchor: string; icon: React.ReactNode; fields: Fi
     ],
   },
   {
+    title: "Maintenance",
+    anchor: "maintenance",
+    icon: <IconGear className="h-4 w-4" />,
+    fields: [
+      { key: "maintenance.enabled", label: "Maintenance mode", type: "toggle", hint: "Shows a branded maintenance screen to customers and returns 503 to the API. Staff and /login stay reachable so you can switch it back OFF; /api/health, cron and payment webhooks keep running. Takes effect within ~3 s — no redeploy. Env MAINTENANCE_MODE=1 forces it on and also works when the database is down." },
+      { key: "maintenance.message", label: "Maintenance message", type: "text", hint: "Optional line shown on the maintenance screen, e.g. \"Back at 14:00 EAT.\"" },
+    ],
+  },
+  {
     title: "Betting",
     anchor: "betting",
     icon: <IconGear className="h-4 w-4" />,

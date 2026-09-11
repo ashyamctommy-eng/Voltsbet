@@ -117,6 +117,12 @@ export type SiteSettings = {
   /** How long a broadcast banner stays live (hours). 0 = never expires.
    *  Admin → Website Settings → Broadcast. Env BROADCAST_TTL_HOURS overrides. */
   broadcastTtlHours: number;
+  /** Site-wide maintenance screen. Admin → Website Settings → Maintenance
+   *  (no redeploy needed). Env MAINTENANCE_MODE=1 forces it on — that env path
+   *  also covers the DB-down case, since proxy.ts reads it without the DB. */
+  maintenanceEnabled: boolean;
+  /** Optional custom line shown on the maintenance screen. */
+  maintenanceMessage: string;
   /** TIER 2 — deep single-event markets fetched ON DEMAND when a user opens
    *  a match detail page (never in the bulk sweep: quota). Env
    *  SOCCER_DETAIL_MARKETS overrides. */
@@ -252,6 +258,8 @@ const DEFAULTS: SiteSettings = {
   liveOddsMarkets: ["h2h"],
   betSlipAutoOpen: false,
   broadcastTtlHours: 72,
+  maintenanceEnabled: false,
+  maintenanceMessage: "",
   statsProvider: "off",
   statsApiKey: "",
   statsDailyBudget: 90,
@@ -442,6 +450,17 @@ export async function getSettings(): Promise<SiteSettings> {
       raw["broadcast.ttlHours"] !== undefined && Number.isFinite(rawBcastTtl) && rawBcastTtl >= 0
         ? Math.round(rawBcastTtl)
         : s.broadcastTtlHours;
+    // Maintenance mode — DB toggle (Admin → Website Settings) with the env var
+    // as a hard override. The env path is what proxy.ts uses for DB-down cases.
+    if (raw["maintenance.enabled"] !== undefined) {
+      s.maintenanceEnabled = raw["maintenance.enabled"] === "true";
+    }
+    if (process.env.MAINTENANCE_MODE === "1" || process.env.MAINTENANCE_MODE === "true") {
+      s.maintenanceEnabled = true;
+    }
+    if (raw["maintenance.message"] !== undefined) {
+      s.maintenanceMessage = String(raw["maintenance.message"]);
+    }
     // Bet slip: silent pick-up unless explicitly enabled.
     const rawAutoOpen = process.env.BETSLIP_AUTO_OPEN ?? raw["betSlip.autoOpen"];
     if (rawAutoOpen !== undefined) s.betSlipAutoOpen = rawAutoOpen === "true";
