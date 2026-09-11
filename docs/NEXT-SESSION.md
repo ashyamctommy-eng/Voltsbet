@@ -84,8 +84,24 @@ Real corners for the matches the owner was watching: **Fenerbahçe 1 – 3 AS Ro
 `stats.settleHalfTime`), an admin card in **API Settings → Settlement stats feed**, and `stats-feed.test.ts`
 (10 tests, parsers exercised against the real payloads captured above).
 
-**NOT built yet (step 3, money path):** the settlement hook — flipping `manual` → `auto` for corners/cards and
-`auto-ht` → `auto` for half-time markets, and using real `FT/AET/PEN` instead of kickoff estimates.
+**STEP 3 BUILT + CANARY-VERIFIED (2026-09-11):**
+
+- `src/lib/stats/match.ts` — two-id-space bridge (kickoff ± 5 h + accent/club-noise-proof names).
+- `src/lib/stats/corner-settle.ts` — corner resolver (TOTAL_CORNERS, TEAM_CORNERS, CORNERS_1X2,
+  CORNERS_HANDICAP; quarter lines only when both halves agree, else → review). Cards deliberately manual.
+- `src/lib/stats/settle-stats.ts` — the pass: finds finished games with a resolvable market, fetches the
+  matchday list (1 call, cached 15 min), matches the fixture, writes the HT score (which unlocks the EXISTING
+  half-time resolvers), fetches statistics (1 call, cached forever) and settles corner outcomes.
+  Guards: provider + per-market toggles, daily budget, FT/AET/PEN only, AET/PEN skips 90-minute corner markets
+  unless `LIVE_ET_SETTLE=auto`, ambiguous team orientation → skip, null resolution → review queue.
+- Wired into `/api/cron/settle` (stats pass runs first, then the score sweep) with `?forceStats=1`, plus
+  `POST /api/admin/stats-run` and a **Run settlement now** button in the API Settings card.
+
+**Canary (real match, real key, throwaway sqlite DB — 2026-09-11):**
+`Fenerbahçe 1-1 AS Roma` (fixture 1635659, HT 0-1, corners 1-3): matched via name+time, HT recorded,
+4 corner outcomes settled (Over 1.5 WON / Under 1.5 LOST / Over 9.5 LOST / Under 9.5 WON), then the score
+sweep settled the 2 half-time markets from the recorded HT — **2 API calls total**. A repeat pass over the same
+match cost **0 calls / 0 budget** (fixture-list + stats caches). 20 unit tests cover the resolver and matching.
 
 - One `StatsProvider` with two capabilities:
   - `settleMatchStats` — for **finished** matches that have corner/card/HT markets: 1 call `/fixtures?id=` + 1 call `/fixtures/statistics?fixture=&half=true`, **cached forever** (final stats never change). Flips corner/card markets to `auto` and makes `needs HT` markets truly automatic.

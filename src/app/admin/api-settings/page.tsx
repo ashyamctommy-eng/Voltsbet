@@ -42,6 +42,7 @@ type OddsConfig = {
     detailMarkets: string[]; detailCacheTtlSeconds: number;
     statsProvider: string; statsDailyBudget: number; statsSettleCorners: boolean;
     statsSettleHalfTime: boolean; statsKeySet: boolean; statsKeyFromEnv: boolean; statsBudgetUsedToday: number;
+    statsLastPass: { at?: number; ran?: boolean; reason?: string; settled?: number; htFilled?: number; matched?: number; apiCalls?: number; notes?: string[] } | null;
   };
   env: Record<string, string | undefined>;
   quota: { used: number; remaining: number } | null;
@@ -98,6 +99,8 @@ export default function AdminApiSettings() {
     statsHalfTime: false,
   });
   const [savingOdds, setSavingOdds] = useState<"" | "ev" | "prefs" | "live" | "soccer" | "stats">("");
+  const [statsRunning, setStatsRunning] = useState(false);
+  const [statsRunMsg, setStatsRunMsg] = useState("");
   const [oddsMsg, setOddsMsg] = useState("");
 
   useEffect(() => {
@@ -186,6 +189,27 @@ export default function AdminApiSettings() {
         env: {odds.env[key]}
       </span>
     ) : null;
+
+  /** Manual pass — settles any finished match whose stats/markets are already cached. */
+  async function runStatsNow() {
+    setStatsRunning(true);
+    setStatsRunMsg("");
+    try {
+      const r = await fetch("/api/admin/stats-run", { method: "POST" });
+      const j = await r.json();
+      const d = j?.data ?? {};
+      setStatsRunMsg(
+        d.ran
+          ? `Ran: ${d.matched ?? 0} matched · ${d.htFilled ?? 0} HT scores · ${d.settled ?? 0} settled · ${d.apiCalls ?? 0} API calls`
+          : `Skipped — ${d.reason ?? "not enabled"}`,
+      );
+      await apiFetch<OddsConfig>("/api/admin/odds-config").then((r) => r.ok && setOdds(r.data));
+    } catch {
+      setStatsRunMsg("Run failed — check the logs.");
+    } finally {
+      setStatsRunning(false);
+    }
+  }
 
   async function saveOdds(kind: "ev" | "prefs" | "live" | "soccer" | "stats") {
     setSavingOdds(kind);
@@ -542,9 +566,14 @@ export default function AdminApiSettings() {
               needing a human. Fetched on demand for finished matches, budget-guarded.
             </p>
           </div>
-          <button className="btn btn-primary btn-sm" disabled={savingOdds === "stats"} onClick={() => saveOdds("stats")}>
-            {savingOdds === "stats" ? "Saving…" : "Save stats feed"}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button className="btn btn-ghost btn-sm" disabled={statsRunning} onClick={runStatsNow}>
+              {statsRunning ? "Running…" : "Run settlement now"}
+            </button>
+            <button className="btn btn-primary btn-sm" disabled={savingOdds === "stats"} onClick={() => saveOdds("stats")}>
+              {savingOdds === "stats" ? "Saving…" : "Save stats feed"}
+            </button>
+          </div>
         </div>
 
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -596,9 +625,22 @@ export default function AdminApiSettings() {
             <p className="text-[11px] text-ink3">
               Leave both off and the feed only collects data. Unchecked markets keep their current behaviour.
             </p>
+            {odds?.stored.statsLastPass && (
+              <div className="rounded-lg border border-line bg-panel2 p-2 text-[11px] text-ink2">
+                <b>Last pass:</b>{" "}
+                {odds.stored.statsLastPass.ran === false
+                  ? `skipped — ${odds.stored.statsLastPass.reason}`
+                  : `${odds.stored.statsLastPass.matched ?? 0} matched · ${odds.stored.statsLastPass.htFilled ?? 0} HT scores · ${odds.stored.statsLastPass.settled ?? 0} settled · ${odds.stored.statsLastPass.apiCalls ?? 0} API calls`}
+                {odds.stored.statsLastPass.at ? ` · ${new Date(odds.stored.statsLastPass.at).toLocaleString()}` : ""}
+                {!!odds.stored.statsLastPass.notes?.length && (
+                  <div className="mt-1 text-ink3">{odds.stored.statsLastPass.notes.slice(0, 3).join(" · ")}</div>
+                )}
+              </div>
+            )}
           </div>
         </div>
         {oddsMsg && <p className="mt-3 text-xs font-semibold text-green-600 dark:text-green-400">{oddsMsg}</p>}
+        {statsRunMsg && <p className="mt-1 text-xs font-semibold text-green-600 dark:text-green-400">{statsRunMsg}</p>}
       </div>
 
       {/* ── Live scores & in-play odds ───────────────────────── */}

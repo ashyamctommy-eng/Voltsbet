@@ -117,6 +117,7 @@ export type ScoreHalf = { home: number | null; away: number | null };
 
 export type StatsFixture = {
   fixtureId: number;
+  date: string | null; // kickoff (ISO) — the bridge to our Game.startAt
   status: string; // FT | AET | PEN | 1H | HT | 2H | ET | BT | P | NS | …
   elapsed: number | null;
   homeName: string;
@@ -128,7 +129,7 @@ export type StatsFixture = {
 };
 
 type RawFixture = {
-  fixture?: { id?: number; status?: { short?: string; elapsed?: number | null } };
+  fixture?: { id?: number; date?: string; status?: { short?: string; elapsed?: number | null } };
   teams?: { home?: { name?: string }; away?: { name?: string } };
   score?: { halftime?: ScoreHalf; fulltime?: ScoreHalf; extratime?: ScoreHalf; penalty?: ScoreHalf };
 };
@@ -141,6 +142,7 @@ export function parseFixture(payload: unknown): StatsFixture | null {
   const half = (h?: ScoreHalf): ScoreHalf => ({ home: h?.home ?? null, away: h?.away ?? null });
   return {
     fixtureId: f.fixture.id,
+    date: f.fixture.date ?? null,
     status: f.fixture.status?.short ?? "NS",
     elapsed: f.fixture.status?.elapsed ?? null,
     homeName: f.teams?.home?.name ?? "",
@@ -196,6 +198,17 @@ export async function fetchFixtureStats(fixtureId: number | string): Promise<Sta
 export async function fetchMatchStatistics(fixtureId: number | string): Promise<TeamStats[]> {
   const json = await apiGet<unknown>(`/fixtures/statistics?fixture=${encodeURIComponent(String(fixtureId))}`);
   return parseStatistics(json);
+}
+
+/**
+ * Every fixture of one UTC date, WITH scores and status — one call covers a
+ * whole matchday, which is how the settlement pass learns half-time scores
+ * without paying a per-match lookup. (Free plan: today → +2 days only.)
+ */
+export async function fetchFixturesByDate(date: string): Promise<StatsFixture[]> {
+  const json = await apiGet<unknown>(`/fixtures?date=${encodeURIComponent(date)}`);
+  const rows = (json as { response?: RawFixture[] })?.response ?? [];
+  return rows.map((r) => parseFixture({ response: [r] })).filter((f): f is StatsFixture => !!f);
 }
 
 /** One call for every live match — true elapsed minute + status (optional feature). */

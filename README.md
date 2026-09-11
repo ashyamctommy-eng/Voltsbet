@@ -84,6 +84,15 @@ with transaction records. CSRF-protected.
 (win credit / void refund / loss), markets close when settled, users notified,
 actions audited. Optional auto-settlement via cron.
 
+**Optional stats feed (API-Football)** — the score feed cannot resolve corners,
+cards or half-time markets, so those settle manually by default. Enabling
+*API Settings → Settlement stats feed* adds a budget-guarded API-Football source
+that records half-time scores (which unlocks the half-time markets) and settles
+corner markets from per-team corner counts. Off by default; free tier is enough
+because settlement happens same-day (100 requests/day, fixtures available for
+today → +2 days). Cards stay manual on purpose — booking conventions differ
+between books, and settlement must never guess.
+
 **Admin panel** `/admin` — dashboard, sports CRUD, manual games + live scores,
 markets/outcomes + inline odds, **custom market builder** (manual markets that
 sync never overwrites), settlement UI, users, deposits + withdrawals (with the
@@ -189,6 +198,12 @@ build — the compile itself still succeeds.
 | `SYNC_THROTTLE_MINUTES` | — | `60` | Min minutes between odds-sync runs |
 | `SCHEDULE_THROTTLE_MINUTES` | — | `60` | Min minutes between calendar-feed runs |
 | `SETTLE_THROTTLE_MINUTES` | — | `5` | Min minutes between auto-settle runs |
+| `API_FOOTBALL_KEY` | — | — | api-sports.io key — optional stats feed (corners/HT settlement). Env wins over the admin field |
+| `STATS_PROVIDER` | — | `off` | `off` \| `api-football` — enable the stats feed |
+| `STATS_DAILY_BUDGET` | — | `90` | Hard daily request ceiling for the stats feed (free tier = 100/day) |
+| `STATS_PASS_THROTTLE_SECONDS` | — | `600` | Min gap between stats settlement passes |
+| `STATS_LIST_TTL_SECONDS` | — | `900` | Matchday fixture-list cache TTL (1 call per matchday) |
+| `STATS_MAX_GAMES_PER_PASS` | — | `12` | Max games enriched per pass (burst guard) |
 | `PURGE_THROTTLE_MINUTES` | — | `60` | Min minutes between calendar-purge runs |
 | `PURGE_MAX_AGE_HOURS` | — | `2` | Delete non-in-play games this long after kickoff |
 | `RATES_SYNC_THROTTLE_MINUTES` | — | `60` | Min minutes between market-rate syncs (`/api/cron/rates`) |

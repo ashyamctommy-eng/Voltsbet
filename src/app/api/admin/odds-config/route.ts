@@ -3,6 +3,7 @@ import { handle, ok, ApiError, sharedAdminGuard } from "@/lib/api";
 import { getSettings, setSetting, invalidateSettingsCache } from "@/lib/settings";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { readJson } from "@/lib/stats/store";
 
 /**
  * Admin Odds engine configuration (Admin → API Settings → Odds engine).
@@ -113,6 +114,7 @@ export const GET = handle(async (req: NextRequest) => {
       statsKeySet: !!(process.env.API_FOOTBALL_KEY || s.statsApiKey),
       statsKeyFromEnv: !!process.env.API_FOOTBALL_KEY,
       statsBudgetUsedToday: Number((await prisma.setting.findUnique({ where: { key: "stats.budgetUsed" } }))?.value ?? 0) || 0,
+      statsLastPass: await readJson<Record<string, unknown>>("stats.lastPass").then((r) => r.value),
     },
     env,
     quota,
