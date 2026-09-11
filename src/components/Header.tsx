@@ -142,8 +142,13 @@ export default function Header({
   }
 
   return (
-    <header className="sticky top-0 z-40 border-b border-line bg-panel-bg/95 backdrop-blur-md">
-      {/* ── Top row ─────────────────────────────────────────── */}
+    <header className="relative z-40">
+      {/* ── Sticky top bar ONLY: logo · nav · account. ─────────────
+          The sports menu, the Highlights/Upcoming row and the mobile search
+          live OUTSIDE this block, so they scroll away with the page. On a
+          phone they were pinned and ate a third of the viewport before any
+          content appeared — the reference design shows them scrolling off. */}
+      <div className="sticky top-0 z-40 border-b border-line bg-panel-bg/95 backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-2 px-3 sm:gap-3 sm:px-4">
         <button
           onClick={openDrawer}
@@ -319,12 +324,14 @@ export default function Header({
           )}
         </div>
       </div>
+      </div>
+      {/* ── end sticky top bar ── */}
 
       {showBrowseChrome && (
       <>
       {/* ── Category scrollbar (provider-driven sports) ────────── */}
       <div className="border-t border-line bg-panel-bg/60">
-        <div className="no-scrollbar mx-auto flex max-w-[1600px] items-stretch gap-1 overflow-x-auto px-2 sm:px-4">
+        <div className="no-scrollbar mx-auto flex max-w-[1600px] items-center gap-1.5 overflow-x-auto px-2 py-2 sm:gap-2 sm:px-4">
           {categoryTabs.map(({ labelKey, label, href, icon }) => {
             const active =
               pathname === href ||
@@ -336,8 +343,10 @@ export default function Header({
               <Link
                 key={href}
                 href={href}
-                className={`flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2.5 text-xs font-bold transition-colors sm:text-sm ${
-                  active ? "border-brand text-brand" : "border-transparent text-ink2 hover:text-ink"
+                className={`flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition-colors sm:text-sm ${
+                  active
+                    ? "border-brand bg-brand/10 text-brand"
+                    : "border-line bg-card text-ink2 hover:border-line2 hover:text-ink"
                 }`}
               >
                 {icon ? <span aria-hidden>{icon}</span> : labelKey === "nav.live" ? <IconLive className="h-4 w-4 sm:h-[18px] sm:w-[18px]" /> : null}

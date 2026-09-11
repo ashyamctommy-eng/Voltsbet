@@ -166,13 +166,13 @@ body {
      pathologically long single word from overflowing the cell. */
   .odds-btn .odds-label {
     @apply w-full font-medium text-[11px] leading-tight sm:text-xs;
-    color: #e2e8f0;
+    color: #94a3b8;                                /* dark: slate-400 (grey label) */
     white-space: normal;
     overflow-wrap: anywhere;
   }
   .odds-btn .odds-price {
     @apply font-bold text-[15px] leading-tight tabular-nums sm:text-base;
-    color: #34d399;                                /* dark: emerald-400 */
+    color: #ffffff;                                /* dark: bold white odds */
   }
   .odds-btn:hover { background: #334155; }         /* dark: slate-700 */
   .odds-btn:active { background: #047857; }        /* dark: emerald-700 */
@@ -335,9 +335,7 @@ html[data-theme="light"] .odds-btn {
   color: #0f172a;                        /* slate-900 */
 }
 html[data-theme="light"] .odds-btn .odds-label { color: #64748b; }  /* grey label */
-/* emerald-400 is unreadable on a light pill; emerald-700 keeps the same hue
-   while clearing AA (5.0:1 on slate-200). */
-html[data-theme="light"] .odds-btn .odds-price { color: #047857; }
+html[data-theme="light"] .odds-btn .odds-price { color: #0f172a; }   /* bold near-black */
 html[data-theme="light"] .odds-btn:hover { background: #cbd5e1; }   /* slate-300 */
 html[data-theme="light"] .odds-btn:active { background: #047857; }
 html[data-theme="light"] .odds-btn:active .odds-label,
