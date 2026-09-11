@@ -156,6 +156,48 @@ tapping and placing (spec §17).
 
 ## Rate budget
 
+Cost is per **request**, and a request costs `markets × regions`. The horizon is
+free: `/sports/{key}/odds` returns *every* upcoming event for a league in one
+request, so a 7-day window costs the same as a 1-day one and re-fetching
+overlapping fixtures costs nothing. You are not billed per fixture or per day.
+
+```
+credits ≈ leagues × listMarkets × regions
+        + eventLeagues × eventLimit × extendedMarkets × regions
+          (the per-event deep pass — usually the dominant term)
+```
+
+Two consequences worth internalising:
+
+- **Breadth and frequency are what you pay for, not horizon.** The first term is
+  linear in leagues; the second is independent of leagues entirely — this is why
+  trimming a whitelist barely moves the bill while trimming the extended market
+  menu moves it a lot.
+- **Regions multiply everything.** `eu,us` doubles both terms; keep one region
+  unless you specifically need US books.
+
+Levers, in order of impact:
+
+| Lever | Where | Effect |
+|---|---|---|
+| `odds.eventMarketLimit` (or env `ODDS_API_EVENT_MARKET_LIMIT`) | Admin → Website Settings → Odds Sync | halves/quarters the deep pass |
+| `ODDS_API_MARKETS` / `odds.markets` | Admin → API Settings | each **extended** key costs 1 credit/event |
+| `odds.syncLeagues` (whitelist) | Admin → API Settings | linear on the list pass only |
+| `ODDS_API_REGIONS` / `odds.regions` | Admin → API Settings | keep `eu` (1 region) |
+| cadence | Admin → Cronjobs | straight multiplier on the total |
+
+**Guard rail:** set `MAX_CREDITS_PER_RUN` (env) and a sync whose estimate
+exceeds it **aborts before the paid pass** — the estimate is computed from the
+free `/sports` call, so an accidental broad sweep costs nothing. The estimate
+for the current config, the runs left on your balance and a monthly projection
+are shown in **Admin → API Settings → Credits**.
+
+Rough free-tier math: 500 credits/mo ÷ ~44 ≈ 11 syncs/mo → every 3 days
+(default cron). Paid tiers (20K) support several runs per day once the deep
+pass is trimmed.
+
+### Realistic budgets
+
 One request = one sport + one market set per endpoint (list endpoint:
 1 credit per market per league; scores: 2 per league with `daysFrom`).
 Realistic budgets:

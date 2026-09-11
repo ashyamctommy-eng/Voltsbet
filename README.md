@@ -181,12 +181,13 @@ build — the compile itself still succeeds.
 | `SEED_ADMIN_EMAIL` | seed | `admin@voltbets.test` | Super-admin email created by the seed |
 | `SEED_ADMIN_PASSWORD` | seed | — | **No production fallback** — seed skips admin if unset |
 | `ODDS_API_REGIONS` | — | `eu` (DB setting `odds.regions`, Admin → API Settings) | Bookmaker regions — `eu` (default) = 3 credits/league, Pinnacle soccer only; `eu,us` = 6 credits/league and adds US books so MLB/NFL/NBA/NHL can be priced. |
-| `ODDS_API_MARKETS` | — | `h2h,spreads,totals,btts,double_chance,draw_no_bet,correct_score` | List-endpoint markets + per-event extended markets; unsupported ones are auto-dropped |
+| `ODDS_API_MARKETS` | — | built-in 26-key football menu (3 list: `h2h,spreads,totals` + 23 per-event incl. `btts,correct_score,corners…`) | List-endpoint markets + per-event extended markets. Each **extended** key costs 1 credit **per event** — the biggest cost multiplier. Unsupported keys are auto-dropped |
 | `ODDS_API_FALLBACK_LEAGUES` | — | *(all active)* | Comma list of preferred feed leagues (e.g. `soccer_epl,soccer_spain_la_liga`); empty = all active soccer leagues |
-| `ODDS_API_FEED_MAX_LEAGUES` | — | `60` | Max leagues per feed refresh when no override above (1 request each) |
+| `ODDS_API_FEED_MAX_LEAGUES` | — | `120` (DB `odds.feedMaxLeagues`) | Max leagues per odds/schedule pass when no override above (1 request each). Without a league whitelist the sync walks **every bettable in-season sport/league** up to this cap — lower it (e.g. 20) to control cost |
 | `ODDS_API_EVENT_BOOKMAKERS` | — | `pinnacle` | Bookmaker for per-event markets (`/events/{id}/odds`) — Pinnacle confirmed |
 | `ODDS_API_EVENT_MARKET_LEAGUES` | — | DB setting (`odds.eventMarketLeagues`) | Env override for the per-event deep-market leagues — DB value comes from **Admin → Website Settings → Odds Sync** |
 | `ODDS_API_EVENT_MARKET_LIMIT` | — | DB setting (`odds.eventMarketLimit`, default `4`) | Env override for max fixtures per league on the deep event pass (1 credit per served market per event; `0` disables) — DB value from **Admin → Website Settings → Odds Sync** |
+| `MAX_CREDITS_PER_RUN` | — | *(unset = no cap)* | **Abort an odds sync whose estimated cost exceeds this** — checked *before* the paid pass, so nothing is fetched or spent. Recommended, e.g. `400`. The live estimate for the current config is shown in **Admin → API Settings → Credits**. Cost model: `leagues × listMarkets × regions + eventLeagues × eventLimit × extendedMarkets × regions` |
 | `ODDS_API_LIVE_MARKETS` | — | `h2h` | In-play odds markets refreshed on `/live` |
 | `LIVE_ODDS_THROTTLE_SECONDS` | — | `900` | Min seconds between in-play odds refreshes |
 | `LIVE_SCORES_THROTTLE_SECONDS` | — | `300` | Min seconds between live-score sweeps (per active league) |
@@ -198,6 +199,7 @@ build — the compile itself still succeeds.
 | `SYNC_THROTTLE_MINUTES` | — | `60` | Min minutes between odds-sync runs |
 | `SCHEDULE_THROTTLE_MINUTES` | — | `60` | Min minutes between calendar-feed runs |
 | `SETTLE_THROTTLE_MINUTES` | — | `5` | Min minutes between auto-settle runs |
+| `RECONCILE_THROTTLE_MINUTES` | — | `5` | Min minutes between payment-reconciliation runs (`/api/cron/reconcile`) |
 | `API_FOOTBALL_KEY` | — | — | api-sports.io key — optional stats feed (corners/HT settlement). Env wins over the admin field |
 | `STATS_PROVIDER` | — | `off` | `off` \| `api-football` — enable the stats feed |
 | `STATS_DAILY_BUDGET` | — | `90` | Hard daily request ceiling for the stats feed (free tier = 100/day) |
@@ -211,6 +213,7 @@ build — the compile itself still succeeds.
 | `ENABLE_MPESA_WITHDRAWALS` | — | follows `ENABLE_MPESA_PAYMENTS` | `false` hides M-Pesa as a withdrawal method |
 | `PALPLUS_BASE_URL` | — | `https://api.palpluss.com/v1` | Override for gateway mirrors (rarely needed) |
 | `SHOW_SEEDED_GAMES` | — | unset | **Leave unset in production** — reveals demo games |
+| `MAINTENANCE_MODE` | — | unset | `1`/`true` serves the branded maintenance screen to customers (pages rewrite to `/maintenance`, `/api/*` → 503 JSON) while health, cron and payment webhooks keep running. Dependency-free, so it works even when the DB is down. For planned maintenance without a redeploy use **Admin → Website Settings → Maintenance** instead. See `docs/ERROR-HANDLING.md` |
 | `SEED_DEMO_USERS` | — | dev: true / prod: false | `true` seeds demo users in production |
 | `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` | — | — | reCAPTCHA v2 **site key** (public) — enables the "I'm not a robot" widget on `/register` + `/login` |
 | `RECAPTCHA_SECRET_KEY` | — | — | reCAPTCHA **secret key** — when set, the auth APIs verify every token via `google.com/recaptcha/api/siteverify` before processing credentials |
@@ -234,6 +237,7 @@ One provider for all sports data — **The Odds API (v4)**:
 | 7-day calendar (0-quota) | `/api/cron/schedule` | `ODDS_API_KEY` |
 | Live scores / status | `/api/cron/sync` + `/live` | `ODDS_API_KEY` |
 | Settlement inputs | `/api/cron/settle` | derived from `/scores` |
+| Payment reconciliation | `/api/cron/reconcile` | re-checks open M-Pesa (PalPluss) + crypto (NOWPayments) deposits with the provider |
 
 ### Market layers
 
@@ -599,17 +603,25 @@ All endpoints: `GET /api/cron/<job>?secret=<CRON_SECRET>`
 
 | Endpoint | Purpose | Schedule (UTC) | Credits |
 |---|---|---|---|
-| `/api/cron/sync` | Odds prices | Free: `0 6 */3 * *`; paid: `0 */8 * * *` | ~44/run |
+| `/api/cron/sync` | Odds prices | Free: `0 6 */3 * *`; paid: `0 */8 * * *` | **config-dependent** — see estimate below |
 | `/api/cron/schedule` | 7-day calendar | `0 5 * * *` | 0 |
 | `/api/cron/settle` | Auto-settle | `*/12 * * * *` | 0 |
 | `/api/cron/purge` | Expired calendar rows | `0 0 * * *` | 0 |
 | `/api/cron/rates` | **Market FX + crypto rates** | `17 * * * *` (hourly) | 0 |
+| `/api/cron/reconcile` | **Payment reconciliation** (missed webhooks) | `*/10 * * * *` | 0 |
 
 **Admin → Cronjobs** generates copy-paste configs (URL, curl, wget,
 cron-job.org, UptimeRobot) with editable schedules and **Run now** per job.
 
 Free-tier math: 500 credits/mo ÷ ~44 ≈ **11 syncs/mo** → every 3 days. Sync is
 rate-limited internally; allow ≥60s request timeout on schedulers.
+
+**Cost per sync is config-dependent** — `≈ leagues × listMarkets × regions +
+eventLeagues × eventLimit × extendedMarkets × regions`. The deep per-event pass
+usually dominates and is the same regardless of how many leagues you sync.
+**Admin → API Settings → Credits** shows the live estimate for the current
+config, the runs left on your balance, and a monthly projection. Set
+`MAX_CREDITS_PER_RUN` to make a too-expensive run abort before spending.
 
 ---
 
@@ -625,6 +637,7 @@ deploy and the crons run without external schedulers:
 | `cron-settle.yml` | Auto-settle (every 12 min) | `CRON_SECRET`, `APP_URL` |
 | `cron-purge.yml` | Calendar purge (daily) | `CRON_SECRET`, `APP_URL` |
 | `cron-rates.yml` | Market rates (hourly) | `CRON_SECRET`, `APP_URL` |
+| `cron-reconcile.yml` | Payment reconciliation (every 10 min) | `CRON_SECRET`, `APP_URL` |
 | `schema-sync.yml` | CI — Postgres/MySQL schema guard | — |
 
 **Setup:** GitHub → Settings → Secrets and variables → Actions → add

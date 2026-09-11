@@ -41,12 +41,13 @@ LINES=(
   "0 5 * * * curl -fsS -m 120 '${BASE_URL}/api/cron/schedule?secret=${CRON_SECRET}' >/dev/null 2>&1 || true"
   "0 0 * * * curl -fsS -m 120 '${BASE_URL}/api/cron/purge?secret=${CRON_SECRET}' >/dev/null 2>&1 || true"
   "0 6 */3 * * curl -fsS -m 300 '${BASE_URL}/api/cron/sync?secret=${CRON_SECRET}' >/dev/null 2>&1 || true"
+  "*/10 * * * * curl -fsS -m 120 '${BASE_URL}/api/cron/reconcile?secret=${CRON_SECRET}' >/dev/null 2>&1 || true"
 )
 
 existing="$(crontab -l 2>/dev/null || true)"
 
 if [[ "${1:-}" == "--uninstall" ]]; then
-  cleaned="$(printf '%s\n' "$existing" | grep -v "^${TAG}$" | grep -v "^${TAG}-END$" | grep -v "cron/settle?secret=" | grep -v "cron/rates?secret=" | grep -v "cron/schedule?secret=" | grep -v "cron/purge?secret=" | grep -v "cron/sync?secret=" || true)"
+  cleaned="$(printf '%s\n' "$existing" | grep -v "^${TAG}$" | grep -v "^${TAG}-END$" | grep -v "cron/settle?secret=" | grep -v "cron/rates?secret=" | grep -v "cron/schedule?secret=" | grep -v "cron/purge?secret=" | grep -v "cron/sync?secret=" | grep -v "cron/reconcile?secret=" || true)"
   printf '%s\n' "$cleaned" | crontab -
   echo "✅ Voltbets cron entries removed."
   exit 0
@@ -59,7 +60,7 @@ if [[ "${1:-}" == "--dry-run" ]]; then
 fi
 
 # Drop any previous install of our block, keep everything else.
-cleaned="$(printf '%s\n' "$existing" | grep -v "^${TAG}$" | grep -v "^${TAG}-END$" | grep -v "cron/settle?secret=" | grep -v "cron/rates?secret=" | grep -v "cron/schedule?secret=" | grep -v "cron/purge?secret=" | grep -v "cron/sync?secret=" || true)"
+cleaned="$(printf '%s\n' "$existing" | grep -v "^${TAG}$" | grep -v "^${TAG}-END$" | grep -v "cron/settle?secret=" | grep -v "cron/rates?secret=" | grep -v "cron/schedule?secret=" | grep -v "cron/purge?secret=" | grep -v "cron/sync?secret=" | grep -v "cron/reconcile?secret=" || true)"
 
 {
   printf '%s\n' "$cleaned"

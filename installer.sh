@@ -284,7 +284,7 @@ ufw allow 22/tcp >/dev/null; ufw allow 80/tcp >/dev/null; ufw allow 443/tcp >/de
 ufw --force enable >/dev/null
 
 # ── 11. Cron jobs ────────────────────────────────────────────────────
-log "Installing cron jobs (sync / schedule / settle / purge)…"
+log "Installing cron jobs (sync / schedule / settle / purge / reconcile)…"
 CRON_BASE="http://127.0.0.1:$APP_PORT/api/cron"
 MARK="# voltsbet-cron"
 BLOCK=$(cat <<EOF
@@ -293,6 +293,7 @@ $MARK
 0 5 * * * curl -fsS -m 120 "$CRON_BASE/schedule?secret=$CRON_SECRET" >> $LOG_DIR/cron-schedule.log 2>&1
 */12 * * * * curl -fsS -m 120 "$CRON_BASE/settle?secret=$CRON_SECRET" >> $LOG_DIR/cron-settle.log 2>&1
 0 0 * * * curl -fsS -m 120 "$CRON_BASE/purge?secret=$CRON_SECRET" >> $LOG_DIR/cron-purge.log 2>&1
+*/10 * * * * curl -fsS -m 120 "$CRON_BASE/reconcile?secret=$CRON_SECRET" >> $LOG_DIR/cron-reconcile.log 2>&1
 0 3 * * * bash $INSTALL_DIR/deploy/backup.sh >> $LOG_DIR/backup.log 2>&1
 $MARK-end
 EOF

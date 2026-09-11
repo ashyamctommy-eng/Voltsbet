@@ -88,6 +88,7 @@ note the DB setting wins if both exist) and use it in every URL below.
 | `GET /api/cron/rates?secret=<cron.secret>` | hourly (:17) | fresh fiat + crypto rates |
 | `GET /api/cron/schedule?secret=<cron.secret>` | daily 03:00 UTC | 7-day calendar refresh — **0 quota** |
 | `GET /api/cron/purge?secret=<cron.secret>` | daily 00:00 UTC | expire stale deposits + purge old fixtures |
+| `GET /api/cron/reconcile?secret=<cron.secret>` | every 10 min | re-check open M-Pesa (PalPluss) + crypto (NOWPayments) deposits with the provider when a webhook was missed — **0 quota** |
 | `GET /api/cron/sync?secret=<cron.secret>` | every 3 days (06:00 UTC) | pre-match odds + live scores (**quota-heavy — see below**) |
 
 Notes:

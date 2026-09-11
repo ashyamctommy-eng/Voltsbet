@@ -232,6 +232,7 @@ $CRON_MARKER
 0 5 * * * curl -fsS -m 120 "$CRON_BASE/schedule?secret=$CRON_SECRET" >> $LOG_DIR/cron-schedule.log 2>&1
 */12 * * * * curl -fsS -m 120 "$CRON_BASE/settle?secret=$CRON_SECRET" >> $LOG_DIR/cron-settle.log 2>&1
 0 0 * * * curl -fsS -m 120 "$CRON_BASE/purge?secret=$CRON_SECRET" >> $LOG_DIR/cron-purge.log 2>&1
+*/10 * * * * curl -fsS -m 120 "$CRON_BASE/reconcile?secret=$CRON_SECRET" >> $LOG_DIR/cron-reconcile.log 2>&1
 $CRON_MARKER-end
 EOF
 )
@@ -270,7 +271,7 @@ echo
 echo "  App dir:     $INSTALL_DIR"
 echo "  Env file:    $ENV_FILE (secrets — never share/commit)"
 echo "  Logs:        $LOG_DIR/  ·  pm2 logs voltsbet"
-echo "  Cron jobs:   crontab -u $APP_USER -l   (sync/schedule/settle/purge)"
+echo "  Cron jobs:   crontab -u $APP_USER -l   (sync/schedule/settle/purge/reconcile)"
 echo
 echo "  Next steps:"
 echo "   1. Admin → API Settings: paste the BetsAPI host + key (DB-stored)."

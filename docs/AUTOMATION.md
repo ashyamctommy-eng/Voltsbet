@@ -77,6 +77,13 @@ there's one file per job):
 | `.github/workflows/cron-sync.yml` | `/api/cron/sync` | `0 6 */3 * *` |
 | `.github/workflows/cron-schedule.yml` | `/api/cron/schedule` | `0 5 * * *` |
 | `.github/workflows/cron-purge.yml` | `/api/cron/purge` | `0 0 * * *` |
+| `.github/workflows/cron-rates.yml` | `/api/cron/rates` | `17 * * * *` |
+| `.github/workflows/cron-reconcile.yml` | `/api/cron/reconcile` | `*/10 * * * *` |
+
+`/api/cron/reconcile` is the missed-webhook safety net: it re-checks open
+M-Pesa (PalPluss) and crypto (NOWPayments) deposits straight from the provider
+and confirms them through the same guarded path as the webhooks, so it can
+never double-credit. 0 quota cost — schedule it freely.
 
 **Setup (2 minutes):** add two repository secrets —
 Settings → Secrets and variables → Actions → New repository secret:

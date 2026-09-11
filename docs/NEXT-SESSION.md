@@ -174,8 +174,17 @@ Then say: *"read docs/NEXT-SESSION.md and wire the stats feed"* — integration 
 
 - Catalogue of markets + settlement flags: `src/lib/market-catalog.ts` (keep in sync with `MARKET_MAP` in `src/lib/providers/odds-api.ts`; a test enforces it).
 - Settlement engine: `src/lib/auto-settle.ts` (`resolveOutcome` — return `null` = leave for admin; never guess).
+- Credit safety: `src/lib/odds-cost.ts` models a sync's cost
+  (`leagues × listMarkets × regions + eventLeagues × eventLimit × extendedMarkets × regions`);
+  `syncGames` aborts before the paid pass when the estimate exceeds `MAX_CREDITS_PER_RUN`.
+  The live estimate, runs-left and monthly projection are in **Admin → API Settings → Credits**.
+- Payments: an optional Palplus stats/status poll plus `/api/cron/reconcile` (missed-webhook safety net for
+  PalPluss + NOWPayments) — see `docs/ERROR-HANDLING.md` for the platform/error/maintenance layers.
+- Fixtures vs odds: the rolling 7-day calendar comes from the FREE `/api/cron/schedule` (`/events`, 0 credits) and
+  now renders **unpriced** `SCHEDULE` rows too ("Odds not available yet"), so the calendar no longer depends on the
+  paid sync. Hide-seeded keeps `API` + `SCHEDULE`, hiding only `MANUAL`.
 - Live pipeline: `src/lib/live-scores.ts` + `src/lib/providers/odds-api.ts` (`estimateClock`, `parseScoreEvent`).
-- Cron endpoints: `/api/cron/sync|settle|schedule|purge|rates|refresh` (secret via `?secret=` or `x-cron-secret`).
+- Cron endpoints: `/api/cron/sync|settle|schedule|purge|rates|refresh|reconcile` (secret via `?secret=` or `x-cron-secret`).
 - Admin surfaces touched recently: API Settings (odds + Soccer Market Engine), Cron Settings (freshness + Run now), Broadcast, Website Settings (broadcast TTL, bet slip, betting).
 
 ## 6. Selling / licensing this project (pre-sale checklist)
