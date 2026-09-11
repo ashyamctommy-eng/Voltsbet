@@ -4,6 +4,7 @@ import { CRON_JOB_IDS, type CronJobId } from "@/lib/cron-jobs";
 import { syncGames } from "@/lib/sync";
 import { syncWeeklyFixtures, purgeExpiredFixtures } from "@/lib/schedule-sync";
 import { autoSettleFinishedGames } from "@/lib/auto-settle";
+import { reconcilePendingPayments } from "@/lib/payment-reconcile";
 
 /** POST /api/admin/cronjobs/run — run a cron job right now (admin auth,
  *  no CRON_SECRET needed). */
@@ -24,5 +25,7 @@ export const POST = handle(async (req: NextRequest) => {
       return ok({ job, at, ...(await autoSettleFinishedGames()) });
     case "purge":
       return ok({ job, at, ...(await purgeExpiredFixtures()) });
+    case "reconcile":
+      return ok({ job, at, ...(await reconcilePendingPayments()) });
   }
 });

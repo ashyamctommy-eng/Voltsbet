@@ -4,7 +4,7 @@
  * UptimeRobot, GitHub Actions); this module feeds the UI + generated configs.
  */
 
-export type CronJobId = "sync" | "schedule" | "settle" | "purge";
+export type CronJobId = "sync" | "schedule" | "settle" | "purge" | "reconcile";
 
 export type CronJobDef = {
   id: CronJobId;
@@ -53,6 +53,16 @@ export const CRON_JOBS: CronJobDef[] = [
     defaultSchedule: "0 0 * * *",
     credits: "0",
     uptimerobotInterval: "24 hours",
+  },
+  {
+    id: "reconcile",
+    title: "Reconcile payments",
+    short: "Re-checks open deposits directly with the providers (missed-webhook safety net).",
+    description:
+      "0 quota cost. M-Pesa (PalPluss) and crypto (NOWPayments) deposits whose webhook was lost are confirmed from the provider — credits run through the same guarded path as webhooks, so it can never double-credit. Run every 10–15 min.",
+    defaultSchedule: "*/10 * * * *",
+    credits: "0",
+    uptimerobotInterval: "5 minutes",
   },
 ];
 

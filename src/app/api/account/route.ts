@@ -272,6 +272,12 @@ export const POST = handle(async (req: NextRequest) => {
         data: {
           metadata: JSON.stringify({
             transactionId: checkoutRequestId,
+            // Canonical key the STK webhook + status polls match on. Daraja
+            // returns CheckoutRequestID (stored above as transactionId), but
+            // the callback/poll read `checkoutRequestId` — without this the
+            // legacy Daraja flow could never match its own deposit. Harmless
+            // for Palplus (which matches on transactionId/providerCheckoutId).
+            checkoutRequestId,
             ...(providerCheckoutId ? { providerCheckoutId } : {}),
             ...(providerRequestId ? { providerRequestId } : {}),
             phone: normalizeMpesaPhone(phone),

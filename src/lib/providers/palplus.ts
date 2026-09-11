@@ -118,6 +118,91 @@ export function secureCallbackUrl(url: string, secret: string | null | undefined
   return `${url}${joiner}secret=${encodeURIComponent(secret)}`;
 }
 
+export type PalplusTxListItem = {
+  transactionId: string;
+  type: string;
+  status: string;
+  amount: number;
+  currency: string;
+  phone: string | null;
+  accountReference: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+};
+
+/**
+ * GET /transactions — paginated history, newest first. Used by the
+ * reconciliation pass to catch payments whose webhook was lost after the
+ * 5 delivery attempts. `overview` counts the full filtered set (not the page).
+ */
+export async function palplusListTransactions(
+  params: { limit?: number; cursor?: string; type?: "STK" | "B2C"; status?: string } = {}
+): Promise<{ items: PalplusTxListItem[]; nextCursor: string | null; overview: Record<string, number> | null }> {
+  const qs = new URLSearchParams();
+  if (params.limit) qs.set("limit", String(Math.min(100, Math.max(1, Math.round(params.limit)))));
+  if (params.cursor) qs.set("cursor", params.cursor);
+  if (params.type) qs.set("type", params.type);
+  if (params.status) qs.set("status", params.status);
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+
+  const data = await palplusRequest(`/transactions${suffix}`, { method: "GET" });
+  const raw = Array.isArray(data.items) ? (data.items as Record<string, unknown>[]) : [];
+  return {
+    items: raw.map((it) => ({
+      transactionId: String(it.transactionId ?? ""),
+      type: String(it.type ?? ""),
+      status: String(it.status ?? "").toUpperCase(),
+      amount: Number(it.amount ?? 0),
+      currency: String(it.currency ?? "KES"),
+      phone: it.phone ? String(it.phone) : null,
+      accountReference: it.accountReference ? String(it.accountReference) : null,
+      createdAt: it.createdAt ? String(it.createdAt) : null,
+      updatedAt: it.updatedAt ? String(it.updatedAt) : null,
+    })),
+    nextCursor: data.nextCursor ? String(data.nextCursor) : null,
+    overview: (data.overview as Record<string, number> | undefined) ?? null,
+  };
+}
+
+export type PalplusTransaction = {
+  transactionId: string;
+  type: string;
+  /** PENDING | PROCESSING | SUCCESS | FAILED | CANCELLED | REVERSED | EXPIRED */
+  status: string;
+  amount: number;
+  currency: string;
+  phone: string | null;
+  accountReference: string | null;
+  providerRequestId: string | null;
+  providerCheckoutId: string | null;
+  resultCode: string | null;
+  resultDesc: string | null;
+};
+
+/**
+ * GET /transactions/{id} — authoritative transaction status.
+ *
+ * Per PalPluss docs this is the fallback when webhook delivery fails: use
+ * webhooks as the primary mechanism and poll here only while a payment is
+ * still unresolved. Callers must throttle (their limit is 60 req/min/key).
+ */
+export async function palplusGetTransaction(transactionId: string): Promise<PalplusTransaction> {
+  const data = await palplusRequest(`/transactions/${encodeURIComponent(transactionId)}`, { method: "GET" });
+  return {
+    transactionId: String(data.transactionId ?? transactionId),
+    type: String(data.type ?? ""),
+    status: String(data.status ?? "PENDING").toUpperCase(),
+    amount: Number(data.amount ?? 0),
+    currency: String(data.currency ?? "KES"),
+    phone: data.phone ? String(data.phone) : null,
+    accountReference: data.accountReference ? String(data.accountReference) : null,
+    providerRequestId: data.providerRequestId ? String(data.providerRequestId) : null,
+    providerCheckoutId: data.providerCheckoutId ? String(data.providerCheckoutId) : null,
+    resultCode: data.resultCode !== null && data.resultCode !== undefined ? String(data.resultCode) : null,
+    resultDesc: data.resultDesc ? String(data.resultDesc) : null,
+  };
+}
+
 export type PalplusStkResult = {
   transactionId: string;
   providerRequestId: string | null;

@@ -13,6 +13,16 @@ import { unlockDepositFlag } from "@/lib/first-deposit";
 
 const CREDITABLE_FROM = ["AWAITING_PAYMENT", "PAYMENT_DETECTED", "CONFIRMING", "CONFIRMED"];
 
+/**
+ * Extract the M-Pesa checkout id from a deposit's metadata. Tolerates every
+ * key name the two rails have written: `checkoutRequestId` (canonical, what
+ * the Daraja callback + status polls match on), `transactionId` (Daraja
+ * CheckoutRequestID / Palplus transaction id) and `providerCheckoutId`.
+ */
+export function mpesaCheckoutId(meta: Record<string, unknown>): string {
+  return String(meta.checkoutRequestId ?? meta.transactionId ?? meta.providerCheckoutId ?? "");
+}
+
 /** Atomically confirm a deposit: COMPLETED + wallet credit + transaction + notification. */
 export async function confirmDeposit(
   depositId: string,

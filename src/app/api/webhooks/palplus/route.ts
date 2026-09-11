@@ -192,7 +192,15 @@ export async function POST(req: NextRequest) {
         providerRef: txId,
       });
     } else {
-      await updateDepositStatus(deposit.id, "FAILED").catch(() => {});
+      // Keep the provider's terminal reason (customer cancelled vs timed out
+      // vs hard failure) rather than collapsing every failure to FAILED.
+      const mapped =
+        tx.status === "CANCELLED" || eventType === "transaction.cancelled"
+          ? "CANCELLED"
+          : tx.status === "EXPIRED" || eventType === "transaction.expired"
+            ? "EXPIRED"
+            : "FAILED";
+      await updateDepositStatus(deposit.id, mapped).catch(() => {});
     }
     return NextResponse.json({ ok: true });
   }
