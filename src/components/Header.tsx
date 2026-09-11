@@ -251,17 +251,17 @@ export default function Header({
 
               {/* Profile → account menu */}
               <div className="relative overflow-visible" ref={menuRef}>
+                {/* Account menu trigger. Deliberately carries NO unread badge:
+                    the notification count is rendered by exactly ONE element —
+                    the bell above — so a stale server-rendered count (e.g.
+                    after a redeploy) can never double up next to the live one.
+                    See NotificationBell. */}
                 <button
                   onClick={() => setMenuOpen((v) => !v)}
                   aria-label={t("common.accountMenu")}
                   className="relative flex h-9 w-9 items-center justify-center rounded-full border border-line bg-card text-ink transition-colors hover:border-line2"
                 >
                   <IconUser className="h-5 w-5" />
-                  {user.unreadNotifications > 0 && (
-                    <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-bad px-1 text-[9px] font-bold text-white">
-                      {user.unreadNotifications}
-                    </span>
-                  )}
                 </button>
 
                 {menuOpen && (

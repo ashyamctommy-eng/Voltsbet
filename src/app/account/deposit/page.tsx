@@ -6,6 +6,7 @@ import { apiFetch } from "@/lib/client";
 import { apiErrorText } from "@/lib/api-error-text";
 import { useToast } from "@/components/BetSlipContext";
 import VoucherDeposit from "@/components/account/VoucherDeposit";
+import MpesaDepositModal, { type MpesaPending } from "@/components/account/MpesaDepositModal";
 import { Zap, ShieldCheck, CheckCircle2 } from "lucide-react";
 
 type AccountData = {
@@ -101,6 +102,9 @@ export default function DepositPage() {
   const [phone, setPhone] = useState("");
   const [amount, setAmount] = useState("");
   const [pending, setPending] = useState<PendingDeposit | null>(null);
+  // M-Pesa gets the dedicated status modal (timer + polling); `pending` stays
+  // the crypto-only "send payment" panel.
+  const [mpesaPending, setMpesaPending] = useState<MpesaPending | null>(null);
   const [checking, setChecking] = useState(false);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -152,8 +156,7 @@ export default function DepositPage() {
 
   const step = !pending ? 1 : 2;
 
-  async function createDeposit(e: React.FormEvent) {
-    e.preventDefault();
+  async function submitDeposit() {
     if (!valid) return;
     setLoading(true);
     const res = await apiFetch<{ deposit: PendingDeposit }>("/api/account", {
@@ -164,8 +167,37 @@ export default function DepositPage() {
     });
     setLoading(false);
     if (!res.ok) return push("error", apiErrorText(t, res.error.code, res.error.message));
-    setPending(res.data.deposit);
+    if (effectiveMethod === "MPESA") {
+      // Hand off to the timed status modal (60 s window, 3 s polling).
+      setMpesaPending({
+        id: res.data.deposit.id,
+        amount: amountNum,
+        phone: phone.replace(/\s/g, ""),
+        currencyCode: account?.wallet?.currencyCode ?? "KES",
+      });
+    } else {
+      setPending(res.data.deposit);
+    }
     push("success", effectiveMethod === "MPESA" ? t("deposit.stkSent") : t("deposit.paymentCreated"));
+  }
+
+  function createDeposit(e: React.FormEvent) {
+    e.preventDefault();
+    void submitDeposit();
+  }
+
+  /** Retry: close the timed-out modal and re-issue the same STK push. */
+  function retryMpesa() {
+    setMpesaPending(null);
+    void submitDeposit();
+  }
+
+  /** Confirmed: wallet credited — clear the form and refresh balances. */
+  function handleMpesaConfirmed() {
+    push("success", t("deposit.received"));
+    setAmount("");
+    setPhone("");
+    void refresh();
   }
 
   async function checkMpesaStatus() {
@@ -530,6 +562,17 @@ export default function DepositPage() {
             </div>
           ))}
         </div>
+      )}
+
+      {/* M-Pesa STK status modal — 60 s countdown, 3 s polling, auto-cancel */}
+      {mpesaPending && (
+        <MpesaDepositModal
+          key={mpesaPending.id}
+          deposit={mpesaPending}
+          onClose={() => setMpesaPending(null)}
+          onConfirmed={handleMpesaConfirmed}
+          onRetry={retryMpesa}
+        />
       )}
     </div>
   );

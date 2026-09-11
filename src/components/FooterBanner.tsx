@@ -5,9 +5,9 @@
  * page without blocking SSR.
  *
  * Layout: neutral footer band (matches the parent footer background) →
- * official sports partners logo row, payment providers logo row, then the
- * copyright line. Bottom padding keeps it clear of the fixed mobile bottom
- * navigation.
+ * official sports partners logo row, payment providers single-line scroll
+ * row, then the copyright line. Bottom padding keeps it clear of the fixed
+ * mobile bottom navigation.
  *
  * Files are served as relative paths (e.g. `/fiba.svg`) straight from the
  * /public directory — case-sensitive filenames.
@@ -20,15 +20,16 @@ const SPORTS_PARTNERS = [
 ];
 
 const PAYMENT_PROVIDERS = [
+  { src: "/mpesaicon.png", alt: "M-PESA" },
   { src: "/applepay.png", alt: "Apple Pay" },
+  { src: "/mastercard.png", alt: "Mastercard" },
   { src: "/BTC.png", alt: "Bitcoin" },
   { src: "/ETH.png", alt: "Ethereum" },
-  { src: "/mastercard.png", alt: "Mastercard" },
+  { src: "/USDT.png", alt: "Tether (USDT)" },
+  { src: "/TRON.png", alt: "TRON" },
+  { src: "/skrill.png", alt: "Skrill" },
   { src: "/payeer.png", alt: "Payeer" },
   { src: "/piastrix.png", alt: "Piastrix" },
-  { src: "/skrill.png", alt: "Skrill" },
-  { src: "/TRON.png", alt: "TRON" },
-  { src: "/USDT.png", alt: "Tether (USDT)" },
 ];
 
 export default function FooterBanner() {
@@ -53,21 +54,28 @@ export default function FooterBanner() {
           </div>
         </div>
 
-        {/* Payment providers — centered, wrapping logo row */}
+        {/* Payment providers — ONE line, touch-scrollable. Never wraps: the
+            row scrolls horizontally on narrow viewports while staying centred
+            once it fits (sm+). `no-scrollbar` hides the rail; the edge fades
+            (mobile only) hint that there is more to swipe. */}
         <div className="w-full">
           <p className="text-center text-[10px] font-bold uppercase tracking-[0.2em] text-ink2">
             Payment providers
           </p>
-          <div className="mt-2 flex flex-wrap items-center justify-center gap-x-6 gap-y-3">
-            {PAYMENT_PROVIDERS.map((p) => (
-              <img
-                key={p.src}
-                src={p.src}
-                alt={p.alt}
-                loading="lazy"
-                className="h-6 w-auto object-contain opacity-80 transition-opacity hover:opacity-100"
-              />
-            ))}
+          <div className="relative mt-2">
+            <div className="no-scrollbar flex flex-row items-center gap-4 overflow-x-auto whitespace-nowrap px-1 py-1 sm:justify-center">
+              {PAYMENT_PROVIDERS.map((p) => (
+                <img
+                  key={p.src}
+                  src={p.src}
+                  alt={p.alt}
+                  loading="lazy"
+                  className="h-7 w-auto shrink-0 object-contain opacity-80 transition-opacity hover:opacity-100"
+                />
+              ))}
+            </div>
+            <span aria-hidden className="pointer-events-none absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-panel-bg to-transparent sm:hidden" />
+            <span aria-hidden className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-panel-bg to-transparent sm:hidden" />
           </div>
         </div>
 

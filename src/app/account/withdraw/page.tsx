@@ -5,6 +5,8 @@ import { useTranslation } from "react-i18next";
 import { apiFetch } from "@/lib/client";
 import { apiErrorText } from "@/lib/api-error-text";
 import { useToast } from "@/components/BetSlipContext";
+import { AlertTriangle } from "lucide-react";
+import WithdrawalReceiptModal, { type WithdrawalReceipt } from "@/components/account/WithdrawalReceiptModal";
 
 type ProfileData = {
   user: { currencyCode: string; status: string };
@@ -20,7 +22,8 @@ export default function WithdrawPage() {
   const [amount, setAmount] = useState("");
   const [destination, setDestination] = useState("");
   const [loading, setLoading] = useState(false);
-  const [trackingId, setTrackingId] = useState("");
+  const [receipt, setReceipt] = useState<WithdrawalReceipt | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
     apiFetch<ProfileData>("/api/account").then((r) => r.ok && setProfile(r.data));
@@ -38,24 +41,39 @@ export default function WithdrawPage() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    setFormError(null);
     const amt = parseFloat(amount);
-    if (!amt || amt <= 0) return push("error", t("withdraw.errorValidAmount"));
-    if (amt > max) return push("error", t("withdraw.insufficient"));
+    if (!amt || amt <= 0) {
+      setFormError(t("withdraw.errorValidAmount"));
+      return push("error", t("withdraw.errorValidAmount"));
+    }
+    // Balance check on submit — fail fast with an inline alert rather than a
+    // round-trip. The server re-checks atomically inside its transaction.
+    if (amt > max) {
+      setFormError(t("withdraw.insufficient"));
+      return push("error", t("withdraw.insufficient"));
+    }
     setLoading(true);
-    const res = await apiFetch<{ withdrawal: { trackingId?: string } }>("/api/account/withdraw", {
-      method: "POST",
-      body: { amount: amt, method: effectiveMethod, destination },
-    });
-    setLoading(false);
-    if (!res.ok) return push("error", apiErrorText(t, res.error.code, res.error.message));
-    const newId = res.data.withdrawal.trackingId ?? "";
-    setTrackingId(newId);
-    push(
-      "success",
-      newId
-        ? t("withdraw.successWithId", { trackingId: newId })
-        : t("withdraw.success")
+    const res = await apiFetch<{ withdrawal: { id: string; trackingId?: string; method?: string } }>(
+      "/api/account/withdraw",
+      { method: "POST", body: { amount: amt, method: effectiveMethod, destination } }
     );
+    setLoading(false);
+    if (!res.ok) {
+      const msg = apiErrorText(t, res.error.code, res.error.message);
+      setFormError(msg);
+      return push("error", msg);
+    }
+    const w = res.data.withdrawal;
+    setReceipt({
+      id: w.id,
+      trackingId: w.trackingId ?? "",
+      amount: amt,
+      currencyCode: profile?.wallet?.currencyCode ?? "KES",
+      destination: effectiveMethod === "MPESA" ? destination.replace(/\s/g, "") : destination,
+      method: effectiveMethod,
+    });
+    push("success", t("withdraw.success"));
     setAmount("");
     setDestination("");
   }
@@ -120,11 +138,7 @@ export default function WithdrawPage() {
             placeholder={noWithdrawable ? t("withdraw.noFundsPlaceholder") : t("withdraw.amountPlaceholder")}
             required
           />
-          {exceedsAvailable || noWithdrawable ? (
-            <p className="mt-1 text-xs font-semibold text-red-400" role="alert">
-              {t("withdraw.insufficient")}
-            </p>
-          ) : (
+          {max > 0 && (
             <button type="button" className="mt-1.5 text-xs text-brand hover:underline" onClick={() => setAmount(String(max))}>
               {t("withdraw.withdrawMax")}
             </button>
@@ -148,18 +162,29 @@ export default function WithdrawPage() {
             <p className="mt-1.5 text-xs text-ink3">{t("withdraw.mpesaNote")}</p>
           )}
         </div>
+        {(formError || exceedsAvailable || noWithdrawable) && (
+          <div
+            className="fade-in flex items-start gap-2.5 rounded-xl border border-red-500/40 bg-red-500/10 px-3.5 py-3 text-sm text-red-300"
+            role="alert"
+          >
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div className="leading-snug">
+              <div className="font-semibold">{t("withdraw.insufficientTitle", { defaultValue: "Insufficient balance" })}</div>
+              <div className="text-[11px] text-red-300/80">
+                {formError ?? t("withdraw.insufficient")}
+              </div>
+            </div>
+          </div>
+        )}
         <button className="btn btn-primary w-full py-3" disabled={loading || exceedsAvailable || noWithdrawable}>
           {loading ? t("withdraw.requesting") : noWithdrawable ? t("withdraw.noWithdrawableBtn") : t("withdraw.request")}
         </button>
-        {trackingId && (
-          <p className="rounded-lg border border-brand/40 bg-brand/10 px-3 py-2 text-center text-sm font-bold text-brand">
-            {t("withdraw.tracking", { id: trackingId })}
-          </p>
-        )}
         <p className="text-xs text-ink3">
           {t("withdraw.reservedNote")}
         </p>
       </form>
+
+      {receipt && <WithdrawalReceiptModal receipt={receipt} onClose={() => setReceipt(null)} />}
     </div>
   );
 }
