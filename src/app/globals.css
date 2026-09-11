@@ -140,31 +140,70 @@ body {
   }
   .label { @apply mb-1.5 block text-xs font-medium text-ink2; }
 
-  /* ── Odds buttons (classic sportsbook) ─────────────────────── */
+  /* ── Odds buttons (unified outcome pill) ─────────────────────
+   * ONE canonical widget for every bookable outcome on the platform —
+   * home feed, live lists and match detail all render this. Horizontal
+   * pill: outcome label on the LEFT, odds multiplier on the RIGHT.
+   *
+   * Theme follows the app convention: the base block is the DARK spec and
+   * html[data-theme="light"] overrides it (so the pre-paint bootstrap and
+   * the no-attribute case both land on dark). Values are explicit slate /
+   * emerald so text contrast stays crisp in both modes. */
   .odds-btn {
-    @apply relative flex h-11 flex-1 items-center justify-center rounded-lg text-sm font-bold transition-all duration-100 select-none;
-    background: var(--card-bg, #1a2235);
-    border: 1px solid var(--card-border, #2d3748);
-    color: var(--primary-text, #ffffff);
+    @apply flex w-full items-center justify-between gap-2 rounded-[14px] px-4 py-2.5 text-sm font-bold transition-all duration-100 select-none;
+    min-height: 44px;                              /* 44px tap target */
+    background: rgb(30 41 59 / 0.8);               /* dark: slate-800/80 */
+    border: 1px solid #334155;
+    color: #e2e8f0;                                /* dark: slate-200 */
+    -webkit-tap-highlight-color: transparent;
   }
-  .odds-btn:hover { border-color: var(--vb-primary, #00e676); color: var(--vb-primary, #00e676); }
+  .odds-btn .odds-label {
+    @apply min-w-0 truncate font-semibold;
+    color: #e2e8f0;
+  }
+  .odds-btn .odds-price {
+    @apply shrink-0 font-bold tabular-nums;
+    color: #ffffff;                                /* dark: bold white */
+  }
+  .odds-btn:hover { background: #334155; }         /* dark: slate-700 */
+  .odds-btn:active { background: #047857; }        /* dark: emerald-700 */
+  .odds-btn:active .odds-label,
+  .odds-btn:active .odds-price { color: #ffffff; }
+
+  /* Selected pick — persistent emerald fill with white text. emerald-700 is
+     the fill (not emerald-500) so white text clears AA contrast. */
   .odds-btn.selected {
-    background: var(--vb-primary, #00e676);
-    border-color: var(--vb-primary, #00e676);
-    color: #052e16;
+    background: #047857;
+    border-color: #10b981;
+    color: #ffffff;
+    box-shadow: 0 0 0 1px #10b981, 0 0 14px rgb(16 185 129 / 0.35);
   }
+  .odds-btn.selected .odds-label,
+  .odds-btn.selected .odds-price { color: #ffffff; }
+
   .odds-btn:disabled {
     opacity: 0.45;
     cursor: not-allowed;
-    background: var(--card-bg-2, #232e4a);
-    border-color: var(--card-border, #2d3748);
-    color: var(--text-tertiary, #66738f);
+    background: #1e293b;
+    border-color: #334155;
+    color: #64748b;
   }
+  .odds-btn:disabled .odds-label,
+  .odds-btn:disabled .odds-price { color: #64748b; }
   /* Missing price placeholder ("-") — dimmer than a real disabled button */
-  .odds-btn-muted {
-    opacity: 0.35;
-    font-weight: 500;
+  .odds-btn-muted { opacity: 0.35; font-weight: 500; }
+
+  /* Empty cell where an outcome has no price yet — same shell as .odds-btn
+     so a missing price never breaks the row rhythm. */
+  .odds-placeholder {
+    @apply flex w-full items-center justify-between gap-2 rounded-[14px] px-4 py-2.5 text-sm font-semibold;
+    min-height: 44px;
+    background: rgb(30 41 59 / 0.8);
+    border: 1px solid #334155;
+    color: #64748b;
   }
+  .odds-placeholder .odds-label { @apply min-w-0 truncate; }
+  .odds-placeholder .odds-price { @apply shrink-0 font-bold tabular-nums; }
 
   /* ── Misc ─────────────────────────────────────────────────── */
   .skeleton {
@@ -271,6 +310,41 @@ html[data-theme="light"] .card-hover:hover {
 html[data-theme="light"] .skeleton {
   background: linear-gradient(90deg, #e8eef7 25%, #f5f8fd 50%, #e8eef7 75%);
   background-size: 200% 100%;
+}
+
+/* ── Odds buttons — LIGHT theme (spec: soft grey pill, dark slate text) ──
+ * emerald-700 is the pressed AND selected fill: white text on emerald-500 is
+ * ~2.5:1 and on emerald-600 ~3.8:1 (both below AA for 14px text), while -700
+ * reaches ~5.5:1. The press is still felt via the active:scale transform. */
+html[data-theme="light"] .odds-btn {
+  background: rgb(226 232 240 / 0.9);   /* slate-200/90 */
+  border-color: transparent;
+  color: #0f172a;                        /* slate-900 */
+}
+html[data-theme="light"] .odds-btn .odds-label { color: #0f172a; }
+html[data-theme="light"] .odds-btn .odds-price { color: #020617; }
+html[data-theme="light"] .odds-btn:hover { background: #cbd5e1; }   /* slate-300 */
+html[data-theme="light"] .odds-btn:active { background: #047857; }
+html[data-theme="light"] .odds-btn:active .odds-label,
+html[data-theme="light"] .odds-btn:active .odds-price { color: #ffffff; }
+html[data-theme="light"] .odds-btn.selected {
+  background: #047857;
+  border-color: #10b981;
+  color: #ffffff;
+}
+html[data-theme="light"] .odds-btn.selected .odds-label,
+html[data-theme="light"] .odds-btn.selected .odds-price { color: #ffffff; }
+html[data-theme="light"] .odds-btn:disabled {
+  background: rgb(226 232 240 / 0.7);
+  border-color: transparent;
+  color: #64748b;
+}
+html[data-theme="light"] .odds-btn:disabled .odds-label,
+html[data-theme="light"] .odds-btn:disabled .odds-price { color: #64748b; }
+html[data-theme="light"] .odds-placeholder {
+  background: rgb(226 232 240 / 0.7);
+  border-color: transparent;
+  color: #94a3b8;
 }
 
 /* ── Drawer / sheet helpers ────────────────────────────────── */

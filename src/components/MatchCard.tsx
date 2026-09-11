@@ -7,7 +7,8 @@ import OddsButton from "@/components/OddsButton";
 import TeamLogo from "@/components/TeamLogo";
 import { liveContext } from "@/lib/kickoff";
 import { isTickingClock, livePhase, toMatchView } from "@/lib/match-view";
-import { isTwoWayMarket, outcomeSide, sideTextClass } from "@/lib/outcome-tone";
+import { isPairedBoard, pairOverUnderRows } from "@/lib/odds-layout";
+import { displayOutcomeName } from "@/lib/market-labels";
 import { flagForLeague, countryForLeague } from "@/lib/league-flags";
 import { activeMarketCount, hasAnyOutcomes } from "@/lib/game-status";
 
@@ -130,14 +131,6 @@ export default function MatchCard({
     candidates.find((m) => m.key === "h2h" || m.key === "MATCH_RESULT") ??
     candidates[0];
   const odds = mainMarket?.outcomes.filter((o) => o.status === "ACTIVE").slice(0, 3) ?? [];
-  // Color coding is reserved for two-variable markets (Goal Line/BTTS/DNB/
-  // Asian handicaps…): 1X2 and other 3+-way boards stay neutral.
-  const twoWay = mainMarket
-    ? isTwoWayMarket(
-        mainMarket.key,
-        mainMarket.outcomes.filter((o) => o.status === "ACTIVE").map((o) => o.name),
-      )
-    : false;
   const ctx = liveContext(game.status, game.clock, game.period);
   const phase = livePhase(game.period);
 
@@ -149,6 +142,22 @@ export default function MatchCard({
         { leg: view.awayTeam, label: "2", outcome: odds.find((o) => o.label === "2" || o.name === view.awayTeam) },
       ]
     : odds.map((o) => ({ leg: o.name, label: o.label, outcome: o }));
+
+  /* Unified layout rows (shared rule with the match-detail board): Over/Under
+     line markets pair 2-up per line, every other board stacks full-width. */
+  const layoutRows: { key: string; cells: { outcome?: (typeof odds)[number]; label: string }[] }[] =
+    mainMarket && isPairedBoard(odds)
+      ? pairOverUnderRows(odds).map((row) => ({
+          key: row[0].id,
+          cells: row.map((o) => ({
+            outcome: o,
+            label: displayOutcomeName(o.name, mainMarket.key, view.homeTeam, view.awayTeam),
+          })),
+        }))
+      : outcomeRows.map((row, i) => ({
+          key: String(i),
+          cells: [{ outcome: row.outcome, label: row.label ?? shortOutcomeLabel(row.leg) }],
+        }));
 
   return (
     <div className="card card-hover p-2.5 sm:p-3">
@@ -214,53 +223,65 @@ export default function MatchCard({
             <span className="shrink-0 font-bold uppercase tracking-wider text-ink3">{mainMarket.name}</span>
           </div>
 
-          <div
-            className={`mt-2 grid gap-2 ${odds.length === 2 ? "grid-cols-2" : "grid-cols-3"} [&_.odds-btn]:h-10 [&_.odds-btn]:w-full [&_.odds-btn]:flex-none [&_.odds-btn]:text-xs sm:[&_.odds-btn]:h-9`}
-          >
-            {outcomeRows.map((row, i) => {
-              const tone = twoWay
-                ? sideTextClass(
-                    outcomeSide({ label: row.label, name: row.leg, home: view.homeTeam, away: view.awayTeam }),
+          {/* Unified outcome pills — outcome label left, odds right. Over/Under
+              line markets pair 2-up per line; every other board stacks. */}
+          <div className="mt-2 grid gap-2">
+            {layoutRows.map((row) => (
+              <div key={row.key} className={row.cells.length === 2 ? "grid grid-cols-2 gap-2" : ""}>
+                {row.cells.length === 2 ? (
+                  row.cells.map((cell) =>
+                    cell.outcome ? (
+                      <OddsButton
+                        key={cell.outcome.id}
+                        outcomeId={cell.outcome.id}
+                        gameId={game.id}
+                        sport={game.sport.name}
+                        competition={view.leagueName}
+                        home={view.homeTeam}
+                        away={view.awayTeam}
+                        startAt={game.startAt.toISOString()}
+                        market={mainMarket.name}
+                        marketKey={mainMarket.key}
+                        outcome={cell.outcome.name}
+                        label={cell.outcome.label}
+                        displayLabel={cell.label}
+                        odds={Number(cell.outcome.odds)}
+                        gameStatus={game.status}
+                        live={isLive}
+                      />
+                    ) : (
+                      <span key={cell.label} className="odds-placeholder" title={t("match.priceUnavailable")}>
+                        <span className="odds-label">{cell.label}</span>
+                        <span className="odds-price">-</span>
+                      </span>
+                    ),
                   )
-                : null;
-              return (
-                <div key={i} className="flex flex-col gap-1">
-                  <span
-                    className={`truncate text-center text-[10px] font-bold uppercase tracking-wide ${
-                      tone ?? "text-ink3"
-                    }`}
-                  >
-                    {row.label ?? shortOutcomeLabel(row.leg)}
+                ) : row.cells[0].outcome ? (
+                  <OddsButton
+                    outcomeId={row.cells[0].outcome.id}
+                    gameId={game.id}
+                    sport={game.sport.name}
+                    competition={view.leagueName}
+                    home={view.homeTeam}
+                    away={view.awayTeam}
+                    startAt={game.startAt.toISOString()}
+                    market={mainMarket.name}
+                    marketKey={mainMarket.key}
+                    outcome={row.cells[0].outcome.name}
+                    label={row.cells[0].outcome.label}
+                    displayLabel={row.cells[0].label}
+                    odds={Number(row.cells[0].outcome.odds)}
+                    gameStatus={game.status}
+                    live={isLive}
+                  />
+                ) : (
+                  <span className="odds-placeholder" title={t("match.priceUnavailable")}>
+                    <span className="odds-label">{row.cells[0].label}</span>
+                    <span className="odds-price">-</span>
                   </span>
-                  {row.outcome ? (
-                    <OddsButton
-                      outcomeId={row.outcome.id}
-                      gameId={game.id}
-                      sport={game.sport.name}
-                      competition={view.leagueName}
-                      home={view.homeTeam}
-                      away={view.awayTeam}
-                      startAt={game.startAt.toISOString()}
-                      market={mainMarket.name}
-                      marketKey={mainMarket.key}
-                      outcome={row.outcome.name}
-                      label={row.label}
-                      odds={Number(row.outcome.odds)}
-                      gameStatus={game.status}
-                      live={isLive}
-                      twoWay={twoWay}
-                    />
-                  ) : (
-                    <span
-                      className="flex h-9 w-full items-center justify-center rounded-lg bg-card2 text-xs font-bold text-ink3"
-                      title={t("match.priceUnavailable")}
-                    >
-                      -
-                    </span>
-                  )}
-                </div>
-              );
-            })}
+                )}
+              </div>
+            ))}
           </div>
         </div>
       ) : !isFinished && game.markets.length === 0 ? (

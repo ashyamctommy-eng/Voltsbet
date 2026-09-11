@@ -2,12 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useBetSlip } from "@/components/BetSlipContext";
-import { useSiteSettings } from "@/components/SiteSettingsContext";
+import OddsButton from "@/components/OddsButton";
 import { IconStar, IconChevronDown } from "@/components/icons";
-import { fmtOdds } from "@/lib/odds";
 import { useTranslation } from "react-i18next";
 import { tMarket } from "@/lib/i18n";
-import { displayOutcomeName, formatOutcomeName, groupHandicapPairs, HANDICAP_MARKET_KEYS } from "@/lib/market-labels";
+import { displayOutcomeName, groupHandicapPairs, HANDICAP_MARKET_KEYS } from "@/lib/market-labels";
+import { pairOverUnderRows } from "@/lib/odds-layout";
 
 type FixtureOutcome = {
   id: string;
@@ -58,9 +58,6 @@ const SCORE_GRID_KEYS = new Set(["CORRECT_SCORE", "correct_score"]);
 type Category = "all" | "main" | "totals" | "first_half" | "second_half" | "correct_score";
 
 const STAR_KEY = "vb_star_markets";
-/** Active-selection highlight — glowing yellow ring. */
-const SELECTED_CLS =
-  "!bg-[#FFD700]/15 !border-[#FFD700] shadow-[0_0_0_1px_#FFD700,0_0_14px_rgba(255,215,0,0.35)]";
 
 function loadStars(): Set<string> {
   if (typeof window === "undefined") return new Set();
@@ -71,43 +68,19 @@ function loadStars(): Set<string> {
   }
 }
 
-/** "Over 2.5" / "Under 2.5" / "Arsenal Over 2.5" → prefix + side + line. */
-const OU_RE = /^(.*?)(Over|Under)\s+([\d.]+)$/i;
-
 /**
- * Group Over/Under outcomes into paired rows (2-up) sorted by line — the
- * screenshot layout: `Over 2.5 [2.29] | Under 2.5 [1.66]`. Any board that is
- * not a clean Over/Under set falls back to one outcome per row (stacked).
- */
-function pairTotalRows(outcomes: FixtureOutcome[]): FixtureOutcome[][] {
-  const groups = new Map<string, { over?: FixtureOutcome; under?: FixtureOutcome; line: number }>();
-  for (const o of outcomes) {
-    const mm = OU_RE.exec(o.name.trim());
-    if (!mm) return outcomes.map((x) => [x]);
-    const prefix = mm[1].trim();
-    const g = groups.get(prefix) ?? { line: Number(mm[3]) };
-    if (/^over$/i.test(mm[2])) g.over = o;
-    else g.under = o;
-    groups.set(prefix, g);
-  }
-  const all = [...groups.values()];
-  if (!all.length || !all.every((g) => g.over && g.under)) return outcomes.map((x) => [x]);
-  return all.sort((a, b) => a.line - b.line).map((g) => [g.over!, g.under!]);
-}
-
-/**
- * Fixture market board.
+ * Fixture market board (match detail).
  *
- * Layout matches the reference design in both themes:
- *  - section header: ★ favourite · bold title · ⓘ · selection badge · ▾
- *  - options are soft pills: label LEFT, bold odds RIGHT
- *  - Over/Under line markets pair 2-up per line; everything else stacks
- *    full-width (1X2 / Double Chance / BTTS / handicap lines)
- *  - correct score keeps a dense scoreboard grid (too many cells to stack)
+ * Every outcome is the platform's shared OddsButton pill — label left, odds
+ * right — so this page and the feed cards are the same widget. Layout follows
+ * the shared rule (@/lib/odds-layout): Over/Under line markets pair 2-up per
+ * line, everything else stacks full-width. Correct score keeps a dense
+ * scoreboard grid (too many cells to stack).
+ *
+ * Section header: ★ favourite · bold title · ⓘ · selection badge · ▾ collapse.
  */
 export default function FixtureMarkets({ game, markets }: { game: FixtureCtx; markets: FixtureMarket[] }) {
-  const { items, add, remove, setOpen } = useBetSlip();
-  const { betSlipAutoOpen } = useSiteSettings();
+  const { items } = useBetSlip();
   const { t } = useTranslation();
   const [cat, setCat] = useState<Category>("all");
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
@@ -158,54 +131,32 @@ export default function FixtureMarkets({ game, markets }: { game: FixtureCtx; ma
       return next;
     });
 
-  const selectedIds = useMemo(() => new Set(items.map((i) => i.outcomeId)), [items]);
-
-  const select = (m: FixtureMarket, o: FixtureOutcome) => {
-    const odds = Number(o.odds);
-    if (!(odds > 0) || o.status !== "ACTIVE") return;
-    const outcomeId = o.id;
-    if (selectedIds.has(outcomeId)) {
-      remove(outcomeId);
-      return;
-    }
-    add({
-      outcomeId,
-      gameId: game.id,
-      sport: game.sport,
-      competition: game.competition,
-      home: game.homeName,
-      away: game.awayName,
-      startAt: game.startAt,
-      market: m.name,
-      marketKey: m.key,
-      outcome: o.name,
-      label: o.label ?? "",
-      odds,
-      gameStatus: game.status,
-      live: game.live,
-    });
-    if (betSlipAutoOpen && typeof window !== "undefined" && window.innerWidth >= 1280) setOpen(true);
-  };
-
+  /** Label shown on the left of the pill: the short tag (1/X/2) when present,
+   *  otherwise the team-aware display name ("Over 2.5", "Arsenal -1.5"). */
   const text = (m: FixtureMarket, o: FixtureOutcome) =>
     o.label?.trim() || displayOutcomeName(o.name, m.key, game.homeName, game.awayName);
 
-  const pill = (m: FixtureMarket, o: FixtureOutcome, showLabel = true) => {
-    const odds = Number(o.odds);
-    const active = o.status === "ACTIVE" && odds > 0;
-    const selected = selectedIds.has(o.id);
-    return (
-      <MarketPill
-        key={o.id}
-        label={showLabel ? text(m, o) : formatOutcomeName(o.name, m.key)}
-        odds={fmtOdds(odds)}
-        active={active}
-        selected={selected}
-        title={active ? `${text(m, o)} @ ${fmtOdds(odds)}` : t("common.suspended")}
-        onClick={() => select(m, o)}
-      />
-    );
-  };
+  const pill = (m: FixtureMarket, o: FixtureOutcome) => (
+    <OddsButton
+      key={o.id}
+      outcomeId={o.id}
+      gameId={game.id}
+      sport={game.sport}
+      competition={game.competition}
+      home={game.homeName}
+      away={game.awayName}
+      startAt={game.startAt}
+      market={m.name}
+      marketKey={m.key}
+      outcome={o.name}
+      label={o.label}
+      displayLabel={text(m, o)}
+      odds={Number(o.odds)}
+      gameStatus={game.status}
+      live={game.live}
+      disabled={o.status !== "ACTIVE"}
+    />
+  );
 
   /** Handicap boards with line outcomes render as paired Home/Away rows. */
   const isHandicapBoard = (m: FixtureMarket) =>
@@ -246,7 +197,7 @@ export default function FixtureMarkets({ game, markets }: { game: FixtureCtx; ma
         const outcomeIds = new Set(m.outcomes.map((o) => o.id));
         const selectedCount = items.filter((i) => outcomeIds.has(i.outcomeId)).length;
         const isScore = SCORE_GRID_KEYS.has(m.key);
-        const rows = isScore ? null : pairTotalRows(m.outcomes);
+        const rows = isScore ? null : pairOverUnderRows(m.outcomes);
 
         return (
           <section key={m.id} className="border-b border-line last:border-b-0">
@@ -304,19 +255,13 @@ export default function FixtureMarkets({ game, markets }: { game: FixtureCtx; ma
                     {groupHandicapPairs(m.outcomes, game.homeName, game.awayName).map((pair) => (
                       <div key={pair.line} className="grid grid-cols-2 gap-2">
                         {[pair.home, pair.away].map((side, i) =>
-                          side ? (
-                            pill(m, side as FixtureOutcome, false)
-                          ) : (
-                            <span key={`${pair.line}-${i}`} />
-                          ),
+                          side ? pill(m, side as FixtureOutcome) : <span key={`${pair.line}-${i}`} />,
                         )}
                       </div>
                     ))}
                   </div>
                 ) : isScore ? (
-                  <div className="grid grid-cols-3 gap-2">
-                    {m.outcomes.map((o) => pill(m, o, false))}
-                  </div>
+                  <div className="grid grid-cols-3 gap-2">{m.outcomes.map((o) => pill(m, o))}</div>
                 ) : (
                   <div className="grid gap-2">
                     {rows!.map((row) =>
@@ -336,43 +281,5 @@ export default function FixtureMarkets({ game, markets }: { game: FixtureCtx; ma
         );
       })}
     </div>
-  );
-}
-
-/**
- * One option pill: label left, bold odds right. Theme-adaptive via the semantic
- * ink token (`bg-ink/5` is a light gray on white and a subtle lift on dark).
- */
-function MarketPill({
-  label,
-  odds,
-  active,
-  selected,
-  title,
-  onClick,
-}: {
-  label: string;
-  odds: string;
-  active: boolean;
-  selected: boolean;
-  title: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      disabled={!active}
-      onClick={onClick}
-      aria-pressed={selected}
-      title={title}
-      className={`flex items-center justify-between gap-2 rounded-xl border border-transparent px-4 py-2.5 text-left transition-all active:scale-[0.99] ${
-        selected ? SELECTED_CLS : "bg-ink/[0.05] hover:bg-ink/10"
-      } ${active ? "cursor-pointer" : "cursor-not-allowed opacity-50"}`}
-    >
-      <span className="min-w-0 truncate text-sm font-semibold text-ink">{label}</span>
-      <span className={`shrink-0 text-sm font-extrabold tabular-nums ${active ? "text-ink" : "text-ink3"}`}>
-        {active ? odds : "–"}
-      </span>
-    </button>
   );
 }

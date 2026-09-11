@@ -3,7 +3,6 @@
 import { useBetSlip, SlipItem } from "@/components/BetSlipContext";
 import { useSiteSettings } from "@/components/SiteSettingsContext";
 import { fmtOdds } from "@/lib/odds";
-import { outcomeSide, sideTextClass } from "@/lib/outcome-tone";
 
 type Props = {
   outcomeId: string;
@@ -17,34 +16,42 @@ type Props = {
   marketKey: string;
   outcome: string;
   label?: string | null;
+  /**
+   * Text rendered on the LEFT of the pill. Falls back to `label`, then to the
+   * raw outcome name — callers pass the display name ("Over 2.5", "1X", "X/2").
+   */
+  displayLabel?: string;
   odds: number;
   gameStatus: string;
   live?: boolean;
-  /** True when this outcome belongs to a two-variable market (Goal Line,
-   *  BTTS, DNB, Asian handicap…) — the ONLY boards that get the emerald/sky
-   *  side colors. 1X2 & other 3+-way markets stay neutral. */
-  twoWay?: boolean;
+  /**
+   * Force the unavailable state — e.g. an outcome that is not ACTIVE even
+   * though it still carries a price.
+   */
+  disabled?: boolean;
 };
 
+/**
+ * The platform's ONE bookable outcome widget: a horizontal pill with the
+ * outcome label on the left and the odds multiplier on the right. All visual
+ * styling lives in the `.odds-btn` component class (globals.css) so the home
+ * feed, live lists and match detail board are identical by construction —
+ * and so the dark/light theme swap is defined in exactly one place.
+ */
 export default function OddsButton(props: Props) {
   const { items, add, remove, setOpen } = useBetSlip();
   const { betSlipAutoOpen } = useSiteSettings();
   const selected = items.some((i) => i.outcomeId === props.outcomeId);
-  // Price missing (0 / unset) or game closed → render a "-" placeholder that
-  // is NOT clickable. A SELECTED pick is never disabled: tapping it again
-  // removes it from the slip and clears the highlight.
-  const unavailable = !(props.odds > 0);
+  // Price missing (0 / unset), explicitly disabled, or game closed → render an
+  // unavailable pill that is NOT clickable. A SELECTED pick is never disabled:
+  // tapping it again removes it from the slip and clears the highlight.
+  const noPrice = !(props.odds > 0);
+  const unavailable = noPrice || props.disabled === true;
   const suspended =
     props.gameStatus !== "SCHEDULED" && props.gameStatus !== "LIVE" && props.gameStatus !== "HALF_TIME";
   const disabled = suspended || unavailable;
 
-  // Competing-side color token — ONLY on two-variable markets (per product
-  // spec): column 1 (Over/Home/Yes/Team 1) emerald, column 2 (Under/Away/
-  // No/Team 2) sky. Applied to the price while selectable and NOT selected —
-  // the selected state keeps its high-contrast green fill + dark text.
-  const tone = props.twoWay
-    ? sideTextClass(outcomeSide({ label: props.label, name: props.outcome, home: props.home, away: props.away }))
-    : null;
+  const leftText = props.displayLabel?.trim() || props.label?.trim() || props.outcome;
 
   const item: SlipItem = {
     outcomeId: props.outcomeId,
@@ -63,8 +70,6 @@ export default function OddsButton(props: Props) {
     live: props.live,
   };
 
-  const canTone = !disabled && !selected && tone !== null;
-
   return (
     <button
       type="button"
@@ -82,11 +87,12 @@ export default function OddsButton(props: Props) {
         // is on, desktop pops the rail (mobile still uses the mini-bar).
         if (betSlipAutoOpen && window.innerWidth >= 1280) setOpen(true);
       }}
-      className={`odds-btn active:scale-95 ${selected ? "selected" : ""} ${unavailable ? "odds-btn-muted" : ""}`}
+      className={`odds-btn active:scale-[0.99] ${selected ? "selected" : ""} ${noPrice ? "odds-btn-muted" : ""}`}
       aria-pressed={selected}
-      title={disabled ? (unavailable ? "Price unavailable" : "Betting closed for this game") : `Add ${props.outcome} @ ${fmtOdds(props.odds)}`}
+      title={disabled ? (noPrice ? "Price unavailable" : "Betting closed for this game") : `Add ${leftText} @ ${fmtOdds(props.odds)}`}
     >
-      {unavailable ? "-" : canTone ? <span className={tone}>{fmtOdds(props.odds)}</span> : fmtOdds(props.odds)}
+      <span className="odds-label">{leftText}</span>
+      <span className="odds-price">{noPrice ? "-" : fmtOdds(props.odds)}</span>
     </button>
   );
 }
