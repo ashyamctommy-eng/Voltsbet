@@ -42,16 +42,50 @@ Quota-conscious defaults: odds provider = The Odds API (`ODDS_API_KEY`, 20k/mo p
 - Rate-limit headers on every response: `x-ratelimit-requests-limit`, `x-ratelimit-requests-remaining`
 - Free plan: all endpoints but **"limited in terms of available seasons"**; paid from **$19/mo** = "all competitions and endpoints" (higher tiers advertise 75k/150k requests)
 
-### NOT yet verified (needs the key — do this before integrating)
+### LIVE-VERIFIED (2026-09-10, real key, 6 requests spent)
 
-1. Whether the **free plan actually serves stats for our leagues** (UCL/EPL/Serie A + others) — "limited seasons" is vague.
-2. `half=true` behaviour on a free key.
-3. Real `x-ratelimit-requests-remaining` value.
-4. Whether free-tier use is licensed for production.
+```
+account : Free plan, active, valid to 2027-09-11 · 100 requests/day · 10 requests/MINUTE
+errors  : {plan: "Free plans do not have access to this date, try from 2026-09-10 to 2026-09-12"}
+```
 
-Their docs site is Cloudflare-protected: plain curl → 403, our proxy → connection failed, r.jina.ai → challenge, headless Chrome → challenge, Camoufox (663 MB install) → challenge. **Live `curl` with a key is the only way to verify.**
+| Capability | Free tier | Evidence |
+|---|---|---|
+| `/status` (plan + quota) | ✅ | headers `x-ratelimit-requests-limit: 100` / `-remaining` |
+| `/fixtures?live=all` | ✅ | **19 live matches**, each with real `status.short` (1H/…) and `elapsed` minute |
+| `/fixtures?date=<today>` | ✅ | 174 fixtures today, 160 finished (no season param needed) |
+| `/fixtures?id=<id>` | ✅ | live **and** today's finished matches |
+| `/fixtures/statistics?fixture=<id>` | ✅ | **Corner Kicks, Yellow/Red Cards, Possession**, shots, fouls, offsides |
+| Half-time score | ✅ | `score.halftime {0,1}` alongside `fulltime {1,1}` on Fenerbahçe–Roma |
+| Past dates | ❌ | `date=2026-09-09` → only **today → +2 days** allowed |
+| Season-filtered queries | ❌ | `season=2026` blocked ("try from 2022 to 2024") — use date queries |
+| `half=true` per-half rows | ❌ | returned **totals only** (16 types, no 1H/2H duplicates) — **corrects the earlier README claim** |
+| Live match statistics | ❌ (yet) | `results: 0` mid-match; stats appear at/after FT |
 
-### Planned architecture (settlement-first)
+Real corners for the matches the owner was watching: **Fenerbahçe 1 – 3 AS Roma**, **PSV 3 – 3 Shakhtar**.
+
+### Consequences for the design
+
+1. **Free is enough for settlement** — the need is *same-day*: settle right after FT (the settle cron already runs
+   every 10 min) = ~2 calls per finished match. Corners/cards + the real HT score arrive in those two calls, so
+   corner/card markets and the `needs HT` markets become auto-settleable.
+2. **Settle immediately, never defer to tomorrow** — yesterday's dates are blocked. Add a by-ID fallback for matches
+   that finish after midnight (ID lookups worked for today's data; the date window is the constraint).
+3. **Budget**: keep our own counter (Setting `stats.budgetUsed` / `stats.budgetDate`) with a default ceiling of **90/day**;
+   the provider also logs `x-ratelimit-requests-remaining`. On exhaustion the game stays in the admin review queue.
+4. **Live minute/status is a free bonus, not the core**: `live=all` = 1 call per poll, but 100/day means ~1 poll per
+   14 min if used all day — fine for a burst during a match window, not for constant 5-min polling.
+5. **Paid ($19/mo) only if** history/backfill/re-settlement or frequent live polling is wanted.
+
+### Planned architecture (settlement-first) — STEP 1+2 BUILT (off by default)
+
+`src/lib/stats/api-football.ts` (provider + parsers), `src/lib/stats/budget.ts` (daily guard), settings
+(`stats.provider` default **off**, `stats.apiKey`, `stats.dailyBudget` 90, `stats.settleCorners`,
+`stats.settleHalfTime`), an admin card in **API Settings → Settlement stats feed**, and `stats-feed.test.ts`
+(10 tests, parsers exercised against the real payloads captured above).
+
+**NOT built yet (step 3, money path):** the settlement hook — flipping `manual` → `auto` for corners/cards and
+`auto-ht` → `auto` for half-time markets, and using real `FT/AET/PEN` instead of kickoff estimates.
 
 - One `StatsProvider` with two capabilities:
   - `settleMatchStats` — for **finished** matches that have corner/card/HT markets: 1 call `/fixtures?id=` + 1 call `/fixtures/statistics?fixture=&half=true`, **cached forever** (final stats never change). Flips corner/card markets to `auto` and makes `needs HT` markets truly automatic.
