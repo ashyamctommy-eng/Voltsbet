@@ -1,0 +1,14 @@
+name: cron-reconcile
+on:
+  schedule:
+    - cron: "*/10 * * * *"   # UTC — payment reconciliation (missed-webhook safety net)
+  workflow_dispatch: {}
+jobs:
+  hit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hit reconcile cron endpoint
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: curl -fsS -m 120 "https://${APP_URL}/api/cron/reconcile?secret=${CRON_SECRET}"
