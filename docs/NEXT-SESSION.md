@@ -190,16 +190,18 @@ Then say: *"read docs/NEXT-SESSION.md and wire the stats feed"* — integration 
   an env var (it *was* pasted in chat — **rotate it before any handover**).
 - Cron endpoints + admin APIs are guard-protected (12 guard usages across `/api/cron/*`).
 
-**Missing before a sale (do these first):**
-1. `LICENSE` + `THIRD-PARTY-NOTICES` files (none exist today) — generate from the lockfile.
-2. Rotate shared keys; each client brings **their own** `ODDS_API_KEY` (+ future `API_FOOTBALL_KEY`) and quota.
-3. **Brand = `Voltbets`** (owner-confirmed). The repo still carries the old `UNIBET360` label in docs, comments,
-   both env templates, the seed's default admin email and `setup.sh`'s cron tag — the de-brand pass was **reverted at
-   the owner's request on 2026-09-10** while the platform was being tested. Redo it deliberately before any sale or
-   client handover (nothing in it changes runtime behaviour: comments, docs, templates, one admin placeholder hint,
-   one outbound user-agent). Never use `UNIBET360` on the product or in marketing — "Unibet" is a Kindred trademark.
-   Client branding is DB-driven, so per-client names are config, not code.
-4. Write the commercial terms (see shapes below) and an acceptance-criteria list.
+**Status before a sale (updated 2026-09-11):**
+1. ✅ **`LICENSE`** (proprietary, all rights reserved — replace the holder + governing-law placeholders) and
+   **`THIRD-PARTY-NOTICES.md`** (regenerate with `node scripts/generate-third-party-notices.mjs`).
+   ⚠️ The production tree ships **LGPL-3.0-or-later** (`@img/sharp-libvips-linux-x64`, via sharp / Next image
+   optimisation) and **CC-BY-4.0** (`caniuse-lite`) — used unmodified as separate modules, but ship the notices and
+   upstream licence texts and let counsel confirm. This corrects the earlier "no GPL/LGPL anywhere" line.
+2. ⬜ **Rotate shared keys**; each client brings **their own** `ODDS_API_KEY` (+ `API_FOOTBALL_KEY`) and quota.
+   The odds key was pasted in a chat — rotate it before any handover. (Owner action; not a code change.)
+3. ✅ **De-branded** (`UNIBET360 → Voltbets`) on 2026-09-11 — only the historical reference in this file remains.
+   Never use `UNIBET360` on the product or in marketing — "Unibet" is a Kindred trademark.
+4. ✅ **Commercial term sheet** drafted in `docs/COMMERCIAL-TERMS.md` (three sale shapes, milestones, acceptance
+   criteria, IP/DPA/liability, pre-signature checklist) — for counsel to turn into a contract.
 
 **Three sale shapes:** (a) **buyout/assignment** — assign copyright, price highest, you lose resale rights;
 (b) **per-client licence** — keep the IP, sell a right to run one branded deployment (natural white-label fit);

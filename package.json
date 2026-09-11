@@ -9,6 +9,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "check:schemas": "bash scripts/check-schema-sync.sh",
+    "notices": "node scripts/generate-third-party-notices.mjs",
     "postinstall": "prisma generate"
   },
   "dependencies": {
