@@ -22,6 +22,10 @@ const SHOW_AFTER_PX = 500;
  *    bar (62px → ~118px), so it never covers either;
  *  - on xl the bet slip becomes a fixed 350px right rail, so the button steps
  *    left of it whenever that rail is showing.
+ *
+ * Uses the raw brand token (`bg-brand` = --vb-primary), so it follows the
+ * operator's configured brand colour. Note the white glyph sits at low contrast
+ * on the default neon green (#00e676) by design — this matches the reference.
  */
 export default function ScrollToTopButton() {
   const { items, open } = useBetSlip();
@@ -45,7 +49,7 @@ export default function ScrollToTopButton() {
       onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
       aria-label="Scroll back to top"
       title="Back to top"
-      className={`fixed right-4 bottom-[126px] z-40 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-[0_8px_22px_rgba(16,185,129,0.45)] transition-transform hover:scale-110 active:scale-95 md:right-6 xl:bottom-6 print:hidden ${
+      className={`fixed right-4 bottom-[126px] z-40 flex h-12 w-12 items-center justify-center rounded-full bg-brand text-white shadow-[0_8px_22px_rgba(0,230,118,0.45)] transition-transform hover:scale-110 active:scale-95 md:right-6 xl:bottom-6 print:hidden ${
         railShowing ? "xl:right-[366px]" : "xl:right-6"
       }`}
     >
