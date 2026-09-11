@@ -38,7 +38,7 @@ export const MARKET_GROUPS: { id: MarketGroup; label: string; hint: string }[] =
   { id: "core", label: "Core (cheap list pass)", hint: "h2h / handicap / totals — priced for every whitelisted league." },
   { id: "goals", label: "Goals & results (per event)", hint: "BTTS, Draw No Bet, Double Chance, Correct Score, team totals." },
   { id: "halves", label: "Halves (per event)", hint: "Half totals auto-settle once half-time scores are entered in Admin → Games; half results/handicaps need manual review." },
-  { id: "corners", label: "Corners & cards (per event)", hint: "Pinnacle + Bovada serve these. Corners settle automatically once the statistics feed is enabled (API Settings); cards stay manual because booking conventions differ." },
+  { id: "corners", label: "Corners & cards (per event)", hint: "Pinnacle + Bovada serve these. Corners settle manually in Admin → Ops → Settlement Review unless an external stats source posts results; cards stay manual because booking conventions differ." },
   { id: "extras", label: "Extras (per event)", hint: "Half-time/full-time, knockout qualification." },
 ];
 

@@ -104,17 +104,6 @@ export type SiteSettings = {
    *  floating counter updates) — no sheet/rail is yanked open. Admin →
    *  Website Settings → Betting. Env BETSLIP_AUTO_OPEN overrides. */
   betSlipAutoOpen: boolean;
-  /** Settlement stats feed: "off" (default) | "api-football". Env STATS_PROVIDER overrides. */
-  statsProvider: string;
-  /** API-Football key. Env API_FOOTBALL_KEY overrides (recommended for prod). */
-  statsApiKey: string;
-  /** Hard daily request ceiling for the stats feed (free tier = 100). Env STATS_DAILY_BUDGET. */
-  statsDailyBudget: number;
-  /** Allow the stats feed to settle CORNER markets (per-team corner counts).
-   *  Cards are deliberately never auto-settled — booking conventions differ. */
-  statsSettleCorners: boolean;
-  /** Allow the stats feed to settle half-time markets via the real HT score. */
-  statsSettleHalfTime: boolean;
   /** How long a broadcast banner stays live (hours). 0 = never expires.
    *  Admin → Website Settings → Broadcast. Env BROADCAST_TTL_HOURS overrides. */
   broadcastTtlHours: number;
@@ -165,6 +154,7 @@ export type SiteSettings = {
   // Automation
   settlementDelayMinutes: number; // settle finished games only after this many minutes
   cronSecret: string; // bearer token for /api/cron/* endpoints
+  settlementWebhookSecret: string; // HMAC secret for POST /api/v1/settlement/process
 };
 
 /**
@@ -247,6 +237,7 @@ const DEFAULTS: SiteSettings = {
   dailyLossLimit: 0,
   settlementDelayMinutes: 10,
   cronSecret: "",
+  settlementWebhookSecret: "",
   oddsSyncLeagues: [],
   oddsRegions: "eu",
   oddsRateLimitMs: 1100,
@@ -261,11 +252,6 @@ const DEFAULTS: SiteSettings = {
   broadcastTtlHours: 72,
   maintenanceEnabled: false,
   maintenanceMessage: "",
-  statsProvider: "off",
-  statsApiKey: "",
-  statsDailyBudget: 90,
-  statsSettleCorners: false,
-  statsSettleHalfTime: false,
   oddsEventMarketLimit: 4,
   oddsEventMarketLeagues: [
     "soccer_epl",
@@ -406,6 +392,9 @@ export async function getSettings(): Promise<SiteSettings> {
   s.dailyLossLimit = Number(raw["betting.dailyLossLimit"] ?? s.dailyLossLimit);
   s.settlementDelayMinutes = Number(raw["settlement.delayMinutes"] ?? s.settlementDelayMinutes);
   s.cronSecret = raw["cron.secret"] ?? s.cronSecret;
+  // Env wins so the secret can live in the host env instead of the DB.
+  s.settlementWebhookSecret =
+    process.env.SETTLEMENT_WEBHOOK_SECRET ?? raw["settlement.webhookSecret"] ?? s.settlementWebhookSecret;
   // League sync whitelist (JSON array of Odds API sport keys). Tolerant
   // parse: anything invalid/absent = empty = sync every bettable league.
   try {
@@ -431,18 +420,6 @@ export async function getSettings(): Promise<SiteSettings> {
         : [];
     } catch {
       s.oddsEventMarketLeagues = [];
-    }
-    // Settlement stats feed (API-Football): provider, key, budget, toggles.
-    const rawProvider = (process.env.STATS_PROVIDER ?? raw["stats.provider"] ?? "").trim().toLowerCase();
-    if (rawProvider) s.statsProvider = rawProvider === "api-football" ? "api-football" : "off";
-    if (raw["stats.apiKey"] !== undefined) s.statsApiKey = String(raw["stats.apiKey"]).trim();
-    const rawBudget = Number(process.env.STATS_DAILY_BUDGET ?? raw["stats.dailyBudget"]);
-    if (Number.isFinite(rawBudget) && rawBudget >= 0) s.statsDailyBudget = Math.round(rawBudget);
-    for (const [key, field] of [
-      ["stats.settleCorners", "statsSettleCorners"],
-      ["stats.settleHalfTime", "statsSettleHalfTime"],
-    ] as const) {
-      if (raw[key] !== undefined) s[field] = raw[key] === "true";
     }
 
     // Broadcast banner lifetime (hours; 0 = never expires).

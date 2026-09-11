@@ -1,10 +1,10 @@
 # Sports Data API Integration
 
 The platform syncs sports, competitions, teams, matches, markets, odds, live
-scores and results from **one primary provider: The Odds API (v4)** — `the-odds-api.com`.
-BetsAPI/RapidAPI were fully removed. **API-Football** is used only as the optional
-settlement stats feed (corners + half-time scores; off by default) described below —
-see `docs/NEXT-SESSION.md` §2.
+scores and results from **one provider: The Odds API (v4)** — `the-odds-api.com`.
+BetsAPI/RapidAPI were fully removed, as was the optional API-Football settlement
+stats feed (it proved unreliable on the free account; an external settlement
+worker is the intended replacement).
 
 ## The provider: The Odds API (v4)
 
@@ -69,16 +69,16 @@ Soccer player props (`player_goal_scorer_anytime`, `player_first_goal_scorer`,
 `player_to_receive_red_card`, `player_shots_on_target`, `player_shots`,
 `player_assists`) are **US bookmakers only** — Bovada serves them, Pinnacle
 does not — and are the heaviest quota consumers (8 keys × events) with no
-auto-settlement (no stats feed). Keep them opt-in via `ODDS_API_MARKETS`.
+auto-settlement. Keep them opt-in via `ODDS_API_MARKETS`.
 
 **Quota (paid 20K tier):** 28 extended keys × `ODDS_API_EVENT_MARKET_LIMIT`
 (4) × leagues (6) ≈ 600–670 credits per sync worst case ≈ ~7K/month at the
 default every-3-days cadence. Daily syncs would exceed the plan — keep the
 cadence or trim `ODDS_API_MARKETS`/`EVENT_MARKET_LIMIT`. Corner/card markets
-cannot settle from `/scores` alone: the optional **API-Football stats feed**
-records per-team corner counts (and the half-time score) so **corner and
-half-time markets auto-settle** when it is enabled; **cards stay admin-settled**
-on purpose (booking conventions differ). See `docs/NEXT-SESSION.md` §2.
+cannot settle from `/scores` alone, so they land in **Admin → Ops → Settlement
+Review** for a human (an external settlement worker that posts per-team corner
+counts and the half-time score can automate them); **cards stay admin-settled**
+on purpose (booking conventions differ).
 
 Correct-score outcome names are normalized to the local `0-1` convention,
 double-chance to `1X/X2/12`, and HT/FT to `1/1`, so the settlement engine
@@ -221,4 +221,4 @@ The `/live` page runs on the same The Odds API key. `refreshLiveScores()`
 one sweep per league per `LIVE_SCORES_THROTTLE_SECONDS`, default 300s) and
 upserts in-play/finished games into the DB; the live page renders them with
 scores and an estimated clock. No sockets or webhooks are required — the page
-polls `/live` (server refresh) and the sweep is idempotent.
+polls `/live` (server refresh) and                          

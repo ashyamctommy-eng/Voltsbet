@@ -29,6 +29,9 @@ function alwaysAllowed(pathname: string): boolean {
     pathname === "/maintenance" ||
     pathname.startsWith("/api/cron") ||
     pathname.startsWith("/api/webhooks") ||
+    // Machine-to-machine settlement intake must keep working while the
+    // customer-facing site is in maintenance.
+    pathname.startsWith("/api/v1") ||
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico" ||
     pathname === "/robots.txt" ||

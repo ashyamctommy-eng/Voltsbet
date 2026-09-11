@@ -171,6 +171,7 @@ model Game {
 
   markets    Market[]
   selections BetSelection[]
+  stats      GameStats?
 
   @@index([sportId, startAt])
   @@index([status])
@@ -533,4 +534,61 @@ model AuditLog {
   @@index([entity, entityId])
   @@index([adminId])
   @@index([createdAt])
+}
+
+// ──────────────────── Auto-settlement engine ────────────────────
+// Inbound settlement webhooks from the external scraper worker
+// (see docs/AUTO-SETTLEMENT.md). `eventId` is the worker's idempotency key:
+// a replayed POST is detected on it, and because the write path below is an
+// upsert and settlement itself is idempotent (Outcome.settled + Bet.status
+// claims), a retry can never pay a bet twice.
+model WebhookEvent {
+  id          String    @id @default(cuid())
+  eventId     String    @unique
+  source      String    @default("settle-worker")
+  gameId      String?
+  status      String    @default("RECEIVED") // RECEIVED | PROCESSED | NEEDS_REVIEW | FAILED
+  payload     String?   @db.Text // raw JSON body (audit; truncated on write)
+  payloadHash String?   // sha256 of the raw body
+  settled     Int       @default(0)
+  voided      Int       @default(0)
+  skipped     Int       @default(0)
+  error       String?
+  receivedAt  DateTime  @default(now())
+  processedAt DateTime?
+
+  @@index([gameId])
+  @@index([status])
+  @@index([receivedAt])
+}
+
+// Per-team statistics an external source posts for settlement: corners and
+// cards (which have no column on Game) plus the half-time goal split. One row
+// per game; the worker upserts. Nullable everywhere on purpose - a null means
+// "not read", which makes its markets fall to the admin review queue rather
+// than settling against a guessed number.
+model GameStats {
+  id     String @id @default(cuid())
+  gameId String @unique
+  game   Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  htHomeCorners Int?
+  htAwayCorners Int?
+  ftHomeCorners Int?
+  ftAwayCorners Int?
+
+  htHomeYellows Int?
+  htAwayYellows Int?
+  ftHomeYellows Int?
+  ftAwayYellows Int?
+  htHomeReds    Int?
+  htAwayReds    Int?
+  ftHomeReds    Int?
+  ftAwayReds    Int?
+
+  source     String   @default("settle-worker")
+  capturedAt DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([updatedAt])
 }

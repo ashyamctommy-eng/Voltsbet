@@ -3,10 +3,7 @@ import { handle, ok, ApiError, sharedAdminGuard } from "@/lib/api";
 import { getSettings, setSetting, invalidateSettingsCache } from "@/lib/settings";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { readJson } from "@/lib/stats/store";
 import { estimateSyncCostWithMarkets } from "@/lib/odds-cost";
-import { statsBudget } from "@/lib/stats/budget";
-import { getStatsQuota } from "@/lib/stats/api-football";
 
 /**
  * Admin Odds engine configuration (Admin → API Settings → Odds engine).
@@ -78,15 +75,12 @@ export const GET = handle(async (req: NextRequest) => {
   // burn before pressing anything. Leagues = whitelist length if set, else the
   // catalog cap (the no-whitelist path walks up to that many leagues).
   const estimateLeagues = (s.oddsSyncLeagues?.length ?? 0) || s.oddsFeedMaxLeagues;
-  const [costEstimate, statsBudgetInfo] = await Promise.all([
-    estimateSyncCostWithMarkets({
-      leagues: estimateLeagues,
-      regions: s.oddsRegions,
-      eventLeagues: (s.oddsEventMarketLeagues ?? []).length,
-      eventLimit: s.oddsEventMarketLimit,
-    }).catch(() => null),
-    statsBudget().catch(() => null),
-  ]);
+  const costEstimate = await estimateSyncCostWithMarkets({
+    leagues: estimateLeagues,
+    regions: s.oddsRegions,
+    eventLeagues: (s.oddsEventMarketLeagues ?? []).length,
+    eventLimit: s.oddsEventMarketLimit,
+  }).catch(() => null);
   const creditCap = Number(process.env.MAX_CREDITS_PER_RUN);
 
   const env = {
@@ -103,9 +97,6 @@ export const GET = handle(async (req: NextRequest) => {
     liveOddsMarkets: process.env.ODDS_API_LIVE_MARKETS,
     detailMarkets: process.env.SOCCER_DETAIL_MARKETS,
     detailCacheTtlSeconds: process.env.SOCCER_DETAIL_CACHE_TTL_SECONDS,
-    statsProvider: process.env.STATS_PROVIDER,
-    statsApiKey: process.env.API_FOOTBALL_KEY ? "set (hidden)" : undefined,
-    statsDailyBudget: process.env.STATS_DAILY_BUDGET,
   };
 
   return ok({
@@ -125,29 +116,12 @@ export const GET = handle(async (req: NextRequest) => {
       liveOddsMarkets: s.liveOddsMarkets,
       detailMarkets: s.soccerDetailMarkets,
       detailCacheTtlSeconds: s.soccerDetailCacheTtlSeconds,
-      statsProvider: s.statsProvider,
-      statsDailyBudget: s.statsDailyBudget,
-      statsSettleCorners: s.statsSettleCorners,
-      statsSettleHalfTime: s.statsSettleHalfTime,
-      statsKeySet: !!(process.env.API_FOOTBALL_KEY || s.statsApiKey),
-      statsKeyFromEnv: !!process.env.API_FOOTBALL_KEY,
-      statsBudgetUsedToday: Number((await prisma.setting.findUnique({ where: { key: "stats.budgetUsed" } }))?.value ?? 0) || 0,
-      statsLastPass: await readJson<Record<string, unknown>>("stats.lastPass").then((r) => r.value),
     },
     env,
     quota,
     lastSweep,
     costEstimate,
     creditCap: Number.isFinite(creditCap) && creditCap > 0 ? creditCap : null,
-    statsUsage: statsBudgetInfo
-      ? {
-          date: statsBudgetInfo.date,
-          usedToday: statsBudgetInfo.used,
-          budget: statsBudgetInfo.budget,
-          remaining: statsBudgetInfo.remaining,
-          quota: getStatsQuota(),
-        }
-      : null,
   });
 });
 
@@ -190,16 +164,6 @@ export const PUT = handle(async (req: NextRequest) => {
   if (body.liveLookbackHours !== undefined) updates.push({ key: "live.lookbackHours", value: num(body.liveLookbackHours, 1) });
   if (body.liveOddsThrottleSeconds !== undefined) updates.push({ key: "live.oddsThrottleSeconds", value: num(body.liveOddsThrottleSeconds, 10) });
   if (body.liveOddsMarkets !== undefined) updates.push({ key: "live.oddsMarkets", value: list(body.liveOddsMarkets) });
-  // Settlement stats feed (API-Football). The key is stored in Settings unless
-  // the env var is set (env always wins at read time — see lib/stats).
-  if (body.statsProvider !== undefined) {
-    const p = String(body.statsProvider).trim().toLowerCase();
-    updates.push({ key: "stats.provider", value: p === "api-football" ? "api-football" : "off" });
-  }
-  if (body.statsApiKey !== undefined) updates.push({ key: "stats.apiKey", value: String(body.statsApiKey).trim() });
-  if (body.statsDailyBudget !== undefined) updates.push({ key: "stats.dailyBudget", value: num(body.statsDailyBudget, 0) });
-  if (body.statsSettleCorners !== undefined) updates.push({ key: "stats.settleCorners", value: body.statsSettleCorners ? "true" : "false" });
-  if (body.statsSettleHalfTime !== undefined) updates.push({ key: "stats.settleHalfTime", value: body.statsSettleHalfTime ? "true" : "false" });
 
   // TIER 2 — match-detail deep markets + cache TTL
   if (body.detailMarkets !== undefined) updates.push({ key: "soccer.detailMarkets", value: list(body.detailMarkets) });

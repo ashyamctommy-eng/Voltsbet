@@ -161,7 +161,7 @@ export const ODDS_MARKETS = (
     "to_qualify",
     // Soccer player props (US bookmakers only — Bovada serves them, Pinnacle
     // does not) are NOT in the default list: 8 keys × events is the heaviest
-    // quota consumer and none of them auto-settle (no stats feed). Enable
+    // quota consumer and none of them auto-settle. Enable
     // per league with ODDS_API_MARKETS=...,player_goal_scorer_anytime,
     // player_first_goal_scorer,player_last_goal_scorer,
     // player_to_receive_card,player_to_receive_red_card,

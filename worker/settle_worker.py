@@ -1,0 +1,586 @@
+#!/usr/bin/env python3
+"""
+Voltbets settlement worker — cPanel cron side of the auto-settlement engine.
+
+WHAT IT DOES
+  Finds football matches that kicked off >110 minutes ago, scrapes their
+  statistics (corners) and incidents (goals, cards) from SofaScore through a
+  rotating residential-proxy pool, and POSTs one signed payload per match to
+  the Railway backend, which does the actual settling.
+
+WHY IT IS A SEPARATE PROCESS ON cPANEL
+  Scraping is noisy, bursty and gets CDN-blocked. Running it on the app host
+  would compete with customer traffic and, worse, would put an outbound
+  scraping footprint on the same IP that serves the site. cPanel cron is cheap,
+  isolated, and if it dies the app is unaffected.
+
+DEPENDENCIES: none. Standard library only — deliberately.
+  Shared cPanel hosts often have no pip access, an old system Python, or no
+  compiler for lxml/curl_cffi. `urllib` + `ssl` are always there, so this runs
+  on any cPanel Python 3.8+. Proxy support is built on ProxyHandler.
+
+SETUP (see docs/AUTO-SETTLEMENT.md for the full runbook)
+  export SETTLE_WEBHOOK_URL="https://your-app.up.railway.app/api/v1/settlement/process"
+  export SETTLE_WEBHOOK_SECRET="<same secret as the backend>"
+  export SETTLE_PROXIES_FILE="/home/USER/voltbets/proxies.txt"   # one per line
+  cron: */10 * * * * /usr/bin/python3 /home/USER/voltbets/settle_worker.py >> settle.log 2>&1
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import hmac
+import json
+import os
+import random
+import ssl
+import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
+from typing import Any, Iterable, Optional
+
+# ─────────────────────────────── configuration ───────────────────────────────
+
+SOFASCORE = "https://www.sofascore.com/api/v1"
+WEBHOOK_URL = os.environ.get("SETTLE_WEBHOOK_URL", "")
+WEBHOOK_SECRET = os.environ.get("SETTLE_WEBHOOK_SECRET", "")
+PROXIES_FILE = os.environ.get("SETTLE_PROXIES_FILE", "")
+PROXIES_ENV = os.environ.get("SETTLE_PROXIES", "")  # comma/newline separated
+
+REQUEST_TIMEOUT = float(os.environ.get("SETTLE_TIMEOUT", "12"))  # seconds, hard cap
+PROXY_MAX_LATENCY = float(os.environ.get("SETTLE_PROXY_MAX_LATENCY", "5"))  # >5s = drop
+MATCH_AGE_MINUTES = int(os.environ.get("SETTLE_MATCH_AGE_MINUTES", "110"))
+MAX_MATCHES_PER_RUN = int(os.environ.get("SETTLE_MAX_MATCHES", "60"))
+RETRIES_PER_REQUEST = int(os.environ.get("SETTLE_RETRIES", "4"))
+DRY_RUN = os.environ.get("SETTLE_DRY_RUN", "").lower() in ("1", "true", "yes")
+
+UA_POOL = [
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 "
+    "(KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
+    "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/126.0.0.0 Mobile Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/126.0.0.0 Safari/537.36",
+]
+
+# Statuses that mean "this exit is burnt for this target" — drop, do not retry it.
+DROP_STATUSES = {403, 429, 407, 451, 503}
+
+
+def log(msg: str) -> None:
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    print(f"[{ts}] {msg}", flush=True)
+
+
+# ──────────────────────────────── proxy pool ─────────────────────────────────
+
+
+@dataclass
+class ProxyPool:
+    """
+    Rotating pool of residential proxies with health-checking and self-purging.
+
+    A proxy is dropped permanently for the run when it:
+      * takes longer than PROXY_MAX_LATENCY to answer,
+      * raises a connection/timeout error,
+      * returns a blocking status (403 / 429 / 407 / 451 / 503).
+
+    Dropping is aggressive on purpose: a burnt residential exit never recovers
+    within a cron window, and retrying it wastes the whole budget. The pool
+    keeps a per-run dead set plus counters so the log shows which exits rot.
+    """
+
+    proxies: list[str] = field(default_factory=list)
+    dead: dict[str, str] = field(default_factory=dict)
+    ok_count: dict[str, int] = field(default_factory=dict)
+    fail_count: dict[str, int] = field(default_factory=dict)
+    _cursor: int = 0
+
+    @classmethod
+    def from_env(cls) -> "ProxyPool":
+        raw: list[str] = []
+        if PROXIES_FILE and os.path.exists(PROXIES_FILE):
+            with open(PROXIES_FILE, "r", encoding="utf-8") as fh:
+                raw += [ln.strip() for ln in fh if ln.strip() and not ln.startswith("#")]
+        if PROXIES_ENV:
+            raw += [p.strip() for p in PROXIES_ENV.replace(",", "\n").splitlines() if p.strip()]
+        # de-dupe, keep order
+        seen, out = set(), []
+        for p in raw:
+            if p not in seen:
+                seen.add(p)
+                out.append(p)
+        # Random start so parallel cron hosts don't hammer the same exit first.
+        random.shuffle(out)
+        pool = cls(proxies=out)
+        log(f"proxy pool loaded: {len(out)} exit(s)")
+        if not out:
+            log("WARNING: no proxies configured — falling back to direct requests "
+                "(expect blocks; set SETTLE_PROXIES_FILE)")
+        return pool
+
+    def alive(self) -> list[str]:
+        return [p for p in self.proxies if p not in self.dead]
+
+    def rotate(self) -> Optional[str]:
+        """Next usable proxy, or None when the pool is exhausted (= direct)."""
+        live = self.alive()
+        if not live:
+            return None
+        self._cursor = (self._cursor + 1) % len(live)
+        return live[self._cursor]
+
+    def drop(self, proxy: Optional[str], reason: str) -> None:
+        if not proxy or proxy in self.dead:
+            return
+        self.dead[proxy] = reason
+        self.fail_count[proxy] = self.fail_count.get(proxy, 0) + 1
+        remaining = len(self.alive())
+        log(f"proxy DROPPED ({reason}) {_mask(proxy)} — {remaining} left in pool")
+
+    def mark_ok(self, proxy: Optional[str]) -> None:
+        if proxy:
+            self.ok_count[proxy] = self.ok_count.get(proxy, 0) + 1
+
+    def healthcheck(self, ctx_check=3) -> None:
+        """Pre-flight: throw away exits that cannot reach the target at all."""
+        live = self.alive()
+        if not live:
+            return
+        log(f"pre-flight healthcheck on {len(live)} exit(s)")
+        sample = live[: ctx_check * 5]
+        for proxy in sample:
+            started = time.monotonic()
+            try:
+                _http_get(f"{SOFASCORE}/sport/football/events/live", proxy, timeout=PROXY_MAX_LATENCY)
+                latency = time.monotonic() - started
+                if latency > PROXY_MAX_LATENCY:
+                    self.drop(proxy, f"slow pre-flight {latency:.1f}s")
+                else:
+                    self.mark_ok(proxy)
+            except urllib.error.HTTPError as e:
+                if e.code in DROP_STATUSES:
+                    self.drop(proxy, f"pre-flight HTTP {e.code}")
+            except Exception as e:  # noqa: BLE001 - any transport failure = unusable
+                self.drop(proxy, f"pre-flight {type(e).__name__}")
+
+    def report(self) -> str:
+        return (
+            f"pool report: {len(self.alive())}/{len(self.proxies)} alive, "
+            f"{len(self.dead)} dropped"
+        )
+
+
+def _mask(proxy: str) -> str:
+    """Never log proxy credentials in full."""
+    try:
+        u = urllib.parse.urlsplit(proxy if "://" in proxy else f"http://{proxy}")
+        if u.hostname:
+            return f"{u.scheme}://{u.hostname}:{u.port or ''}"
+    except Exception:  # noqa: BLE001
+        pass
+    return "<proxy>"
+
+
+def _opener(proxy: Optional[str]):
+    handlers: list[Any] = []
+    if proxy:
+        url = proxy if "://" in proxy else f"http://{proxy}"
+        handlers.append(urllib.request.ProxyHandler({"http": url, "https": url}))
+    else:
+        handlers.append(urllib.request.ProxyHandler({}))  # ignore ambient env proxies
+    ctx = ssl.create_default_context()
+    handlers.append(urllib.request.HTTPSHandler(context=ctx))
+    return urllib.request.build_opener(*handlers)
+
+
+def _http_get(url: str, proxy: Optional[str], timeout: float) -> bytes:
+    req = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": random.choice(UA_POOL),
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "en-GB,en;q=0.9",
+            "Referer": "https://www.sofascore.com/",
+        },
+    )
+    with _opener(proxy).open(req, timeout=timeout) as resp:
+        return resp.read()
+
+
+def fetch_json(pool: ProxyPool, url: str, what: str) -> Optional[dict]:
+    """
+    GET a JSON endpoint, rotating proxies and purging bad exits.
+
+    Returns None when every proxy failed — the caller skips that match rather
+    than sending a partial payload. A missing corner count must never look like
+    zero corners.
+    """
+    last_error = "no proxy available"
+    for attempt in range(RETRIES_PER_REQUEST):
+        proxy = pool.rotate()
+        started = time.monotonic()
+        try:
+            body = _http_get(url, proxy, REQUEST_TIMEOUT)
+            elapsed = time.monotonic() - started
+            if elapsed > PROXY_MAX_LATENCY:
+                # Answered, but too slowly to keep in a cron window.
+                pool.drop(proxy, f"slow {elapsed:.1f}s")
+                continue
+            pool.mark_ok(proxy)
+            try:
+                return json.loads(body.decode("utf-8", "replace"))
+            except json.JSONDecodeError:
+                last_error = "non-JSON response"
+                continue
+        except urllib.error.HTTPError as e:
+            if e.code in DROP_STATUSES:
+                pool.drop(proxy, f"HTTP {e.code}")
+            else:
+                last_error = f"HTTP {e.code}"
+        except urllib.error.URLError as e:
+            pool.drop(proxy, f"conn {e.reason.__class__.__name__ if hasattr(e, 'reason') else 'error'}")
+        except (TimeoutError, ssl.SSLError) as e:
+            pool.drop(proxy, type(e).__name__)
+        except Exception as e:  # noqa: BLE001
+            pool.drop(proxy, type(e).__name__)
+
+        if not pool.alive():
+            break
+        time.sleep(0.4 * (attempt + 1))
+
+    log(f"  {what}: FAILED ({last_error})")
+    return None
+
+
+# ───────────────────────────── SofaScore scraping ────────────────────────────
+
+
+def _stat_value(item: dict) -> Optional[int]:
+    """
+    SofaScore statistic values arrive as "7", "7 (2)" (value + extra) or
+    sometimes as a percentage. Take the leading integer, else None.
+    """
+    raw = str(item.get("home" if "home" in item else "value", "")).strip()
+    for key in ("home", "away", "value"):
+        v = str(item.get(key, "")).strip()
+        if v:
+            raw = v
+            break
+    else:
+        return None
+    head = raw.split("(")[0].strip().strip("%")
+    try:
+        return int(float(head))
+    except ValueError:
+        return None
+
+
+def _find_stats_item(payload: dict, period: str, names: Iterable[str]) -> Optional[tuple[int, int]]:
+    """Locate a statistics row by name within a period ("ALL" / "1ST")."""
+    wanted = {n.lower() for n in names}
+    for p in payload.get("statistics", []) or []:
+        if str(p.get("period", "")).upper() != period.upper():
+            continue
+        for group in p.get("groups", []) or []:
+            for item in group.get("statisticsItems", []) or []:
+                if str(item.get("name", "")).strip().lower() in wanted:
+                    home = _to_int(item.get("home"))
+                    away = _to_int(item.get("away"))
+                    if home is not None and away is not None:
+                        return home, away
+    return None
+
+
+def _to_int(v: Any) -> Optional[int]:
+    try:
+        return int(float(str(v).split("(")[0].strip().strip("%")))
+    except (TypeError, ValueError):
+        return None
+
+
+CORNER_NAMES = ("corner kicks", "corners", "corner kicks total", "total corners")
+
+
+def extract_corners(stats: dict) -> dict:
+    """
+    Corners for both halves. The statistics endpoint reports period "1ST" for
+    the first half and "ALL" for the full match; when a provider omits the 1ST
+    block we return None (not 0) so the HT markets stay manual instead of
+    settling against a wrong number.
+    """
+    ft = _find_stats_item(stats, "ALL", CORNER_NAMES)
+    ht = _find_stats_item(stats, "1ST", CORNER_NAMES)
+    return {
+        "ht": {"home": ht[0] if ht else None, "away": ht[1] if ht else None},
+        "ft": {"home": ft[0] if ft else None, "away": ft[1] if ft else None},
+    }
+
+
+def extract_goals(incidents: dict, event: Optional[dict]) -> dict:
+    """
+    Goals per half from the incident timeline, with the full-time score taken
+    from the event itself (authoritative, and it excludes penalty-shootout
+    goals, which must never count towards a goals market).
+
+    Own goals are credited to the OPPOSITE side of the player who scored them.
+    """
+    ht_home = ht_away = 0
+    ht_seen = False
+    for inc in incidents.get("incidents", []) or []:
+        if inc.get("incidentType") != "goal":
+            continue
+        cls = str(inc.get("incidentClass", "")).lower()
+        if "shootout" in cls or "penaltyshootout" in cls.replace(" ", ""):
+            continue  # shootout goals are not match goals
+        minute = _to_int(inc.get("time")) or 0
+        extra = _to_int(inc.get("addedTime")) or 0
+        if minute > 45 + max(extra, 0) and minute > 45:
+            continue  # second half
+        if cls == "owngoal":
+            is_home = not bool(inc.get("isHome"))
+        else:
+            is_home = bool(inc.get("isHome"))
+        if is_home:
+            ht_home += 1
+        else:
+            ht_away += 1
+        ht_seen = True
+
+    home_ft = _to_int((event or {}).get("homeScore", {}).get("current"))
+    away_ft = _to_int((event or {}).get("awayScore", {}).get("current"))
+    if home_ft is None or away_ft is None:
+        # Fall back to the timeline (sum of both halves) when the event score is
+        # unavailable; mark HT as unknown if we saw no goal incidents at all.
+        home_ft = sum(
+            1 for i in incidents.get("incidents", []) or []
+            if i.get("incidentType") == "goal" and bool(i.get("isHome"))
+        )
+        away_ft = sum(
+            1 for i in incidents.get("incidents", []) or []
+            if i.get("incidentType") == "goal" and not bool(i.get("isHome"))
+        )
+
+    return {
+        "ht": {"home": ht_home if ht_seen else None, "away": ht_away if ht_seen else None},
+        "ft": {"home": home_ft, "away": away_ft},
+    }
+
+
+def extract_cards(incidents: dict) -> dict:
+    """
+    Yellow/red cards per half from the incident timeline.
+    A second yellow is reported as `yellowRed` — counted as a red (the player
+    was sent off), with the preceding yellow already counted separately.
+    """
+    out = {
+        "ht": {"homeYellows": 0, "awayYellows": 0, "homeReds": 0, "awayReds": 0},
+        "ft": {"homeYellows": 0, "awayYellows": 0, "homeReds": 0, "awayReds": 0},
+    }
+    seen = False
+    for inc in incidents.get("incidents", []) or []:
+        if inc.get("incidentType") != "card":
+            continue
+        seen = True
+        cls = str(inc.get("incidentClass", "")).lower()
+        is_home = bool(inc.get("isHome"))
+        minute = _to_int(inc.get("time")) or 0
+        extra = _to_int(inc.get("addedTime")) or 0
+        first_half = minute <= 45 + max(extra, 0)
+        for bucket in ("ft", "ht") if first_half else ("ft",):
+            if "red" in cls:  # red + yellowRed
+                out[bucket]["homeReds" if is_home else "awayReds"] += 1
+            elif "yellow" in cls:
+                out[bucket]["homeYellows" if is_home else "awayYellows"] += 1
+    if not seen:
+        # No card incidents at all is a legitimate 0-0; report zeros.
+        pass
+    return out
+
+
+# ─────────────────────────────── webhook sender ──────────────────────────────
+
+
+def sign(secret: str, timestamp: str, body: bytes) -> str:
+    """HMAC-SHA256 over `${timestamp}.${body}` — mirrors the backend verifier."""
+    mac = hmac.new(secret.encode("utf-8"), digestmod=hashlib.sha256)
+    mac.update(f"{timestamp}.".encode("utf-8"))
+    mac.update(body)
+    return mac.hexdigest()
+
+
+def post_payload(payload: dict) -> tuple[bool, str]:
+    """POST a signed payload. Returns (ok, detail)."""
+    if not WEBHOOK_URL or not WEBHOOK_SECRET:
+        return False, "SETTLE_WEBHOOK_URL / SETTLE_WEBHOOK_SECRET not configured"
+    if DRY_RUN:
+        return True, "dry-run (not sent)"
+
+    body = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    ts = str(int(time.time()))
+    req = urllib.request.Request(
+        WEBHOOK_URL,
+        data=body,
+        method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "X-Voltbets-Timestamp": ts,
+            "X-Voltbets-Event-Id": payload["eventId"],
+            "X-Voltbets-Signature": f"sha256={sign(WEBHOOK_SECRET, ts, body)}",
+            "User-Agent": "voltbets-settle-worker/1.0",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT + 8) as resp:
+            detail = resp.read().decode("utf-8", "replace")[:300]
+            return resp.status in (200, 201, 202), f"HTTP {resp.status} {detail}"
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode("utf-8", "replace")[:300]
+        return False, f"HTTP {e.code} {detail}"
+    except Exception as e:  # noqa: BLE001
+        return False, f"{type(e).__name__}: {e}"
+
+
+# ──────────────────────────────── discovery ──────────────────────────────────
+
+
+def find_finished_events(pool: ProxyPool, day: datetime) -> list[dict]:
+    """Scheduled events for a date, filtered to matches old enough to settle."""
+    url = f"{SOFASCORE}/sport/football/scheduled-events/{day.strftime('%Y-%m-%d')}"
+    data = fetch_json(pool, url, f"scheduled-events {day:%Y-%m-%d}")
+    if not data:
+        return []
+
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=MATCH_AGE_MINUTES)
+    out: list[dict] = []
+    for ev in data.get("events", []) or []:
+        status = str((ev.get("status") or {}).get("type", "")).lower()
+        if status not in ("finished", "aet", "pen"):
+            continue
+        ts = ev.get("startTimestamp")
+        if not ts:
+            continue
+        start = datetime.fromtimestamp(int(ts), tz=timezone.utc)
+        if start > cutoff:
+            continue
+        out.append(ev)
+    return out
+
+
+def build_payload(ev: dict) -> Optional[dict]:
+    """Scrape one event and shape it into the backend's wire format."""
+    event_id = ev.get("id")
+    if not event_id:
+        return None
+    return {
+        "eventId": "",  # filled by caller (needs the revision hash)
+        "source": "settle-worker",
+        "match": {
+            "externalId": str(event_id),
+            "kickoff": datetime.fromtimestamp(int(ev["startTimestamp"]), tz=timezone.utc).isoformat(),
+            "homeName": (ev.get("homeTeam") or {}).get("name", ""),
+            "awayName": (ev.get("awayTeam") or {}).get("name", ""),
+            "status": {"finished": "FINISHED", "aet": "AET", "pen": "PENS"}.get(
+                str((ev.get("status") or {}).get("type", "")).lower(), "FINISHED"
+            ),
+        },
+    }
+
+
+def process_event(pool: ProxyPool, ev: dict, stats_dir: dict, incidents_dir: dict) -> bool:
+    """Scrape + send one match. Returns True when the backend accepted it."""
+    event_id = ev.get("id")
+    base = build_payload(ev)
+    if not base:
+        return False
+
+    stats = fetch_json(pool, f"{SOFASCORE}/event/{event_id}/statistics", f"statistics {event_id}")
+    if not stats:
+        log(f"  event {event_id}: statistics unavailable — skipping (no partial send)")
+        return False
+    incidents = fetch_json(pool, f"{SOFASCORE}/event/{event_id}/incidents", f"incidents {event_id}")
+    if incidents is None:
+        log(f"  event {event_id}: incidents unavailable — skipping (no partial send)")
+        return False
+
+    corners = extract_corners(stats)
+    goals = extract_goals(incidents, ev)
+    cards = extract_cards(incidents)
+
+    # Idempotency key: stable per match + revision, so a retry of the SAME
+    # scrape is recognised, while a genuinely later revision (score correction)
+    # is processed as new data.
+    revision = hashlib.sha256(
+        json.dumps({"c": corners, "g": goals, "k": cards}, sort_keys=True).encode()
+    ).hexdigest()[:12]
+    base["eventId"] = f"sofa-{event_id}-{revision}"
+    base["stats"] = {"corners": corners, "goals": goals, "cards": cards}
+    base["meta"] = {"scrapedAt": datetime.now(timezone.utc).isoformat(), "url": f"{SOFASCORE}/event/{event_id}"}
+
+    ok, detail = post_payload(base)
+    label = f"{base['match']['homeName']} vs {base['match']['awayName']}"
+    log(f"  {'OK  ' if ok else 'FAIL'} {label} corners FT {corners['ft']} — {detail}")
+    return ok
+
+
+# ─────────────────────────────────── main ────────────────────────────────────
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="Voltbets settlement worker")
+    ap.add_argument("--date", help="YYYY-MM-DD to scan (default: today and yesterday UTC)")
+    ap.add_argument("--limit", type=int, default=MAX_MATCHES_PER_RUN)
+    ap.add_argument("--dry-run", action="store_true", help="scrape but do not POST")
+    args = ap.parse_args()
+
+    global DRY_RUN
+    if args.dry_run:
+        DRY_RUN = True
+
+    log(f"settlement worker start (dry_run={DRY_RUN}, age>{MATCH_AGE_MINUTES}min)")
+    pool = ProxyPool.from_env()
+    pool.healthcheck()
+
+    days = (
+        [datetime.strptime(args.date, "%Y-%m-%d").replace(tzinfo=timezone.utc)]
+        if args.date
+        else [datetime.now(timezone.utc), datetime.now(timezone.utc) - timedelta(days=1)]
+    )
+
+    events: list[dict] = []
+    for day in days:
+        found = find_finished_events(pool, day)
+        log(f"{day:%Y-%m-%d}: {len(found)} finished event(s) older than {MATCH_AGE_MINUTES}min")
+        events += found
+
+    # De-dupe across days, cap the run.
+    seen, unique = set(), []
+    for ev in events:
+        if ev.get("id") in seen:
+            continue
+        seen.add(ev.get("id"))
+        unique.append(ev)
+    unique = unique[: args.limit]
+
+    sent = 0
+    for ev in unique:
+        if process_event(pool, ev, {}, {}):
+            sent += 1
+        if not pool.alive():
+            log("proxy pool exhausted — stopping this run")
+            break
+
+    log(f"done: {sent}/{len(unique)} accepted. {pool.report()}")
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        sys.exit(130)

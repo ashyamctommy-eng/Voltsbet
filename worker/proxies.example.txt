@@ -1,0 +1,15 @@
+# Residential proxy pool for the settlement worker — one exit per line.
+# Set SETTLE_PROXIES_FILE=/home/<user>/voltbets/proxies.txt (or pass the same
+# list via SETTLE_PROXIES, comma/newline separated).
+#
+# Formats accepted (scheme is optional and defaults to http://):
+#   http://user:pass@gate.provider.com:8000
+#   socks5://user:pass@gate.provider.com:1080
+#   gate.provider.com:8000
+#
+# Lines starting with # are ignored. Credentials are masked in every log line
+# ("proxy DROPPED (HTTP 403) http://gate.provider.com:8000").
+#
+# Use RESIDENTIAL exits: datacentre ranges are blocked by the statistics CDN
+# almost immediately. Expect churn — the pool self-purges on 403/429, on
+# timeouts, and on anything slower than SETTLE_PROXY_MAX_LATENCY (default 5s).

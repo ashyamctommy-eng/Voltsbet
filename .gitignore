@@ -48,3 +48,7 @@ next-env.d.ts
 
 # agent planning scratch (not part of the app)
 /.claude/
+
+# Python (settlement worker)
+__pycache__/
+*.py[cod]

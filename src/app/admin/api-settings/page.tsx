@@ -40,9 +40,6 @@ type OddsConfig = {
     liveOddsThrottleSeconds: number; liveOddsMarkets: string[];
     /** TIER 2 — deep match-detail markets + cache TTL. */
     detailMarkets: string[]; detailCacheTtlSeconds: number;
-    statsProvider: string; statsDailyBudget: number; statsSettleCorners: boolean;
-    statsSettleHalfTime: boolean; statsKeySet: boolean; statsKeyFromEnv: boolean; statsBudgetUsedToday: number;
-    statsLastPass: { at?: number; ran?: boolean; reason?: string; settled?: number; htFilled?: number; matched?: number; apiCalls?: number; notes?: string[] } | null;
   };
   env: Record<string, string | undefined>;
   quota: { used: number; remaining: number } | null;
@@ -55,11 +52,6 @@ type OddsConfig = {
   } | null;
   /** Hard ceiling from MAX_CREDITS_PER_RUN (null = no cap). */
   creditCap: number | null;
-  /** API-Football usage: local daily budget + the provider's own rate-limit read. */
-  statsUsage: {
-    date: string; usedToday: number; budget: number; remaining: number;
-    quota: { remaining: number | null; limit: number | null; path: string; at: string } | null;
-  } | null;
 };
 
 /** Accept one key per line, comma separated, or a JSON array. */
@@ -72,17 +64,6 @@ function parseLeagues(v: string): string[] {
     } catch { /* fall through */ }
   }
   return [...new Set(raw.split(/[\n,]+/).map((x) => x.trim()).filter((x) => x && !x.startsWith("#")))];
-}
-
-/** Turn a stats-pass skip reason into an actionable next step. */
-function statsSkipHint(reason?: string): string {
-  if (!reason) return "Check the Provider setting below — the pass only runs when the feed is on and a toggle is ticked.";
-  if (reason === "stats feed disabled") return "Set Provider → API-Football below, then Save stats feed.";
-  if (reason === "no API-Football key") return "Paste your api-sports.io key below (or set API_FOOTBALL_KEY), then Save stats feed.";
-  if (reason.startsWith("stats settlement toggles")) return "Tick “Corners markets” and/or “Half-time markets” below, then Save stats feed.";
-  if (reason.startsWith("daily budget spent")) return "Raise the daily budget below, or wait for the 00:00 UTC reset.";
-  if (reason.startsWith("throttled")) return "A pass ran recently — “Run settlement now” forces one immediately.";
-  return "";
 }
 
 /** Provider status + live test — The Odds API (v4) is the single provider. */
@@ -115,16 +96,8 @@ export default function AdminApiSettings() {
     liveOddsMarkets: "h2h",
     detailMarkets: "alternate_totals, alternate_spreads, h2h_h1, h2h_h2, team_totals",
     detailTtl: "45",
-    statsProvider: "off",
-    statsKey: "",
-    statsBudget: "90",
-    statsCorners: false,
-    statsHalfTime: false,
   });
-  const [savingOdds, setSavingOdds] = useState<"" | "ev" | "prefs" | "live" | "soccer" | "stats">("");
-  const [statsRunning, setStatsRunning] = useState(false);
-  const [statsRunMsg, setStatsRunMsg] = useState("");
-  const [statsRunTone, setStatsRunTone] = useState<"ok" | "warn" | "bad">("ok");
+  const [savingOdds, setSavingOdds] = useState<"" | "ev" | "prefs" | "live" | "soccer">("");
   const [oddsMsg, setOddsMsg] = useState("");
 
   useEffect(() => {
@@ -193,11 +166,6 @@ export default function AdminApiSettings() {
         liveOddsMarkets: (r.data.stored.liveOddsMarkets ?? ["h2h"]).join(", "),
         detailMarkets: (r.data.stored.detailMarkets ?? []).join(", ") || "alternate_totals, alternate_spreads, h2h_h1, h2h_h2, team_totals",
         detailTtl: String(r.data.stored.detailCacheTtlSeconds ?? 45),
-        statsProvider: r.data.stored.statsProvider ?? "off",
-        statsKey: "",
-        statsBudget: String(r.data.stored.statsDailyBudget ?? 90),
-        statsCorners: !!r.data.stored.statsSettleCorners,
-        statsHalfTime: !!r.data.stored.statsSettleHalfTime,
       });
     });
     const t = setInterval(() => {
@@ -214,51 +182,13 @@ export default function AdminApiSettings() {
       </span>
     ) : null;
 
-  /** Manual pass — settles any finished match whose stats/markets are already cached. */
-  async function runStatsNow() {
-    setStatsRunning(true);
-    setStatsRunMsg("");
-    // MUST go through apiFetch — it attaches the x-csrf-token header. A raw
-    // fetch() is rejected by verifyCsrf (403), and the old code mislabelled that
-    // failure as "Skipped — not enabled".
-    const r = await apiFetch<{
-      ran?: boolean; reason?: string; matched?: number; htFilled?: number; settled?: number; apiCalls?: number;
-    }>("/api/admin/stats-run", { method: "POST", body: {} });
-    if (!r.ok) {
-      setStatsRunTone("bad");
-      setStatsRunMsg(`Run failed — ${r.error.message}`);
-    } else {
-      const d = r.data;
-      if (d.ran) {
-        setStatsRunTone("ok");
-        setStatsRunMsg(
-          `Ran: ${d.matched ?? 0} matched · ${d.htFilled ?? 0} HT scores · ${d.settled ?? 0} settled · ${d.apiCalls ?? 0} API calls`
-        );
-      } else {
-        const hint = statsSkipHint(d.reason);
-        setStatsRunTone("warn");
-        setStatsRunMsg(`Skipped — ${d.reason ?? "unknown reason"}${hint ? ` → ${hint}` : ""}`);
-      }
-    }
-    await apiFetch<OddsConfig>("/api/admin/odds-config").then((x) => x.ok && setOdds(x.data));
-    setStatsRunning(false);
-  }
-
-  async function saveOdds(kind: "ev" | "prefs" | "live" | "soccer" | "stats") {
+  async function saveOdds(kind: "ev" | "prefs" | "live" | "soccer") {
     setSavingOdds(kind);
     setOddsMsg("");
     const body =
       kind === "ev"
         ? { eventMarketLimit: Number(fm.evLimit || 0), eventMarketLeagues: fm.evLeagues }
-        : kind === "stats"
-          ? {
-              statsProvider: fm.statsProvider,
-              ...(fm.statsKey ? { statsApiKey: fm.statsKey } : {}),
-              statsDailyBudget: Number(fm.statsBudget || 90),
-              statsSettleCorners: fm.statsCorners,
-              statsSettleHalfTime: fm.statsHalfTime,
-            }
-          : kind === "soccer"
+        : kind === "soccer"
           ? {
               markets: fm.markets,
               detailMarkets: fm.detailMarkets,
@@ -310,13 +240,6 @@ export default function AdminApiSettings() {
     : 0;
   const quotaLow = odds?.quota ? odds.quota.remaining < 1000 : false;
   const quotaWarn = odds?.quota ? odds.quota.remaining >= 1000 && odds.quota.remaining < 5000 : false;
-
-  // API-Football usage (daily budget + provider rate-limit read).
-  const statsUsage = odds?.statsUsage ?? null;
-  const statsUsagePct =
-    statsUsage && statsUsage.budget > 0
-      ? Math.min(100, Math.round((statsUsage.usedToday / statsUsage.budget) * 100))
-      : 0;
 
   const catalogFiltered = syncData?.catalog?.filter(
     (c) => c.key.toLowerCase().includes(search.toLowerCase()) || c.name.toLowerCase().includes(search.toLowerCase()),
@@ -613,144 +536,6 @@ export default function AdminApiSettings() {
           {envTag("detailCacheTtlSeconds")}
         </div>
         {oddsMsg && <p className="mt-3 text-xs font-semibold text-green-600 dark:text-green-400">{oddsMsg}</p>}
-      </div>
-
-      {/* ── Settlement stats feed (API-Football) ─────────────── */}
-      <div className="card p-6">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h1 className="text-lg font-extrabold">Settlement stats feed (API-Football)</h1>
-            <p className="text-sm text-ink2">
-              Supplies what the score feed cannot: <b>corners, cards and half-time scores</b> — so those markets stop
-              needing a human. Fetched on demand for finished matches, budget-guarded.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button className="btn btn-ghost btn-sm" disabled={statsRunning} onClick={runStatsNow}>
-              {statsRunning ? "Running…" : "Run settlement now"}
-            </button>
-            <button className="btn btn-primary btn-sm" disabled={savingOdds === "stats"} onClick={() => saveOdds("stats")}>
-              {savingOdds === "stats" ? "Saving…" : "Save stats feed"}
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className="label">Provider</label>
-            <select className="input" value={fm.statsProvider} onChange={(e) => setFm((f) => ({ ...f, statsProvider: e.target.value }))}>
-              <option value="off">Off (today&apos;s behaviour — manual settlement)</option>
-              <option value="api-football">API-Football (api-sports.io)</option>
-            </select>
-            <p className="mt-1 text-[11px] text-ink3">
-              Free tier is enough for settlement: 100 requests/day, and finished-match stats are served for
-              <b> today → +2 days</b> (past dates are blocked). Paid plans remove the date/season limits.
-            </p>
-            {envTag("statsProvider")}
-          </div>
-          <div>
-            <label className="label">API key {odds?.stored.statsKeySet ? "(already set)" : ""}</label>
-            <input
-              className="input font-mono text-xs"
-              type="password"
-              value={fm.statsKey}
-              onChange={(e) => setFm((f) => ({ ...f, statsKey: e.target.value }))}
-              placeholder={odds?.stored.statsKeyFromEnv ? "set via env API_FOOTBALL_KEY" : odds?.stored.statsKeySet ? "•••••••• (leave blank to keep)" : "paste the api-sports.io key"}
-            />
-            <p className="mt-1 text-[11px] text-ink3">
-              Stored in settings; env <code>API_FOOTBALL_KEY</code> overrides. Server-side only — never sent to browsers.
-            </p>
-            {envTag("statsApiKey")}
-          </div>
-          <div>
-            <label className="label">Daily request budget</label>
-            <input className="input" type="number" min={0} value={fm.statsBudget} onChange={(e) => setFm((f) => ({ ...f, statsBudget: e.target.value }))} />
-            <p className="mt-1 text-[11px] text-ink3">
-              Hard ceiling (default 90, leaving headroom under the free 100/day). Used today:{" "}
-              <b>{odds?.stored.statsBudgetUsedToday ?? 0}</b>. When spent, games stay in the review queue.
-            </p>
-            {envTag("statsDailyBudget")}
-          </div>
-          <div className="space-y-2">
-            <label className="label">What may it settle?</label>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={fm.statsCorners} onChange={(e) => setFm((f) => ({ ...f, statsCorners: e.target.checked }))} />
-              Corners markets
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={fm.statsHalfTime} onChange={(e) => setFm((f) => ({ ...f, statsHalfTime: e.target.checked }))} />
-              Half-time markets (1H totals, 1H BTTS, HT/FT)
-            </label>
-            <p className="text-[11px] text-ink3">
-              Leave both off and the feed only collects data. Unchecked markets keep their current behaviour.
-              <b> Cards are never auto-settled</b> — booking conventions differ (one yellow = one card vs 10/25
-              booking points), so card markets always stay in the manual review queue.
-            </p>
-            {odds?.stored.statsLastPass && (
-              <div className="rounded-lg border border-line bg-panel2 p-2 text-[11px] text-ink2">
-                <b>Last pass:</b>{" "}
-                {odds.stored.statsLastPass.ran === false
-                  ? `skipped — ${odds.stored.statsLastPass.reason}`
-                  : `${odds.stored.statsLastPass.matched ?? 0} matched · ${odds.stored.statsLastPass.htFilled ?? 0} HT scores · ${odds.stored.statsLastPass.settled ?? 0} settled · ${odds.stored.statsLastPass.apiCalls ?? 0} API calls`}
-                {odds.stored.statsLastPass.at ? ` · ${new Date(odds.stored.statsLastPass.at).toLocaleString()}` : ""}
-                {!!odds.stored.statsLastPass.notes?.length && (
-                  <div className="mt-1 text-ink3">{odds.stored.statsLastPass.notes.slice(0, 3).join(" · ")}</div>
-                )}
-                {odds.stored.statsLastPass.ran === false && statsSkipHint(odds.stored.statsLastPass.reason) && (
-                  <div className="mt-1 font-semibold text-amber-600 dark:text-amber-400">
-                    → {statsSkipHint(odds.stored.statsLastPass.reason)}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Usage — our daily request budget + the provider's own rate-limit read */}
-        {statsUsage && (
-          <div className="mt-4 rounded-xl border border-line bg-panel2 p-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-[11px] font-bold uppercase tracking-wide text-ink3">
-                Usage today · {statsUsage.date} (UTC — free plan resets 00:00 UTC)
-              </span>
-              <span className="text-xs font-bold text-ink">
-                {statsUsage.usedToday} / {statsUsage.budget} requests · {statsUsage.remaining} left
-              </span>
-            </div>
-            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-card2">
-              <div
-                className={`h-full rounded-full ${statsUsagePct >= 90 ? "bg-red-500" : statsUsagePct >= 70 ? "bg-amber-500" : "bg-brand"}`}
-                style={{ width: `${statsUsagePct}%` }}
-              />
-            </div>
-            {statsUsage.quota?.remaining != null ? (
-              <p className="mt-1.5 text-[11px] text-ink3">
-                Provider says: <b>{statsUsage.quota.remaining}</b>
-                {statsUsage.quota.limit ? ` / ${statsUsage.quota.limit}` : ""} requests remaining
-                {statsUsage.quota.at ? ` · last call ${String(statsUsage.quota.at).replace("T", " ").slice(0, 16)} UTC` : ""}.
-              </p>
-            ) : (
-              <p className="mt-1.5 text-[11px] text-ink3">
-                Provider rate-limit not captured yet — it appears after the first stats call (run a settlement pass).
-              </p>
-            )}
-          </div>
-        )}
-
-        {oddsMsg && <p className="mt-3 text-xs font-semibold text-green-600 dark:text-green-400">{oddsMsg}</p>}
-        {statsRunMsg && (
-          <p
-            className={`mt-1 text-xs font-semibold ${
-              statsRunTone === "bad"
-                ? "text-red-600 dark:text-red-400"
-                : statsRunTone === "warn"
-                  ? "text-amber-600 dark:text-amber-400"
-                  : "text-green-600 dark:text-green-400"
-            }`}
-          >
-            {statsRunMsg}
-          </p>
-        )}
       </div>
 
       {/* ── Live scores & in-play odds ───────────────────────── */}

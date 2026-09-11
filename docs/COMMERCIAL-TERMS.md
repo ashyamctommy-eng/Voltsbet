@@ -42,8 +42,8 @@ State exactly what is and is not included, e.g.:
 - **Not included** (the Client's own obligations — put these in the agreement):
   gambling licence, KYC/AML program, responsible-gambling compliance, payment merchant accounts
   (Palpluss/Daraja/crypto), and the odds/stats API accounts and their quotas.
-- Third-party services the Client must obtain and pay for: The Odds API key (`ODDS_API_KEY`), and
-  optionally API-Football (`API_FOOTBALL_KEY`) for the stats feed; hosting (Railway/VPS); database.
+- Third-party services the Client must obtain and pay for: The Odds API key (`ODDS_API_KEY`);
+  hosting (Railway/VPS); database.
 
 ## 4. Price and staged payment
 
@@ -78,8 +78,6 @@ The Client accepts the delivery when all of these pass on the agreed environment
    switcher and currencies behave.
 8. **Cron** — `sync`/`settle`/`schedule`/`purge`/`rates` run with the cron secret and are protected
    without it.
-9. **Stats feed (if purchased)** — provider on, a finished match gets corners/HT recorded and corner
-   markets settle; budget counter never exceeds the ceiling.
 
 A client-visible defect that blocks any item is fixed before the milestone invoice.
 

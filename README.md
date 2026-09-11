@@ -84,14 +84,12 @@ with transaction records. CSRF-protected.
 (win credit / void refund / loss), markets close when settled, users notified,
 actions audited. Optional auto-settlement via cron.
 
-**Optional stats feed (API-Football)** — the score feed cannot resolve corners,
-cards or half-time markets, so those settle manually by default. Enabling
-*API Settings → Settlement stats feed* adds a budget-guarded API-Football source
-that records half-time scores (which unlocks the half-time markets) and settles
-corner markets from per-team corner counts. Off by default; free tier is enough
-because settlement happens same-day (100 requests/day, fixtures available for
-today → +2 days). Cards stay manual on purpose — booking conventions differ
-between books, and settlement must never guess.
+**Corner & half-time settlement** — the score feed cannot resolve corners, cards
+or half-time markets, so those settle manually: an admin enters the half-time
+score at Admin → Games (which unlocks the half-time markets) and marks corner
+outcomes at Admin → Ops → Settlement Review. Cards stay manual on purpose —
+booking conventions differ between books, and settlement must never guess. An
+external stats source that posts results can automate these markets.
 
 **Admin panel** `/admin` — dashboard, sports CRUD, manual games + live scores,
 markets/outcomes + inline odds, **custom market builder** (manual markets that
@@ -200,12 +198,6 @@ build — the compile itself still succeeds.
 | `SCHEDULE_THROTTLE_MINUTES` | — | `60` | Min minutes between calendar-feed runs |
 | `SETTLE_THROTTLE_MINUTES` | — | `5` | Min minutes between auto-settle runs |
 | `RECONCILE_THROTTLE_MINUTES` | — | `5` | Min minutes between payment-reconciliation runs (`/api/cron/reconcile`) |
-| `API_FOOTBALL_KEY` | — | — | api-sports.io key — optional stats feed (corners/HT settlement). Env wins over the admin field |
-| `STATS_PROVIDER` | — | `off` | `off` \| `api-football` — enable the stats feed |
-| `STATS_DAILY_BUDGET` | — | `90` | Hard daily request ceiling for the stats feed (free tier = 100/day) |
-| `STATS_PASS_THROTTLE_SECONDS` | — | `600` | Min gap between stats settlement passes |
-| `STATS_LIST_TTL_SECONDS` | — | `900` | Matchday fixture-list cache TTL (1 call per matchday) |
-| `STATS_MAX_GAMES_PER_PASS` | — | `12` | Max games enriched per pass (burst guard) |
 | `PURGE_THROTTLE_MINUTES` | — | `60` | Min minutes between calendar-purge runs |
 | `PURGE_MAX_AGE_HOURS` | — | `2` | Delete non-in-play games this long after kickoff |
 | `RATES_SYNC_THROTTLE_MINUTES` | — | `60` | Min minutes between market-rate syncs (`/api/cron/rates`) |
@@ -438,21 +430,18 @@ league whitelist.
 
 - Groups: **Core** (list pass: h2h/spreads/totals), **Goals & results**,
   **Halves**, **Corners & cards**, **Extras**.
-- Each entry carries a settlement flag (matches `src/lib/auto-settle.ts`): the
-  default with **no stats feed**, upgraded at runtime when the feed is on:
+- Each entry carries a settlement flag (matches `src/lib/auto-settle.ts`):
   - **`auto`** — resolved from the final score in `/scores`: 1X2 (incl. 3-way),
     totals/goal lines, BTTS, Draw No Bet, Double Chance, Correct Score,
     handicaps, team totals.
   - **`auto-ht`** — the resolver exists but requires the half-time score, which
     `/scores` does not provide: 1st/2nd-half totals, 1st-half BTTS, HT/FT.
-    Without the stats feed an admin enters the HT score (Admin → Games); **with**
-    it the score is recorded automatically, so these settle unattended.
+    An admin enters the HT score (Admin → Games), which unlocks these markets.
   - **`manual`** — no resolver from the score feed: corners, cards, half
-    result/handicap/correct score, qualification, player props. Enabling the
-    stats feed gives **corner** markets a resolver (per-team corner counts) and
-    makes them automatic; **cards stay manual on purpose** (book conventions
-    differ). Anything unresolved stays for **Admin → Ops → Settlement Review**
-    (`POST /api/admin/settle/{outcomeId}`).
+    result/handicap/correct score, qualification, player props. Corners and cards
+    settle in **Admin → Ops → Settlement Review** (`POST /api/admin/settle/{outcomeId}`),
+    unless an external stats source posts the per-team corner counts. **Cards stay
+    manual on purpose** (book conventions differ).
 - A unit test asserts every selectable key exists in the provider `MARKET_MAP`
   (a selectable-but-unmappable market would burn credits and store nothing).
 
