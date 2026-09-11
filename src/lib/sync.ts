@@ -16,6 +16,7 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { TheOddsApi, OddsProvider, ApiGame, LIST_MARKETS, getEffectiveOddsMarkets } from "@/lib/providers/odds-api";
+import { estimateSyncCostWithMarkets } from "@/lib/odds-cost";
 import { teamLogo } from "@/lib/team-logos";
 import { getSettings, setSetting } from "@/lib/settings";
 import { deriveMarketsFrom1x2, DERIVED_MARKET_KEYS } from "@/lib/derived-markets";
@@ -254,6 +255,38 @@ export async function syncGames(providerId?: string) {
   // the seed; existing installs get them here) before the N+1 batch lookup.
   await ensureMappedSports(bettable);
 
+  // ── Cost estimate + hard credit cap ──────────────────────────────────────
+  // Computed BEFORE the paid list pass: fetchSports() is quota-free, so an
+  // accidental broad sweep can be aborted while it still costs nothing.
+  // Per-event deep-market config (env wins, else the DB-driven admin value).
+  const envEventLeagues = process.env.ODDS_API_EVENT_MARKET_LEAGUES?.split(",").map((x) => x.trim()).filter(Boolean);
+  const eventLeagues = (envEventLeagues && envEventLeagues.length ? envEventLeagues : s.oddsEventMarketLeagues) ?? [];
+  const envEventLimit = Number(process.env.ODDS_API_EVENT_MARKET_LIMIT);
+  const eventLimit = process.env.ODDS_API_EVENT_MARKET_LIMIT !== undefined && Number.isFinite(envEventLimit)
+    ? Math.max(0, envEventLimit)
+    : s.oddsEventMarketLimit;
+  // Deep markets are only fetched for featured leagues that are also in scope.
+  const featured = whitelistMode ? eventLeagues.filter((k) => sportKeys.includes(k)) : eventLeagues;
+
+  const estimate = await estimateSyncCostWithMarkets({
+    leagues: sportKeys.length,
+    regions: s.oddsRegions,
+    eventLeagues: featured.length,
+    eventLimit,
+  });
+  const creditCap = Number(process.env.MAX_CREDITS_PER_RUN);
+  if (Number.isFinite(creditCap) && creditCap > 0 && estimate.totalCredits > creditCap) {
+    return {
+      aborted: true,
+      reason: `Estimated ${estimate.totalCredits} credits exceeds MAX_CREDITS_PER_RUN=${creditCap}. Nothing was fetched — trim leagues/markets or raise the cap.`,
+      mode: whitelistMode ? "whitelist" : "catalog",
+      leagues: sportKeys.length,
+      estimatedCredits: estimate.totalCredits,
+      creditCap,
+      cost: estimate,
+    };
+  }
+
   const games = await provider.fetchUpcomingGames(sportKeys);
 
   // ── Batch prefetch (kills the N+1 loop) ────────────────────────────
@@ -383,18 +416,9 @@ export async function syncGames(providerId?: string) {
   }
 
   // Per-event extended markets (btts, correct_score, …) for the top leagues —
-  // fetched from /events/{id}/odds for the nearest upcoming fixtures.
-  // Per-event deep-market pass config: env ODDS_API_EVENT_MARKET_* wins,
-  // otherwise the DB-driven Admin → Website Settings → Odds Sync values.
-  // The featured set is additionally intersected with the league whitelist
-  // so an unlisted league is never charged for deep markets.
-  const envEventLeagues = process.env.ODDS_API_EVENT_MARKET_LEAGUES?.split(",").map((x) => x.trim()).filter(Boolean);
-  const eventLeagues = (envEventLeagues && envEventLeagues.length ? envEventLeagues : s.oddsEventMarketLeagues) ?? [];
-  const envEventLimit = Number(process.env.ODDS_API_EVENT_MARKET_LIMIT);
-  const eventLimit = process.env.ODDS_API_EVENT_MARKET_LIMIT !== undefined && Number.isFinite(envEventLimit)
-    ? Math.max(0, envEventLimit)
-    : s.oddsEventMarketLimit;
-  const featured = whitelistMode ? eventLeagues.filter((k) => sportKeys.includes(k)) : eventLeagues;
+  // fetched from /events/{id}/odds for the nearest upcoming fixtures. The
+  // config (eventLeagues / eventLimit / featured) was resolved ABOVE, before
+  // the paid list pass, so the cost estimate and the actual fetch agree.
   const eventMarkets = await syncEventMarkets(priced.filter((g) => !g.inPlay), featured, eventLimit);
 
   // Auto-hide seed/manual games once the provider feed is live — the site then
@@ -420,6 +444,7 @@ export async function syncGames(providerId?: string) {
         created,
         updated,
         games: games.length,
+        estimatedCredits: estimate.totalCredits,
       }),
     );
   } catch {
@@ -435,6 +460,8 @@ export async function syncGames(providerId?: string) {
     eventMarkets,
     gamesSynced: games.length,
     provider: providerId_,
+    estimatedCredits: estimate.totalCredits,
+    cost: estimate,
   };
 }
 

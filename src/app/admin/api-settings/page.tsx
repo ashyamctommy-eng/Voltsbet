@@ -48,6 +48,18 @@ type OddsConfig = {
   quota: { used: number; remaining: number } | null;
   /** Quota headers captured by the most recent live sweep (Setting odds.lastQuota). */
   lastSweep: { remaining: number | null; used: number | null; cost: number | null; at: string; path?: string } | null;
+  /** Estimated cost of ONE sync under the current config (list + deep pass). */
+  costEstimate: {
+    leagues: number; listMarkets: number; regions: number; eventLeagues: number; eventLimit: number;
+    extendedMarkets: number; maxEvents: number; listCredits: number; eventCredits: number; totalCredits: number;
+  } | null;
+  /** Hard ceiling from MAX_CREDITS_PER_RUN (null = no cap). */
+  creditCap: number | null;
+  /** API-Football usage: local daily budget + the provider's own rate-limit read. */
+  statsUsage: {
+    date: string; usedToday: number; budget: number; remaining: number;
+    quota: { remaining: number | null; limit: number | null; path: string; at: string } | null;
+  } | null;
 };
 
 /** Accept one key per line, comma separated, or a JSON array. */
@@ -60,6 +72,17 @@ function parseLeagues(v: string): string[] {
     } catch { /* fall through */ }
   }
   return [...new Set(raw.split(/[\n,]+/).map((x) => x.trim()).filter((x) => x && !x.startsWith("#")))];
+}
+
+/** Turn a stats-pass skip reason into an actionable next step. */
+function statsSkipHint(reason?: string): string {
+  if (!reason) return "Check the Provider setting below — the pass only runs when the feed is on and a toggle is ticked.";
+  if (reason === "stats feed disabled") return "Set Provider → API-Football below, then Save stats feed.";
+  if (reason === "no API-Football key") return "Paste your api-sports.io key below (or set API_FOOTBALL_KEY), then Save stats feed.";
+  if (reason.startsWith("stats settlement toggles")) return "Tick “Corners & cards” and/or “Half-time markets” below, then Save stats feed.";
+  if (reason.startsWith("daily budget spent")) return "Raise the daily budget below, or wait for the 00:00 UTC reset.";
+  if (reason.startsWith("throttled")) return "A pass ran recently — “Run settlement now” forces one immediately.";
+  return "";
 }
 
 /** Provider status + live test — The Odds API (v4) is the single provider. */
@@ -255,17 +278,21 @@ export default function AdminApiSettings() {
     if (r.ok) setOdds(r.data);
   }
 
-  // ≈ runs left on the current balance for the LIST pass only.
+  // Runs left on the current balance — uses the FULL per-run estimate
+  // (list pass + per-event deep pass) returned by the server, so the deep
+  // market menu is no longer invisible in this number.
   const runsLeft = (() => {
     const q = odds?.quota;
     if (!q || !odds) return null;
+    const est = odds.costEstimate;
     const regionsCount = fm.regions.includes(",") ? 2 : 1;
     const perLeague = 3 * regionsCount;
     const leagues = (syncData?.configured?.length ?? 0) || odds.stored.feedMaxLeagues || 1;
-    if (!perLeague || !leagues) return null;
-    const listRuns = Math.floor(q.remaining / (perLeague * leagues));
-    const deep = Number(fm.evLimit || 0) > 0;
-    return { listRuns, deep, perRun: perLeague * leagues };
+    const listCredits = est?.listCredits ?? perLeague * leagues;
+    const eventCredits = est?.eventCredits ?? 0;
+    const perRun = est?.totalCredits ?? perLeague * leagues;
+    const listRuns = perRun > 0 ? Math.floor(q.remaining / perRun) : 0;
+    return { listRuns, perRun, listCredits, eventCredits, deep: eventCredits > 0 };
   })();
 
   const quotaPct = odds?.quota
@@ -273,6 +300,13 @@ export default function AdminApiSettings() {
     : 0;
   const quotaLow = odds?.quota ? odds.quota.remaining < 1000 : false;
   const quotaWarn = odds?.quota ? odds.quota.remaining >= 1000 && odds.quota.remaining < 5000 : false;
+
+  // API-Football usage (daily budget + provider rate-limit read).
+  const statsUsage = odds?.statsUsage ?? null;
+  const statsUsagePct =
+    statsUsage && statsUsage.budget > 0
+      ? Math.min(100, Math.round((statsUsage.usedToday / statsUsage.budget) * 100))
+      : 0;
 
   const catalogFiltered = syncData?.catalog?.filter(
     (c) => c.key.toLowerCase().includes(search.toLowerCase()) || c.name.toLowerCase().includes(search.toLowerCase()),
@@ -402,9 +436,24 @@ export default function AdminApiSettings() {
             </div>
             {runsLeft && (
               <p className="mt-2 text-xs text-ink2">
-                <b>{runsLeft.listRuns.toLocaleString()} full sync runs left</b> on your current balance at {runsLeft.perRun.toLocaleString()} credits/run
-                (list pass only)
-                {runsLeft.deep && " — the deep-market pass adds credits per run; see Event markets below."}
+                <b>{runsLeft.listRuns.toLocaleString()} full sync runs left</b> on your current balance at{" "}
+                <b>{runsLeft.perRun.toLocaleString()} credits/run</b> (list {runsLeft.listCredits.toLocaleString()} + deep
+                markets {runsLeft.eventCredits.toLocaleString()}). At 3×/day that is ≈{" "}
+                {(runsLeft.perRun * 90).toLocaleString()} credits/month.
+              </p>
+            )}
+            {odds?.costEstimate && (
+              <p className="mt-1 text-[11px] leading-relaxed text-ink3">
+                Estimate: {odds.costEstimate.leagues} leagues × {odds.costEstimate.listMarkets} list markets ×{" "}
+                {odds.costEstimate.regions} region(s)
+                {odds.costEstimate.eventCredits > 0 && (
+                  <> + {odds.costEstimate.eventLeagues} featured leagues × {odds.costEstimate.eventLimit} events ×{" "}
+                  {odds.costEstimate.extendedMarkets} deep markets</>
+                )}
+                .{" "}
+                {odds.creditCap
+                  ? `Hard cap active: MAX_CREDITS_PER_RUN=${odds.creditCap} — a larger run aborts before fetching.`
+                  : "No MAX_CREDITS_PER_RUN cap set — a broad sweep can spend unchecked."}
               </p>
             )}
             {odds?.lastSweep && (
@@ -635,10 +684,47 @@ export default function AdminApiSettings() {
                 {!!odds.stored.statsLastPass.notes?.length && (
                   <div className="mt-1 text-ink3">{odds.stored.statsLastPass.notes.slice(0, 3).join(" · ")}</div>
                 )}
+                {odds.stored.statsLastPass.ran === false && statsSkipHint(odds.stored.statsLastPass.reason) && (
+                  <div className="mt-1 font-semibold text-amber-600 dark:text-amber-400">
+                    → {statsSkipHint(odds.stored.statsLastPass.reason)}
+                  </div>
+                )}
               </div>
             )}
           </div>
         </div>
+
+        {/* Usage — our daily request budget + the provider's own rate-limit read */}
+        {statsUsage && (
+          <div className="mt-4 rounded-xl border border-line bg-panel2 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-[11px] font-bold uppercase tracking-wide text-ink3">
+                Usage today · {statsUsage.date} (UTC — free plan resets 00:00 UTC)
+              </span>
+              <span className="text-xs font-bold text-ink">
+                {statsUsage.usedToday} / {statsUsage.budget} requests · {statsUsage.remaining} left
+              </span>
+            </div>
+            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-card2">
+              <div
+                className={`h-full rounded-full ${statsUsagePct >= 90 ? "bg-red-500" : statsUsagePct >= 70 ? "bg-amber-500" : "bg-brand"}`}
+                style={{ width: `${statsUsagePct}%` }}
+              />
+            </div>
+            {statsUsage.quota?.remaining != null ? (
+              <p className="mt-1.5 text-[11px] text-ink3">
+                Provider says: <b>{statsUsage.quota.remaining}</b>
+                {statsUsage.quota.limit ? ` / ${statsUsage.quota.limit}` : ""} requests remaining
+                {statsUsage.quota.at ? ` · last call ${String(statsUsage.quota.at).replace("T", " ").slice(0, 16)} UTC` : ""}.
+              </p>
+            ) : (
+              <p className="mt-1.5 text-[11px] text-ink3">
+                Provider rate-limit not captured yet — it appears after the first stats call (run a settlement pass).
+              </p>
+            )}
+          </div>
+        )}
+
         {oddsMsg && <p className="mt-3 text-xs font-semibold text-green-600 dark:text-green-400">{oddsMsg}</p>}
         {statsRunMsg && <p className="mt-1 text-xs font-semibold text-green-600 dark:text-green-400">{statsRunMsg}</p>}
       </div>

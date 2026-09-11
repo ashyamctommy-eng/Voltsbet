@@ -4,6 +4,9 @@ import { getSettings, setSetting, invalidateSettingsCache } from "@/lib/settings
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { readJson } from "@/lib/stats/store";
+import { estimateSyncCostWithMarkets } from "@/lib/odds-cost";
+import { statsBudget } from "@/lib/stats/budget";
+import { getStatsQuota } from "@/lib/stats/api-football";
 
 /**
  * Admin Odds engine configuration (Admin → API Settings → Odds engine).
@@ -71,6 +74,21 @@ export const GET = handle(async (req: NextRequest) => {
   const s = await getSettings();
   const [quota, lastSweep] = await Promise.all([fetchQuota(), fetchSweepQuota()]);
 
+  // Estimated cost of ONE sync under the CURRENT config — so the admin sees the
+  // burn before pressing anything. Leagues = whitelist length if set, else the
+  // catalog cap (the no-whitelist path walks up to that many leagues).
+  const estimateLeagues = (s.oddsSyncLeagues?.length ?? 0) || s.oddsFeedMaxLeagues;
+  const [costEstimate, statsBudgetInfo] = await Promise.all([
+    estimateSyncCostWithMarkets({
+      leagues: estimateLeagues,
+      regions: s.oddsRegions,
+      eventLeagues: (s.oddsEventMarketLeagues ?? []).length,
+      eventLimit: s.oddsEventMarketLimit,
+    }).catch(() => null),
+    statsBudget().catch(() => null),
+  ]);
+  const creditCap = Number(process.env.MAX_CREDITS_PER_RUN);
+
   const env = {
     regions: process.env.ODDS_API_REGIONS,
     rateLimitMs: process.env.ODDS_API_RATE_LIMIT_MS,
@@ -119,6 +137,17 @@ export const GET = handle(async (req: NextRequest) => {
     env,
     quota,
     lastSweep,
+    costEstimate,
+    creditCap: Number.isFinite(creditCap) && creditCap > 0 ? creditCap : null,
+    statsUsage: statsBudgetInfo
+      ? {
+          date: statsBudgetInfo.date,
+          usedToday: statsBudgetInfo.used,
+          budget: statsBudgetInfo.budget,
+          remaining: statsBudgetInfo.remaining,
+          quota: getStatsQuota(),
+        }
+      : null,
   });
 });
 
