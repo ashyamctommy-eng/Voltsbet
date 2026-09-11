@@ -17,19 +17,27 @@ export const dynamic = "force-dynamic";
  *  gate caused a quota-starved partial API feed to MASK good DB games. */
 export default async function HomePage() {
   const s = await getSettings();
-  const [banners, dbGames, popularSports, promotions] = await Promise.all([
+  const now = new Date();
+  const weekEnd = new Date(now);
+  weekEnd.setDate(weekEnd.getDate() + 7);
+  // "Hide seeded" must hide MANUAL rows (seed / admin-created) only — API
+  // (priced) and SCHEDULE (calendar) rows are both real synced data. Filtering
+  // to source="API" alone silently dropped the entire 7-day calendar.
+  const visibleSource = s.hideSeededGames ? { source: { in: ["API", "SCHEDULE"] } } : {};
+
+  const [banners, pricedGames, calendarGames, popularSports, promotions] = await Promise.all([
     prisma.banner.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
-    // Synced DB games (cron sync keeps them fresh). Rendered first when recent
-    // — this is the free-tier-friendly path: 0 API requests per page load.
+    // Priced, near-term fixtures (the odds sync owns these) — rendered first.
+    // 0 API requests per page load: the free-tier-friendly path.
     prisma.game.findMany({
       where: {
         status: { notIn: ["FINISHED", "CANCELLED", "LIVE", "HALF_TIME"] },
         // Near-term upcoming fixtures ONLY — a match that already kicked off
-        // (startAt <= now) is no longer pre-match: it belongs on /live (the
-        // /scores pipeline owns started games) or /results. Stale SCHEDULED
-        // rows from older syncs must never flood the home feed.
-        startAt: { gte: new Date() },
-        ...(s.hideSeededGames ? { source: "API" } : {}),
+        // (startAt <= now) is no longer pre-match: it belongs on /live or
+        // /results. Stale SCHEDULED rows must never flood the home feed.
+        startAt: { gte: now },
+        markets: { some: {} },
+        ...visibleSource,
       },
       include: {
         sport: true,
@@ -37,6 +45,23 @@ export default async function HomePage() {
       },
       orderBy: [{ live: "desc" }, { startAt: "asc" }],
       take: 200,
+    }),
+    // Unpriced calendar rows from the FREE /events schedule sync
+    // (/api/cron/schedule). These make the rolling 7-day date pills real —
+    // no odds spend required. They render as "odds not yet available" cards.
+    prisma.game.findMany({
+      where: {
+        status: "SCHEDULED",
+        startAt: { gte: now, lte: weekEnd },
+        markets: { none: {} },
+        ...visibleSource,
+      },
+      include: {
+        sport: true,
+        markets: { include: { outcomes: true }, orderBy: { sortOrder: "asc" } },
+      },
+      orderBy: [{ startAt: "asc" }],
+      take: 150,
     }),
     prisma.sport.findMany({
       where: { active: true },
@@ -51,24 +76,33 @@ export default async function HomePage() {
     }),
   ]);
 
-  // API bootstrap ONLY when the DB is empty (fresh deploy / pre-first-cron).
-  // TTL-cached server-side (6h), so it runs at most a few times a day even
-  // then. Live matches are filtered OUT of home — /live.
-  const apiFeed = dbGames.length > 0 ? null : await getPrematchFeed().catch(() => null);
+  // API bootstrap ONLY when the DB has no priced games (fresh deploy /
+  // pre-first-cron). TTL-cached server-side (6h). Live matches are filtered
+  // OUT of home — /live owns them.
+  const apiFeed = pricedGames.length > 0 ? null : await getPrematchFeed().catch(() => null);
+
+  // Priced games first (bookable), then the unpriced calendar rows, deduped —
+  // a fixture can never render twice. Unpriced rows are intentionally kept
+  // now (the 7-day calendar) — they render as "odds not yet available" cards.
+  const seen = new Set<string>();
+  const dbGames = [...pricedGames, ...calendarGames].filter((g) =>
+    seen.has(g.id) ? false : (seen.add(g.id), true)
+  );
+
   const games: MatchFeedGame[] = (
-    apiFeed?.matches.length
-      ? apiFeed.matches.map(apiMatchToFeedGame)
-      : (dbGames as MatchFeedGame[])
-  )
-    // Unpriced fixtures (no active bookmaker markets) are never displayed —
-    // no empty cards, no suspended overlays.
-    .filter((g) => !Array.isArray((g as { markets?: unknown[] }).markets) || (g as { markets: unknown[] }).markets.length > 0)
-    .filter((g) => !isLiveStatus(g.status, g.live));
+    apiFeed?.matches.length ? apiFeed.matches.map(apiMatchToFeedGame) : (dbGames as unknown as MatchFeedGame[])
+  ).filter((g) => !isLiveStatus(g.status, g.live));
+
+  // The hero slideshow stays odds-first — unpriced calendar rows belong in the
+  // day-by-day feed, not the featured carousel.
+  const slideshowGames = games.filter(
+    (g) => ((g as { markets?: unknown[] }).markets?.length ?? 0) > 0
+  );
 
   return (
     <div className="mx-auto max-w-[1600px] px-4">
-      {/* Live / upcoming match slideshow */}
-      <MatchSlideshow games={games} />
+      {/* Live / upcoming match slideshow (odds-first) */}
+      <MatchSlideshow games={slideshowGames} />
 
       {/* Match feed with time + market filters — defaults to Football */}
       {apiFeed?.matches.length ? (

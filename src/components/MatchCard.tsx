@@ -263,6 +263,25 @@ export default function MatchCard({
             })}
           </div>
         </div>
+      ) : !isFinished && game.markets.length === 0 ? (
+        /* Scheduled fixture with no prices yet — a real calendar entry from the
+           free /events schedule sync. Show the teams + kickoff and an explicit
+           "odds not available yet" state (never "Market Suspended", which
+           implies a problem with an existing market). */
+        <div className="mt-2">
+          <div className="flex items-center justify-between gap-2 text-xs text-ink2">
+            <span className="truncate font-semibold">
+              <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-brand/40 align-middle" />
+              {view.homeTeam} <span className="text-ink3">vs</span> {view.awayTeam}
+            </span>
+            <span className="shrink-0 font-bold uppercase tracking-wider text-ink3">
+              {t("match.scheduled", { defaultValue: "Scheduled" })}
+            </span>
+          </div>
+          <div className="mt-2 rounded-lg border border-dashed border-line2 bg-card2/40 px-3 py-2 text-center text-[11px] font-semibold text-ink3">
+            {t("match.oddsSoon", { defaultValue: "Odds not available yet — check back closer to kickoff" })}
+          </div>
+        </div>
       ) : !isFinished && !hasOutcomes ? (
         <div className="mt-2 rounded-lg bg-card2 px-3 py-2 text-center text-xs font-semibold text-amber-400">
           {t("match.marketSuspended")}

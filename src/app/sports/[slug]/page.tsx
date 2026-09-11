@@ -19,7 +19,7 @@ export default async function SportPage({ params }: { params: Promise<{ slug: st
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
   const todayEnd = new Date(todayStart.getFullYear(), todayStart.getMonth(), todayStart.getDate() + 1);
-  const hideSeeded = s.hideSeededGames ? { source: "API" } : {};
+  const hideSeeded = s.hideSeededGames ? { source: { in: ["API", "SCHEDULE"] } } : {};
 
   const [sports, todayGames, upcoming] = await Promise.all([
     prisma.sport.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
