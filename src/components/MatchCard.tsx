@@ -7,7 +7,7 @@ import OddsButton from "@/components/OddsButton";
 import TeamLogo from "@/components/TeamLogo";
 import { liveContext } from "@/lib/kickoff";
 import { isTickingClock, livePhase, toMatchView } from "@/lib/match-view";
-import { isPairedBoard, pairOverUnderRows } from "@/lib/odds-layout";
+import { pairOverUnderGroups } from "@/lib/odds-layout";
 import { displayOutcomeName } from "@/lib/market-labels";
 import { flagForLeague, countryForLeague } from "@/lib/league-flags";
 import { activeMarketCount, hasAnyOutcomes } from "@/lib/game-status";
@@ -130,7 +130,8 @@ export default function MatchCard({
     (preferMarkets ? candidates.find((m) => preferMarkets.includes(m.key)) : undefined) ??
     candidates.find((m) => m.key === "h2h" || m.key === "MATCH_RESULT") ??
     candidates[0];
-  const odds = mainMarket?.outcomes.filter((o) => o.status === "ACTIVE").slice(0, 3) ?? [];
+  const activeOutcomes = mainMarket?.outcomes.filter((o) => o.status === "ACTIVE") ?? [];
+  const odds = activeOutcomes.slice(0, 3);
   const ctx = liveContext(game.status, game.clock, game.period);
   const phase = livePhase(game.period);
 
@@ -144,12 +145,15 @@ export default function MatchCard({
     : odds.map((o) => ({ leg: o.name, label: o.label, outcome: o }));
 
   /* Unified layout rows (shared rule with the match-detail board): Over/Under
-     line markets pair 2-up per line, every other board stacks full-width. */
+     line markets pair 2-up per line, every other board stacks full-width.
+     Pairing runs on the FULL active list — the 3-item display cap above would
+     otherwise leave a totals board with an unpaired third line. */
+  const ouGroups = mainMarket ? pairOverUnderGroups(activeOutcomes) : null;
   const layoutRows: { key: string; cells: { outcome?: (typeof odds)[number]; label: string }[] }[] =
-    mainMarket && isPairedBoard(odds)
-      ? pairOverUnderRows(odds).map((row) => ({
-          key: row[0].id,
-          cells: row.map((o) => ({
+    mainMarket && ouGroups
+      ? ouGroups.slice(0, 2).map((g) => ({
+          key: g.cells[0].id,
+          cells: g.cells.map((o) => ({
             outcome: o,
             label: displayOutcomeName(o.name, mainMarket.key, view.homeTeam, view.awayTeam),
           })),

@@ -6,8 +6,8 @@ import OddsButton from "@/components/OddsButton";
 import { IconStar, IconChevronDown } from "@/components/icons";
 import { useTranslation } from "react-i18next";
 import { tMarket } from "@/lib/i18n";
-import { displayOutcomeName, groupHandicapPairs, HANDICAP_MARKET_KEYS } from "@/lib/market-labels";
-import { pairOverUnderRows } from "@/lib/odds-layout";
+import { displayOutcomeName, groupHandicapPairs, HANDICAP_MARKET_KEYS, TEAM_MARKET_SCOPE } from "@/lib/market-labels";
+import { pairOverUnderGroups } from "@/lib/odds-layout";
 
 type FixtureOutcome = {
   id: string;
@@ -54,6 +54,12 @@ const CORRECT_SCORE_KEYS = ["CORRECT_SCORE", "correct_score"];
 
 /** Correct-score boards are long — keep the dense scoreboard grid for these. */
 const SCORE_GRID_KEYS = new Set(["CORRECT_SCORE", "correct_score"]);
+
+/** Result boards whose outcome label ("1" / "X" / "2") IS the display text.
+ *  Everywhere else the sanitized outcome name is shown instead. */
+const RESULT_LABEL_KEYS = new Set([
+  "h2h", "MATCH_RESULT", "HT_RESULT", "HALF_TIME_RESULT", "2H_RESULT", "h2h_h1", "h2h_h2",
+]);
 
 type Category = "all" | "main" | "totals" | "first_half" | "second_half" | "correct_score";
 
@@ -131,10 +137,18 @@ export default function FixtureMarkets({ game, markets }: { game: FixtureCtx; ma
       return next;
     });
 
-  /** Label shown on the left of the pill: the short tag (1/X/2) when present,
-   *  otherwise the team-aware display name ("Over 2.5", "Arsenal -1.5"). */
-  const text = (m: FixtureMarket, o: FixtureOutcome) =>
-    o.label?.trim() || displayOutcomeName(o.name, m.key, game.homeName, game.awayName);
+  /**
+   * Left-hand text of the pill. Result boards show their short tag
+   * ("1" / "X" / "2"); every other board shows the sanitized outcome name —
+   * "Over 0.5", never the bare side label ("1") that team totals carry for
+   * settlement. On Home/Away Team Totals the redundant team prefix is already
+   * stripped by displayOutcomeName().
+   */
+  const text = (m: FixtureMarket, o: FixtureOutcome) => {
+    const tag = o.label?.trim();
+    if (tag && RESULT_LABEL_KEYS.has(m.key)) return tag;
+    return displayOutcomeName(o.name, m.key, game.homeName, game.awayName);
+  };
 
   const pill = (m: FixtureMarket, o: FixtureOutcome) => (
     <OddsButton
@@ -197,7 +211,6 @@ export default function FixtureMarkets({ game, markets }: { game: FixtureCtx; ma
         const outcomeIds = new Set(m.outcomes.map((o) => o.id));
         const selectedCount = items.filter((i) => outcomeIds.has(i.outcomeId)).length;
         const isScore = SCORE_GRID_KEYS.has(m.key);
-        const rows = isScore ? null : pairOverUnderRows(m.outcomes);
 
         return (
           <section key={m.id} className="border-b border-line last:border-b-0">
@@ -263,17 +276,43 @@ export default function FixtureMarkets({ game, markets }: { game: FixtureCtx; ma
                 ) : isScore ? (
                   <div className="grid grid-cols-3 gap-2">{m.outcomes.map((o) => pill(m, o))}</div>
                 ) : (
-                  <div className="grid gap-2">
-                    {rows!.map((row) =>
-                      row.length === 2 ? (
-                        <div key={row[0].id} className="grid grid-cols-2 gap-2">
-                          {row.map((o) => pill(m, o))}
+                  (() => {
+                    /* Over/Under boards pair 2-up per line. On a MIXED team
+                       board (both teams in one accordion) the pairs are grouped
+                       by the team prefix — show it once as a sub-header rather
+                       than repeating "West Ham United …" inside every pill. On
+                       single-team boards the accordion header already names the
+                       side, so no sub-header is needed. */
+                    const groups = pairOverUnderGroups(m.outcomes);
+                    if (!groups) {
+                      return (
+                        <div className="grid gap-2">
+                          {m.outcomes.map((o) => (
+                            <div key={o.id}>{pill(m, o)}</div>
+                          ))}
                         </div>
-                      ) : (
-                        <div key={row[0].id}>{pill(m, row[0])}</div>
-                      ),
-                    )}
-                  </div>
+                      );
+                    }
+                    const showPrefix = !TEAM_MARKET_SCOPE[m.key];
+                    return (
+                      <div className="grid gap-2">
+                        {groups.map((g, i) => {
+                          // Sub-header once per team, not once per line.
+                          const newTeam = showPrefix && g.prefix !== "" && g.prefix !== groups[i - 1]?.prefix;
+                          return (
+                            <div key={g.cells[0].id} className="grid gap-2">
+                              {newTeam && (
+                                <div className="truncate text-[11px] font-semibold text-ink3">{g.prefix}</div>
+                              )}
+                              <div className="grid grid-cols-2 gap-2">
+                                {g.cells.map((o) => pill(m, o))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()
                 )}
               </div>
             )}

@@ -150,20 +150,22 @@ body {
    * the no-attribute case both land on dark). Values are explicit slate /
    * emerald so text contrast stays crisp in both modes. */
   .odds-btn {
-    @apply flex w-full items-center justify-between gap-2 rounded-[14px] px-4 py-2.5 text-sm font-bold transition-all duration-100 select-none;
+    @apply flex w-full items-center justify-between rounded-[14px] px-3 py-2 whitespace-nowrap text-xs transition-all duration-100 select-none sm:text-sm;
     min-height: 44px;                              /* 44px tap target */
     background: rgb(30 41 59 / 0.8);               /* dark: slate-800/80 */
     border: 1px solid #334155;
     color: #e2e8f0;                                /* dark: slate-200 */
     -webkit-tap-highlight-color: transparent;
   }
+  /* No truncate/overflow-hidden here: labels are already sanitized (team
+     prefixes stripped) so they must never ellipsise while there is room. */
   .odds-btn .odds-label {
-    @apply min-w-0 truncate font-semibold;
+    @apply min-w-0 font-medium;
     color: #e2e8f0;
   }
   .odds-btn .odds-price {
-    @apply shrink-0 font-bold tabular-nums;
-    color: #ffffff;                                /* dark: bold white */
+    @apply ml-2 shrink-0 font-bold tabular-nums;
+    color: #34d399;                                /* dark: emerald-400 */
   }
   .odds-btn:hover { background: #334155; }         /* dark: slate-700 */
   .odds-btn:active { background: #047857; }        /* dark: emerald-700 */
@@ -196,14 +198,14 @@ body {
   /* Empty cell where an outcome has no price yet — same shell as .odds-btn
      so a missing price never breaks the row rhythm. */
   .odds-placeholder {
-    @apply flex w-full items-center justify-between gap-2 rounded-[14px] px-4 py-2.5 text-sm font-semibold;
+    @apply flex w-full items-center justify-between rounded-[14px] px-3 py-2 whitespace-nowrap text-xs sm:text-sm;
     min-height: 44px;
     background: rgb(30 41 59 / 0.8);
     border: 1px solid #334155;
     color: #64748b;
   }
-  .odds-placeholder .odds-label { @apply min-w-0 truncate; }
-  .odds-placeholder .odds-price { @apply shrink-0 font-bold tabular-nums; }
+  .odds-placeholder .odds-label { @apply min-w-0 font-medium; }
+  .odds-placeholder .odds-price { @apply ml-2 shrink-0 font-bold tabular-nums; }
 
   /* ── Misc ─────────────────────────────────────────────────── */
   .skeleton {
@@ -322,7 +324,9 @@ html[data-theme="light"] .odds-btn {
   color: #0f172a;                        /* slate-900 */
 }
 html[data-theme="light"] .odds-btn .odds-label { color: #0f172a; }
-html[data-theme="light"] .odds-btn .odds-price { color: #020617; }
+/* emerald-400 is unreadable on a light pill; emerald-700 keeps the same hue
+   while clearing AA (5.0:1 on slate-200). */
+html[data-theme="light"] .odds-btn .odds-price { color: #047857; }
 html[data-theme="light"] .odds-btn:hover { background: #cbd5e1; }   /* slate-300 */
 html[data-theme="light"] .odds-btn:active { background: #047857; }
 html[data-theme="light"] .odds-btn:active .odds-label,

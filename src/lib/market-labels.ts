@@ -95,6 +95,45 @@ const TEAM_SCOPED_KEYS: Record<string, "home" | "away"> = {
 };
 
 /**
+ * Markets whose accordion header already identifies WHICH team the board is
+ * about ("Home Team Totals" / "Away Team Totals"). Every outcome on these
+ * rows is stored with the team name prefixed ("West Ham United Over 0.5"), so
+ * repeating it inside each pill is pure waste: it eats the width that the
+ * line needs and the label ellipsises to "West Ham Unit…", hiding the one
+ * thing that matters (Over/Under 0.5). displayOutcomeName() strips it here.
+ *
+ * Boards that mix both teams in ONE accordion (TEAM_TOTALS, TEAM_CORNERS,
+ * ALTERNATE_TEAM_TOTALS …) are deliberately NOT in this map — on those the
+ * team name is the only thing telling the rows apart, so it must stay (the
+ * board renders it as a group sub-header instead of squeezing it into the
+ * pills — see pairOverUnderGroups()).
+ */
+export const TEAM_MARKET_SCOPE: Record<string, "home" | "away"> = {
+  TEAM_TOTALS_HOME: "home",
+  TEAM_TOTALS_AWAY: "away",
+};
+
+/**
+ * Drop a leading team name from an outcome label:
+ *   "West Ham United Over 0.5" → "Over 0.5"
+ *   "Wrexham AFC Under 1.5"    → "Under 1.5"
+ * Case-insensitive, and tolerant of a separator left behind ("West Ham
+ * United - Over 0.5"). A label that is ONLY the team name is returned
+ * untouched — we never strip a label down to nothing.
+ */
+export function stripTeamPrefix(name: string, homeName: string, awayName: string): string {
+  const trimmed = name.trim();
+  for (const team of [homeName, awayName]) {
+    const t = team?.trim();
+    if (!t || t.length < 3) continue;
+    if (!trimmed.toLowerCase().startsWith(t.toLowerCase())) continue;
+    const rest = trimmed.slice(t.length).replace(/^[\s\-–—:|]+/, "").trim();
+    if (rest) return rest;
+  }
+  return trimmed;
+}
+
+/**
  * Prefix the relevant team name on team-scoped markets whose outcome name
  * lacks it (legacy/derived rows) — used on compact surfaces (betslip) that
  * don't want the full handicap formatting.
@@ -115,8 +154,10 @@ export function teamContext(
 
 /**
  * Display an outcome name in its fixture context: formats handicap lines,
- * prefixes the relevant team name on team-scoped markets whose stored name
- * lacks it (legacy/derived rows), and passes everything else through.
+ * strips the redundant team prefix on single-team boards (Home/Away Team
+ * Totals — the accordion header already names the side), prefixes the team on
+ * team-scoped boards whose stored name lacks it (legacy rows), and passes
+ * everything else through.
  */
 export function displayOutcomeName(
   name: string,
@@ -124,7 +165,9 @@ export function displayOutcomeName(
   homeName: string,
   awayName: string,
 ): string {
-  return teamContext(formatOutcomeName(name, marketKey), marketKey, homeName, awayName);
+  const formatted = formatOutcomeName(name, marketKey);
+  if (TEAM_MARKET_SCOPE[marketKey]) return stripTeamPrefix(formatted, homeName, awayName);
+  return teamContext(formatted, marketKey, homeName, awayName);
 }
 
 export type HandicapPair = {
