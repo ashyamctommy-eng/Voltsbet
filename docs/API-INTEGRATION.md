@@ -1,9 +1,10 @@
 # Sports Data API Integration
 
 The platform syncs sports, competitions, teams, matches, markets, odds, live
-scores and results from **one provider: The Odds API (v4)** — `the-odds-api.com`.
-No other provider is used anywhere in the stack (BetsAPI/RapidAPI and
-API-Football were fully removed).
+scores and results from **one primary provider: The Odds API (v4)** — `the-odds-api.com`.
+BetsAPI/RapidAPI were fully removed. **API-Football** is used only as the optional
+settlement stats feed (corners + half-time scores; off by default) described below —
+see `docs/NEXT-SESSION.md` §2.
 
 ## The provider: The Odds API (v4)
 
@@ -73,9 +74,11 @@ auto-settlement (no stats feed). Keep them opt-in via `ODDS_API_MARKETS`.
 **Quota (paid 20K tier):** 28 extended keys × `ODDS_API_EVENT_MARKET_LIMIT`
 (4) × leagues (6) ≈ 600–670 credits per sync worst case ≈ ~7K/month at the
 default every-3-days cadence. Daily syncs would exceed the plan — keep the
-cadence or trim `ODDS_API_MARKETS`/`EVENT_MARKET_LIMIT`. Corners/cards
-markets also cannot auto-settle (no corner counts in `/scores`) — admin
-settlement required.
+cadence or trim `ODDS_API_MARKETS`/`EVENT_MARKET_LIMIT`. Corner/card markets
+cannot settle from `/scores` alone: the optional **API-Football stats feed**
+records per-team corner counts (and the half-time score) so **corner and
+half-time markets auto-settle** when it is enabled; **cards stay admin-settled**
+on purpose (booking conventions differ). See `docs/NEXT-SESSION.md` §2.
 
 Correct-score outcome names are normalized to the local `0-1` convention,
 double-chance to `1X/X2/12`, and HT/FT to `1/1`, so the settlement engine
@@ -87,10 +90,11 @@ Config: `ODDS_API_MARKETS` (list + extended set), `ODDS_API_EVENT_*`
 (per-event pass), `ODDS_API_LIVE_MARKETS` + `LIVE_ODDS_THROTTLE_SECONDS`
 (in-play refresh on `/live`).
 
-Half-time markets are **never auto-settled** (the `/scores` endpoint exposes
-only full-time scores) — they go to admin review when enabled. Correct-score,
-BTTS, double-chance, draw-no-bet, totals and handicap markets resolve
-automatically from the final score.
+Half-time markets need the half-time score, which the `/scores` endpoint does
+not expose: they go to admin review unless the **stats feed** is enabled (it
+records the HT score, which the existing resolvers then use) or an admin enters
+it at Admin → Games. Correct-score, BTTS, double-chance, draw-no-bet, totals and
+handicap markets resolve automatically from the final score.
 
 ## How it fits the codebase
 

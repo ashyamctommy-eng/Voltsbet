@@ -2,7 +2,9 @@
 
 **Read this first** if you are picking up a fresh session/account.
 Repo: `ashyamctommy-eng/Voltsbet` · working branch convention: **push `master`, then fast-forward `main`** (both kept identical).
-State at handover: **HEAD `d8fb21f`** on `master`/`main` · `pnpm` (v10) · verification loop = `npx tsc --noEmit` → `npx eslint <files>` → `pnpm run test` (**112 passing**) → `pnpm build`.
+State at handover: **`d8fb21f`** on `master`/`main` · `pnpm` (v10) · verification loop = `npx tsc --noEmit` → `npx eslint <files>` → `pnpm run test` → `pnpm build`.
+
+> **Update 2026-09-11 — the stats feed is shipped.** HEAD is now **`3d3a174`**, `pnpm run test` is **146 passing** (tsc/eslint/build green). §2's plan is built and canary-verified, so enabling the provider + the per-market toggles turns **corner and half-time markets automatic**; **cards stay manual on purpose** and `to_qualify` is still manual. The remaining work is no longer integration — it is enablement (add `API_FOOTBALL_KEY`, flip the toggles) and the pre-sale checklist in §6.
 
 ---
 

@@ -434,17 +434,20 @@ league whitelist.
 
 - Groups: **Core** (list pass: h2h/spreads/totals), **Goals & results**,
   **Halves**, **Corners & cards**, **Extras**.
-- Each entry carries a settlement flag (matches `src/lib/auto-settle.ts`):
+- Each entry carries a settlement flag (matches `src/lib/auto-settle.ts`): the
+  default with **no stats feed**, upgraded at runtime when the feed is on:
   - **`auto`** — resolved from the final score in `/scores`: 1X2 (incl. 3-way),
     totals/goal lines, BTTS, Draw No Bet, Double Chance, Correct Score,
     handicaps, team totals.
-  - **`needs HT`** — the resolver exists but requires the half-time score, which
-    `/scores` does not provide: 1st/2nd-half totals, 1st-half BTTS, HT/FT. These
-    settle automatically **after** an admin enters the HT score
-    (Admin → Games).
-  - **`manual`** — no resolver at all: corners, cards, half result/handicap/
-    correct score, qualification, player props. The outcome stays unsettled and
-    is resolved by hand at **Admin → Ops → Settlement Review**
+  - **`auto-ht`** — the resolver exists but requires the half-time score, which
+    `/scores` does not provide: 1st/2nd-half totals, 1st-half BTTS, HT/FT.
+    Without the stats feed an admin enters the HT score (Admin → Games); **with**
+    it the score is recorded automatically, so these settle unattended.
+  - **`manual`** — no resolver from the score feed: corners, cards, half
+    result/handicap/correct score, qualification, player props. Enabling the
+    stats feed gives **corner** markets a resolver (per-team corner counts) and
+    makes them automatic; **cards stay manual on purpose** (book conventions
+    differ). Anything unresolved stays for **Admin → Ops → Settlement Review**
     (`POST /api/admin/settle/{outcomeId}`).
 - A unit test asserts every selectable key exists in the provider `MARKET_MAP`
   (a selectable-but-unmappable market would burn credits and store nothing).

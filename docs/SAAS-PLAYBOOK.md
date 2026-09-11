@@ -37,7 +37,7 @@ per client.**
 | Postgres | $3–7 / mo | grows with bets/audit/notifications |
 | Domain | ~$10 / yr | client's own domain |
 | Odds API (The Odds API) | **client's own key** | 20k credits ≈ $30/mo on their card |
-| Stats feed (API-Football, later) | client's own key | free 100/day or $19/mo |
+| Stats feed (API-Football — optional, shipped) | client's own key | free 100/day or $19/mo |
 | Railway plan | Hobby **$5/mo incl. $5 usage** · Pro **$20/mo per workspace** + usage | one workspace can host many clients |
 
 ### Suggested packaging
@@ -51,7 +51,7 @@ per client.**
 | **White-label licence (alt.)** | $1.5k–5k one-off + 20% maintenance | client hosts it themselves; you keep IP |
 
 **Rule of thumb:** infra should stay **<10% of revenue**. If manual settlement labour exceeds ~2h/client/month, either
-price it as a service or keep non-feed markets disabled until the stats feed lands (§7).
+price it as a service, or enable the stats feed so corners/half-time settle themselves (§7).
 
 ---
 
@@ -259,12 +259,25 @@ Until then, fleet is faster and safer money.
 
 ---
 
-## 7. Known product-level constraint (price it accordingly)
+## 7. Product-level settlement coverage (price it accordingly)
 
-Markets without a result feed — **corners, cards, half-time lines, `to_qualify`** — cannot auto-settle today; bets land
-in **Admin → Ops → Settlement Review** for a human. In fleet mode **that human is you**. Either keep those chips off
-(the market catalog flags them `manual`) or sell manual settlement as a Pro-plan service. The planned API-Football
-integration (`docs/NEXT-SESSION.md`) automates corners/cards/HT and removes most of this labour.
+What auto-settles depends on whether the optional **API-Football stats feed** is enabled
+(Admin → API Settings → Settlement stats feed; see `docs/NEXT-SESSION.md` §2):
+
+| Market group | Stats feed **off** | Stats feed **on** |
+|---|---|---|
+| Result, goals, totals, handicaps, BTTS, DNB, double chance, correct score | ✅ auto | ✅ auto |
+| Half-time lines (1H/2H totals, 1H BTTS, HT/FT) | manual — needs the HT score | ✅ auto (the feed records the HT score) |
+| Corner markets (totals, team totals, 1X2, handicap) | manual | ✅ auto (per-team corner counts) |
+| Cards / bookings | manual | ⚠️ **still manual on purpose** — booking conventions differ (one yellow-as-one-card vs 10/25 booking points), so a machine would risk paying the wrong side |
+| `to_qualify` (knockout) | manual | manual |
+
+With the feed **off**, every non-score market lands in **Admin → Ops → Settlement Review** for a
+human — in fleet mode, **that human is you**. With it **on**, only cards, `to_qualify` and the
+occasional ambiguous line (the resolver returns `null` rather than guess → review) need a person.
+Price accordingly: manual-settlement labour belongs in the Pro plan, not Standard. The feed is free
+for same-day settlement (100 requests/day ⇒ ~50 finished matches/day); each client brings **their
+own** `API_FOOTBALL_KEY`.
 
 ---
 
