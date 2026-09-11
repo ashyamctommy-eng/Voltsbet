@@ -52,6 +52,18 @@ describe("displayOutcomeName — team-scoped boards", () => {
     expect(displayOutcomeName("Over 0.5", "TEAM_TOTALS_HOME", HOME, AWAY)).toBe("Over 0.5");
   });
 
+  it("does NOT strip on mixed team boards (team name is the disambiguator)", () => {
+    expect(displayOutcomeName("West Ham United Over 9.5", "TEAM_CORNERS", HOME, AWAY)).toBe(
+      "West Ham United Over 9.5",
+    );
+    expect(displayOutcomeName("West Ham United Over 1.5", "ALTERNATE_TEAM_TOTALS", HOME, AWAY)).toBe(
+      "West Ham United Over 1.5",
+    );
+    expect(displayOutcomeName("West Ham United Over 1.5", "TEAM_TOTALS_1H", HOME, AWAY)).toBe(
+      "West Ham United Over 1.5",
+    );
+  });
+
   it("does NOT strip on a mixed board where both teams share the accordion", () => {
     // "Team Totals" shows both teams in one list — the name is the only thing
     // telling the rows apart, so it must stay.

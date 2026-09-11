@@ -33,6 +33,36 @@ describe("pairOverUnderGroups", () => {
     ]);
   });
 
+  it("groups a TEAM_CORNERS-shaped board per team (drives the sub-header)", () => {
+    // Provider shape: `${description} ${stamped}` -> "West Ham United Over 9.5".
+    // The sub-header path keys off a NON-EMPTY prefix, not a market-key list,
+    // so TEAM_CORNERS gets team grouping for free.
+    const groups = pairOverUnderGroups([
+      o("West Ham United Over 9.5"),
+      o("West Ham United Under 9.5"),
+      o("West Ham United Over 10.5"),
+      o("West Ham United Under 10.5"),
+      o("Wrexham AFC Over 9.5"),
+      o("Wrexham AFC Under 9.5"),
+    ]);
+    expect(groups).not.toBeNull();
+    expect(groups!.map((g) => g.prefix)).toEqual([
+      "West Ham United",
+      "West Ham United",
+      "Wrexham AFC",
+    ]);
+    expect(groups!.map((g) => g.cells.map((c) => c.name))).toEqual([
+      ["West Ham United Over 9.5", "West Ham United Under 9.5"],
+      ["West Ham United Over 10.5", "West Ham United Under 10.5"],
+      ["Wrexham AFC Over 9.5", "Wrexham AFC Under 9.5"],
+    ]);
+  });
+
+  it("returns a blank prefix when the rows carry no team (headerless fallback)", () => {
+    const groups = pairOverUnderGroups([o("Over 9.5"), o("Under 9.5")]);
+    expect(groups!.map((g) => g.prefix)).toEqual([""]);
+  });
+
   it("returns null when the board is not a clean Over/Under set", () => {
     expect(pairOverUnderGroups([o("Yes"), o("No")])).toBeNull();
     expect(pairOverUnderGroups([o("Over 2.5"), o("Under 2.5"), o("Yes")])).toBeNull();
