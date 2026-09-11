@@ -110,7 +110,8 @@ export type SiteSettings = {
   statsApiKey: string;
   /** Hard daily request ceiling for the stats feed (free tier = 100). Env STATS_DAILY_BUDGET. */
   statsDailyBudget: number;
-  /** Allow the stats feed to settle corners/cards markets (flips them auto). */
+  /** Allow the stats feed to settle CORNER markets (per-team corner counts).
+   *  Cards are deliberately never auto-settled — booking conventions differ. */
   statsSettleCorners: boolean;
   /** Allow the stats feed to settle half-time markets via the real HT score. */
   statsSettleHalfTime: boolean;
