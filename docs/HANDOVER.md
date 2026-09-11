@@ -1,4 +1,4 @@
-# UNIBET360 — Owner's Setup Guide (for the buyer)
+# Voltbets — Owner's Setup Guide (for the buyer)
 
 Welcome! This guide takes you from "just bought a server" to "live sportsbook"
 in about **20 minutes**. The installer does the heavy lifting — you mostly
@@ -51,9 +51,9 @@ It will take **5–10 minutes** (installing software + building the site). When
 it finishes you'll see a summary like this:
 
 ```
-✅ UNIBET360 is LIVE on this VPS
+✅ Voltbets is LIVE on this VPS
   Site:        https://bet.yourbrand.com
-  Admin:       https://bet.yourbrand.com/admin   (email: admin@unibet360.test)
+  Admin:       https://bet.yourbrand.com/admin   (email: admin@voltbets.test)
   Admin pass:  <randomly generated — save this!>
   ...
   ── Developer contact (installation support) ──

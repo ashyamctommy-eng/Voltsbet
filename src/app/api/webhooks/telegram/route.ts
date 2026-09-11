@@ -6,7 +6,7 @@ import { consumeTelegramLinkToken, sendTelegramMessage, escapeHtml } from "@/lib
 import { rateLimit } from "@/lib/rate-limit";
 
 /**
- * Telegram Bot webhook — receives updates for the UNIBET360 bot.
+ * Telegram Bot webhook — receives updates for the Voltbets bot.
  *
  * Handled commands:
  *   /start <LINK_TOKEN>  → deep-link account binding (token minted in

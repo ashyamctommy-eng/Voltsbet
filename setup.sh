@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# UNIBET360 — local crontab installer for VPS/cPanel deployments.
+# Voltbets — local crontab installer for VPS/cPanel deployments.
 #
 # Registers cron entries that ping the app's cron endpoints on localhost,
 # mirroring the GitHub Actions cron workflows for hosts without GH Actions.
@@ -22,7 +22,7 @@ set -euo pipefail
 
 CRON_SECRET="${CRON_SECRET:-}"
 BASE_URL="${BASE_URL:-http://localhost:3000}"
-TAG="# UNIBET360-CRON"
+TAG="# Voltbets-CRON"
 
 if [[ -z "$CRON_SECRET" ]]; then
   echo "error: CRON_SECRET is required (export it or set it in .env)" >&2
@@ -48,7 +48,7 @@ existing="$(crontab -l 2>/dev/null || true)"
 if [[ "${1:-}" == "--uninstall" ]]; then
   cleaned="$(printf '%s\n' "$existing" | grep -v "^${TAG}$" | grep -v "^${TAG}-END$" | grep -v "cron/settle?secret=" | grep -v "cron/rates?secret=" | grep -v "cron/schedule?secret=" | grep -v "cron/purge?secret=" | grep -v "cron/sync?secret=" || true)"
   printf '%s\n' "$cleaned" | crontab -
-  echo "✅ UNIBET360 cron entries removed."
+  echo "✅ Voltbets cron entries removed."
   exit 0
 fi
 
@@ -68,5 +68,5 @@ cleaned="$(printf '%s\n' "$existing" | grep -v "^${TAG}$" | grep -v "^${TAG}-END
   printf '%s\n' "${TAG}-END"
 } | crontab -
 
-echo "✅ Installed ${#LINES[@]} UNIBET360 cron entries (BASE_URL=${BASE_URL})."
+echo "✅ Installed ${#LINES[@]} Voltbets cron entries (BASE_URL=${BASE_URL})."
 echo "   Verify with: crontab -l"
