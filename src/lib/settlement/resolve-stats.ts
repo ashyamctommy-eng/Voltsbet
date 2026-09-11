@@ -48,6 +48,32 @@ export const CORNER_MARKET_KEYS = new Set([
 export const CARD_MARKET_KEYS = new Set(["TOTAL_BOOKINGS", "CARDS_HANDICAP"]);
 
 /**
+ * Markets that cannot be settled from the full-time score alone: they need the
+ * HALF-TIME goals (the `settle: "auto-ht"` family in the market catalog). They
+ * are not resolved by this module - the existing resolveOutcome() handles them -
+ * but they are listed here so the work list knows they still need a scrape.
+ */
+export const HALF_TIME_MARKET_KEYS = new Set([
+  "OVER_UNDER_1H",
+  "OVER_UNDER_2H",
+  "FIRST_HALF_BTTS",
+  "HT_FT",
+  "HT_RESULT",
+  "HALF_TIME_RESULT",
+]);
+
+/**
+ * Every market key that depends on data only an external source has (corners,
+ * cards, or the half-time split). This is the filter for the settlement work
+ * list: a game with none of these has no reason to be scraped.
+ */
+export const STAT_DEPENDENT_MARKET_KEYS = new Set<string>([
+  ...CORNER_MARKET_KEYS,
+  ...CARD_MARKET_KEYS,
+  ...HALF_TIME_MARKET_KEYS,
+]);
+
+/**
  * Booking-points convention: **yellow = 1, red = 2** (a straight red is worth
  * a yellow more than a booking, which is the standard football-betting
  * reading of "Total Bookings"). Providers differ — some count each card as 1,

@@ -49,6 +49,7 @@ from typing import Any, Iterable, Optional
 SOFASCORE = "https://www.sofascore.com/api/v1"
 WEBHOOK_URL = os.environ.get("SETTLE_WEBHOOK_URL", "")
 WEBHOOK_SECRET = os.environ.get("SETTLE_WEBHOOK_SECRET", "")
+PENDING_URL = os.environ.get("SETTLE_PENDING_URL", "")  # defaults from WEBHOOK_URL
 PROXIES_FILE = os.environ.get("SETTLE_PROXIES_FILE", "")
 PROXIES_ENV = os.environ.get("SETTLE_PROXIES", "")  # comma/newline separated
 
@@ -422,19 +423,10 @@ def post_payload(payload: dict) -> tuple[bool, str]:
         return True, "dry-run (not sent)"
 
     body = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
-    ts = str(int(time.time()))
-    req = urllib.request.Request(
-        WEBHOOK_URL,
-        data=body,
-        method="POST",
-        headers={
-            "Content-Type": "application/json",
-            "X-Voltbets-Timestamp": ts,
-            "X-Voltbets-Event-Id": payload["eventId"],
-            "X-Voltbets-Signature": f"sha256={sign(WEBHOOK_SECRET, ts, body)}",
-            "User-Agent": "voltbets-settle-worker/1.0",
-        },
-    )
+    headers = _signed_headers(body)
+    headers["Content-Type"] = "application/json"
+    headers["X-Voltbets-Event-Id"] = payload["eventId"]
+    req = urllib.request.Request(WEBHOOK_URL, data=body, method="POST", headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT + 8) as resp:
             detail = resp.read().decode("utf-8", "replace")[:300]
@@ -444,6 +436,106 @@ def post_payload(payload: dict) -> tuple[bool, str]:
         return False, f"HTTP {e.code} {detail}"
     except Exception as e:  # noqa: BLE001
         return False, f"{type(e).__name__}: {e}"
+
+
+# ─────────────────────────── work list (what to scrape) ──────────────────────
+
+
+def _signed_headers(body: bytes) -> dict:
+    """HMAC headers for a request. A GET has no body, so it signs "" (mirrors
+    the backend verifier, which hashes `${ts}.${rawBody}`)."""
+    ts = str(int(time.time()))
+    return {
+        "X-Voltbets-Timestamp": ts,
+        "X-Voltbets-Signature": f"sha256={sign(WEBHOOK_SECRET, ts, body)}",
+        "User-Agent": "voltbets-settle-worker/1.0",
+    }
+
+
+def fetch_pending(pool: "ProxyPool") -> list[dict]:
+    """
+    Ask the backend which matches still need external stats.
+
+    Without this the worker scrapes a whole day and discards nearly all of it,
+    burning both the proxy budget and the block rate on matches nobody bet on.
+    A failure here is not fatal: the caller falls back to the date scan.
+    """
+    url = PENDING_URL or (WEBHOOK_URL.replace("/process", "/pending") if WEBHOOK_URL else "")
+    if not url or not WEBHOOK_SECRET:
+        return []
+    req = urllib.request.Request(url, method="GET", headers=_signed_headers(b""))
+    try:
+        with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT + 8) as resp:
+            data = json.loads(resp.read().decode("utf-8", "replace"))
+        games = data.get("games", []) or []
+        log(f"work list: {len(games)} game(s) with unsettled stat markets")
+        return games
+    except urllib.error.HTTPError as e:
+        log(f"work list unavailable (HTTP {e.code}) — falling back to date scan")
+    except Exception as e:  # noqa: BLE001
+        log(f"work list unavailable ({type(e).__name__}) — falling back to date scan")
+    return []
+
+
+def normalize_team(name: str) -> str:
+    """Mirror of normalizeTeamName() in src/lib/settlement/resolve-stats.ts."""
+    import re
+    import unicodedata
+
+    s = unicodedata.normalize("NFD", name or "")
+    s = "".join(c for c in s if unicodedata.category(c) != "Mn").lower()
+    s = re.sub(r"[^a-z0-9\s]", " ", s)
+    s = re.sub(r"\b(fc|afc|cf|sc|ac|as|ss|ssc|cd|ud|rc|rcd|bk|fk|if|club|the|de|of)\b", " ", s)
+    return " ".join(t for t in s.split() if len(t) > 1)
+
+
+def team_score(a: str, b: str) -> float:
+    """Token coverage in [0,1] — coverage only, exactly like the backend.
+    A looser rule (one long shared token is enough) would match
+    'Manchester United' with 'Manchester City' and settle the wrong fixture."""
+    x, y = normalize_team(a), normalize_team(b)
+    if not x or not y:
+        return 0.0
+    if x == y:
+        return 1.0
+    xs, ys = set(x.split()), set(y.split())
+    shared = len({t for t in xs if t in ys and len(t) >= 3})
+    return shared / max(len(xs), len(ys)) if shared else 0.0
+
+
+MIN_TEAM_SCORE = 0.6
+KICKOFF_TOLERANCE_MINUTES = 180
+
+
+def match_event(pending: dict, events: list[dict]) -> Optional[dict]:
+    """Resolve one work-list entry to ITS event id in the scrape source.
+
+    The two sides share no id (our externalId belongs to the odds feed), so the
+    match is made on team names + kickoff — the same rule the backend applies in
+    the other direction.
+    """
+    want_home, want_away = pending.get("homeName", ""), pending.get("awayName", "")
+    try:
+        want_kick = datetime.fromisoformat(pending["kickoff"].replace("Z", "+00:00"))
+    except (KeyError, ValueError):
+        return None
+
+    best, best_score = None, 0.0
+    for ev in events:
+        ts = ev.get("startTimestamp")
+        if not ts:
+            continue
+        delta = abs(datetime.fromtimestamp(int(ts), tz=timezone.utc) - want_kick).total_seconds() / 60
+        if delta > KICKOFF_TOLERANCE_MINUTES:
+            continue
+        home = (ev.get("homeTeam") or {}).get("name", "")
+        away = (ev.get("awayTeam") or {}).get("name", "")
+        straight = min(team_score(home, want_home), team_score(away, want_away))
+        swapped = min(team_score(home, want_away), team_score(away, want_home))
+        score = max(straight, swapped)
+        if score >= MIN_TEAM_SCORE and score > best_score:
+            best, best_score = ev, score
+    return best
 
 
 # ──────────────────────────────── discovery ──────────────────────────────────
@@ -492,7 +584,7 @@ def build_payload(ev: dict) -> Optional[dict]:
     }
 
 
-def process_event(pool: ProxyPool, ev: dict, stats_dir: dict, incidents_dir: dict) -> bool:
+def process_event(pool: ProxyPool, ev: dict) -> bool:
     """Scrape + send one match. Returns True when the backend accepted it."""
     event_id = ev.get("id")
     base = build_payload(ev)
@@ -536,7 +628,14 @@ def main() -> int:
     ap.add_argument("--date", help="YYYY-MM-DD to scan (default: today and yesterday UTC)")
     ap.add_argument("--limit", type=int, default=MAX_MATCHES_PER_RUN)
     ap.add_argument("--dry-run", action="store_true", help="scrape but do not POST")
+    ap.add_argument("--no-pending", action="store_true",
+                    help="ignore the backend work list and scrape every finished match")
+    ap.add_argument("--selftest", action="store_true",
+                    help="run the parser/matching self-test offline and exit")
     args = ap.parse_args()
+
+    if args.selftest:
+        return selftest()
 
     global DRY_RUN
     if args.dry_run:
@@ -552,30 +651,156 @@ def main() -> int:
         else [datetime.now(timezone.utc), datetime.now(timezone.utc) - timedelta(days=1)]
     )
 
+    # The daily schedule doubles as the id index: it is 1-2 cheap requests that
+    # map our fixtures onto the scrape source's event ids.
     events: list[dict] = []
     for day in days:
         found = find_finished_events(pool, day)
         log(f"{day:%Y-%m-%d}: {len(found)} finished event(s) older than {MATCH_AGE_MINUTES}min")
         events += found
 
-    # De-dupe across days, cap the run.
-    seen, unique = set(), []
+    seen: set = set()
+    unique: list[dict] = []
     for ev in events:
         if ev.get("id") in seen:
             continue
         seen.add(ev.get("id"))
         unique.append(ev)
-    unique = unique[: args.limit]
+
+    # Prefer the backend work list: it names the matches with UNSETTLED stat
+    # markets, so a run touches a handful of fixtures instead of a full day.
+    targets: list[dict] = []
+    if not args.no_pending:
+        pending = fetch_pending(pool)
+        if pending:
+            unmatched = 0
+            for entry in pending:
+                ev = match_event(entry, unique)
+                if ev:
+                    targets.append(ev)
+                else:
+                    unmatched += 1
+            log(f"work list: resolved {len(targets)}/{len(pending)} to source events"
+                + (f", {unmatched} unmatched (names drifted or not in today's feed)" if unmatched else ""))
+            if not targets:
+                log("work list resolved nothing — check the team-name mapping before trusting a quiet run")
+                return 1
+
+    if not targets:
+        log("no work list configured — scraping every finished match this window")
+        targets = unique[: args.limit]
 
     sent = 0
-    for ev in unique:
-        if process_event(pool, ev, {}, {}):
+    for ev in targets:
+        if process_event(pool, ev):
             sent += 1
         if not pool.alive():
             log("proxy pool exhausted — stopping this run")
             break
 
-    log(f"done: {sent}/{len(unique)} accepted. {pool.report()}")
+    log(f"done: {sent}/{len(targets)} accepted. {pool.report()}")
+    return 0
+
+
+
+# ─────────────────────────────── self-test ───────────────────────────────────
+# Exercises the PARSERS (the part that silently goes wrong when a provider
+# changes its payload) with no network access. Run after any edit to this file
+# and after any report of a mis-settled stat market:
+#     python3 settle_worker.py --selftest
+
+
+def selftest() -> int:
+    import hmac as _hmac  # noqa: F401  (documents that sign() is HMAC-based)
+
+    failures: list[str] = []
+
+    def check(label: str, got: object, want: object) -> None:
+        if got != want:
+            failures.append(f"{label}: got {got!r}, want {want!r}")
+
+    # 1. Team matching must NOT match different clubs from the same city.
+    check("normalize Wrexham AFC", normalize_team("Wrexham AFC"), "wrexham")
+    check("normalize accents", normalize_team("Fenerbahçe"), "fenerbahce")
+    check("normalize initials", normalize_team("Racing Santander S.A.D."), "racing santander")
+    check("score exact", team_score("Racing Santander", "Racing Santander"), 1.0)
+    check("score suffix", team_score("Wrexham AFC", "Wrexham"), 1.0)
+    if team_score("Manchester United", "Manchester City") >= MIN_TEAM_SCORE:
+        failures.append("team_score matched Manchester United vs Manchester City — would settle the wrong fixture")
+
+    # 2. Statistics parsing: period "ALL" = FT, "1ST" = first half.
+    stats = {
+        "statistics": [
+            {"period": "ALL", "groups": [{"statisticsItems": [
+                {"name": "Corner kicks", "home": "6", "away": "4"},
+                {"name": "Yellow cards", "home": "3", "away": "2"},
+            ]}]},
+            {"period": "1ST", "groups": [{"statisticsItems": [
+                {"name": "Corner kicks", "home": "2", "away": "3"},
+            ]}]},
+        ]
+    }
+    corners = extract_corners(stats)
+    check("corners ft", corners["ft"], {"home": 6, "away": 4})
+    check("corners ht", corners["ht"], {"home": 2, "away": 3})
+
+    # Missing 1ST block must be None (not 0) so HT markets stay manual.
+    check("corners ht missing", extract_corners({"statistics": stats["statistics"][:1]})["ht"],
+          {"home": None, "away": None})
+
+    # 3. Goals: HT from the timeline, FT from the event score (excludes shootout).
+    incidents = {"incidents": [
+        {"incidentType": "goal", "incidentClass": "regular", "time": 23, "isHome": True},
+        {"incidentType": "goal", "incidentClass": "regular", "time": 52, "isHome": False},
+        {"incidentType": "goal", "incidentClass": "regular", "time": 74, "isHome": False},   # own goal
+        {"incidentType": "goal", "incidentClass": "penaltyShootoutGoal", "time": 120, "isHome": True},
+    ]}
+    goals = extract_goals(incidents, {"homeScore": {"current": 2}, "awayScore": {"current": 1}})
+    check("goals ht", goals["ht"], {"home": 1, "away": 0})
+    check("goals ft", goals["ft"], {"home": 2, "away": 1})
+
+    # 4. Cards: HT split at 45', a second yellow counts as a red.
+    cards = extract_cards({"incidents": [
+        {"incidentType": "card", "incidentClass": "yellow", "time": 30, "isHome": True},
+        {"incidentType": "card", "incidentClass": "yellow", "time": 44, "isHome": False},
+        {"incidentType": "card", "incidentClass": "red", "time": 70, "isHome": True},
+        {"incidentType": "card", "incidentClass": "yellowRed", "time": 85, "isHome": False},
+    ]})
+    check("cards ht", cards["ht"], {"homeYellows": 1, "awayYellows": 1, "homeReds": 0, "awayReds": 0})
+    check("cards ft", cards["ft"], {"homeYellows": 1, "awayYellows": 1, "homeReds": 1, "awayReds": 1})
+
+    # 5. Work-list matching: right fixture, right kickoff, orientation tolerated.
+    ev = {
+        "id": 999,
+        "startTimestamp": int(datetime(2026, 9, 11, 18, 0, tzinfo=timezone.utc).timestamp()),
+        "homeTeam": {"name": "Racing Santander"},
+        "awayTeam": {"name": "Deportivo Alaves"},
+    }
+    other = {
+        "id": 1000,
+        "startTimestamp": ev["startTimestamp"],
+        "homeTeam": {"name": "Manchester United"},
+        "awayTeam": {"name": "Manchester City"},
+    }
+    matched = match_event(
+        {"homeName": "Racing Santander", "awayName": "Deportivo Alaves", "kickoff": "2026-09-11T18:00:00Z"},
+        [other, ev],
+    )
+    check("match_event picks the right fixture", (matched or {}).get("id"), 999)
+    check("match_event rejects a stranger",
+          match_event({"homeName": "Nobody", "awayName": "At All", "kickoff": "2026-09-11T18:00:00Z"}, [ev]), None)
+
+    # 6. The signature the backend verifies: HMAC over "<ts>.<body>".
+    check("sign matches the documented scheme",
+          sign("secret", "1800000000", b'{"a":1}'),
+          _hmac.new(b"secret", b'1800000000.{"a":1}', hashlib.sha256).hexdigest())
+
+    if failures:
+        print("SELFTEST FAILED:")
+        for f in failures:
+            print(f"  - {f}")
+        return 1
+    print("selftest: all parser + matching checks passed")
     return 0
 
 

@@ -139,10 +139,10 @@ claims*, not because of the dedupe.
 
 ### 1.6 Recommended refinements (not yet built)
 
-1. **A pending-settlement work list.** `GET /api/v1/settlement/pending` returning
-   the games that actually have unsettled corner/card/HT markets, so the worker
-   scrapes ~dozens of matches instead of a whole day's fixtures. Biggest single
-   efficiency win, and it bounds the block rate.
+1. ~~A pending-settlement work list.~~ **Built** — see §2.1. `GET
+   /api/v1/settlement/pending` returns only the games that actually have
+   unsettled corner/card/half-time selections, so the worker scrapes a handful
+   of fixtures instead of a whole day.
 2. **Persist the raw payload** (already stored, capped at 8 kB) alongside a
    longer retention policy — the audit trail for "why did this bet settle?".
 3. **Alerting on `NEEDS_REVIEW` volume.** If more than N events a day need
@@ -186,6 +186,47 @@ Request body (`src/lib/settlement/payload.ts`, zod-validated):
 Responses: `200` processed · `202` needs review · `400` bad payload ·
 `401` bad signature/timestamp · `405` method · `503` secret unset.
 `4xx` means **do not retry** (the payload is wrong); `5xx` means **retry**.
+
+### 2.1 Work list — `GET /api/v1/settlement/pending`
+
+Tells the worker **what is worth scraping**. Same HMAC auth; a GET has no body,
+so the signature covers the empty string: `HMAC_SHA256(secret, "<unix-ts>.")`.
+
+Query: `?minAgeMinutes=110&maxAgeHours=30&limit=200` (all clamped server-side).
+
+```jsonc
+{
+  "ok": true,
+  "generatedAt": "2026-09-11T20:00:00Z",
+  "window": { "minAgeMinutes": 110, "maxAgeHours": 30 },
+  "count": 2,
+  "games": [
+    {
+      "gameId": "clx…",
+      "externalId": "abc123",            // the ODDS feed's id, not the scraper's
+      "kickoff": "2026-09-11T18:00:00Z",
+      "homeName": "Racing Santander",
+      "awayName": "Deportivo Alaves",
+      "status": "LIVE",
+      "minutesSinceKickoff": 132,
+      "picks": 3,                        // unsettled selections riding on it
+      "markets": ["TOTAL_CORNERS", "OVER_UNDER_1H"],
+      "needs": ["CORNERS", "HALF_TIME"]  // what kind of scrape this needs
+    }
+  ]
+}
+```
+
+A game qualifies only when it has an **unsettled `BetSelection` on an OPEN bet**
+for a stat-dependent market (corners, cards, or the half-time family) — so the
+list is driven by money at stake, not by the fixture calendar. `needs` lets a
+future worker skip work it cannot do (e.g. corners-only if its source has no
+card data).
+
+The response deliberately carries **no scraper-side id**: our `externalId`
+belongs to the odds feed. The worker resolves the shared identity itself (team
+names + kickoff) against its own source — the same matching rule the backend
+applies in the other direction.
 
 ## 3. Which markets settle
 
