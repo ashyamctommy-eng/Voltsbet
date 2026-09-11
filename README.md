@@ -783,6 +783,7 @@ at install time.
 | [`docs/DEPLOYMENT-RAILWAY.md`](docs/DEPLOYMENT-RAILWAY.md) | Railway-specific steps |
 | [`docs/HANDOVER.md`](docs/HANDOVER.md) | Client handover checklist |
 | [`docs/ACCOUNTS-CHECKLIST.md`](docs/ACCOUNTS-CHECKLIST.md) | Admin accounts & security checklist |
+| [`docs/ui/odds-widget/README.md`](docs/ui/odds-widget/README.md) | Odds cell layout rules + reference screenshots of every market, 320/360px, dark & light |
 
 **Developer contact** — shown only inside the **Admin panel sidebar** (never on
 public pages, keeping the site white-label for end users). Links live in
