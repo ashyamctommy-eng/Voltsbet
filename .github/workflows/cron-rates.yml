@@ -19,5 +19,13 @@ jobs:
           APP_URL: ${{ secrets.APP_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
+          # An UNCONFIGURED workflow must NOT report failure: a failed check run
+          # on the commit makes Railway skip the deployment ("CI check suite
+          # failed"), so missing repo secrets would silently block every release.
+          # Skip with a visible warning instead.
+          if [ -z "${APP_URL}" ] || [ -z "${CRON_SECRET}" ]; then
+            echo "::warning::APP_URL / CRON_SECRET repo secrets are not set — skipping this cron hit (not a failure)"
+            exit 0
+          fi
           curl -fsS -o /dev/null -w "HTTP %{http_code}\n" \
             "https://${APP_URL}/api/cron/rates?secret=${CRON_SECRET}"
