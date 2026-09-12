@@ -165,6 +165,14 @@ extractors.
 
 ---
 
+## 1.5c Which upstream the worker reads
+
+The worker supports two stats sources, selected with `SETTLE_SOURCE`
+(or `--source`): `sofa` (SofaScore, behind the proxy pool, the default)
+and `fotmob` (no key, no proxy). Both emit the identical payload, so
+switching — and rolling back — is one variable. See
+`docs/FREE-DATA-SOURCES.md` and `worker/README.md` §9.
+
 ## 2. Wire contract
 
 Request body (`src/lib/settlement/payload.ts`, zod-validated):

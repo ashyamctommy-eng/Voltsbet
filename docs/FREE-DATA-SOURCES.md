@@ -119,6 +119,33 @@ tolerance of hours, which is what the worker's matcher already does.
 football-data.org, TheSportsDB and OpenLigaDB were also probed: they are free and
 reachable, but none of them publish corner counts, so they cannot fill this gap.
 
+## It is implemented — `SETTLE_SOURCE=fotmob`
+
+`worker/settle_worker.py` now carries a second source behind a switch:
+
+```bash
+python3 worker/settle_worker.py --source fotmob --dry-run --no-pending --limit 5
+export SETTLE_SOURCE=fotmob && python3 worker/settle_worker.py
+```
+
+`sofa` (SofaScore + proxy pool) remains the default; `fotmob` needs no key and no
+proxy. Both emit the same wire payload, so rollback is one variable.
+
+Live run, 4 fixtures from 2026-09-11, direct with no key and no proxy — one
+request per match, about a second each:
+
+| Fixture | FotMob cards | BigBallsData cards | Verdict |
+|---|---|---|---|
+| Union Berlin 1-3 Schalke | 3-1 | 2-1 | BigBallsData short by 1 |
+| Sevilla 1-0 Valencia | 1-2 | 1-1 | BigBallsData short by 1 |
+| Rennes 1-0 Marseille | 1-4 | 1-4 | agree |
+| Venezia 2-4 Fiorentina | 2-1 | 2-0 | BigBallsData short by 1 |
+
+**Cards agreed on 1 of 4 fixtures**, and every disagreement was BigBallsData
+missing exactly one booking — the `team_id: null` row again. This is why card
+markets must not be settled from BigBallsData alone. FotMob also supplied the
+corners in the same request: 4-5, 6-4, 3-5, 2-4.
+
 ## Recommended architecture
 
 1. **Goals + HT + completion** — BigBallsData (already live, free).

@@ -34,6 +34,7 @@ import hmac
 import json
 import os
 import random
+import re
 import ssl
 import sys
 import time
@@ -47,6 +48,14 @@ from typing import Any, Iterable, Optional
 # ─────────────────────────────── configuration ───────────────────────────────
 
 SOFASCORE = "https://www.sofascore.com/api/v1"
+FOTMOB = "https://www.fotmob.com"
+
+# Which upstream this worker reads.
+#   "sofa"   (default) the original SofaScore scrape, behind the proxy pool
+#   "fotmob" needs no key and no proxy: one pre-rendered match page carries
+#            corners (FT + HT), cards (FT + HT) and goals (FT + HT)
+# See docs/FREE-DATA-SOURCES.md before changing this.
+SOURCE = os.environ.get("SETTLE_SOURCE", "sofa").strip().lower()
 WEBHOOK_URL = os.environ.get("SETTLE_WEBHOOK_URL", "")
 WEBHOOK_SECRET = os.environ.get("SETTLE_WEBHOOK_SECRET", "")
 PENDING_URL = os.environ.get("SETTLE_PENDING_URL", "")  # defaults from WEBHOOK_URL
@@ -200,23 +209,24 @@ def _opener(proxy: Optional[str]):
     return urllib.request.build_opener(*handlers)
 
 
-def _http_get(url: str, proxy: Optional[str], timeout: float) -> bytes:
+def _http_get(url: str, proxy: Optional[str], timeout: float,
+              referer: str = "https://www.sofascore.com/") -> bytes:
     req = urllib.request.Request(
         url,
         headers={
             "User-Agent": random.choice(UA_POOL),
-            "Accept": "application/json, text/plain, */*",
+            "Accept": "application/json, text/html, text/plain, */*",
             "Accept-Language": "en-GB,en;q=0.9",
-            "Referer": "https://www.sofascore.com/",
+            "Referer": referer,
         },
     )
     with _opener(proxy).open(req, timeout=timeout) as resp:
         return resp.read()
 
 
-def fetch_json(pool: ProxyPool, url: str, what: str) -> Optional[dict]:
+def _fetch_bytes(pool: ProxyPool, url: str, what: str, referer: str) -> Optional[bytes]:
     """
-    GET a JSON endpoint, rotating proxies and purging bad exits.
+    GET a URL, rotating proxies and purging bad exits.
 
     Returns None when every proxy failed — the caller skips that match rather
     than sending a partial payload. A missing corner count must never look like
@@ -227,18 +237,14 @@ def fetch_json(pool: ProxyPool, url: str, what: str) -> Optional[dict]:
         proxy = pool.rotate()
         started = time.monotonic()
         try:
-            body = _http_get(url, proxy, REQUEST_TIMEOUT)
+            body = _http_get(url, proxy, REQUEST_TIMEOUT, referer=referer)
             elapsed = time.monotonic() - started
             if elapsed > PROXY_MAX_LATENCY:
                 # Answered, but too slowly to keep in a cron window.
                 pool.drop(proxy, f"slow {elapsed:.1f}s")
                 continue
             pool.mark_ok(proxy)
-            try:
-                return json.loads(body.decode("utf-8", "replace"))
-            except json.JSONDecodeError:
-                last_error = "non-JSON response"
-                continue
+            return body
         except urllib.error.HTTPError as e:
             if e.code in DROP_STATUSES:
                 pool.drop(proxy, f"HTTP {e.code}")
@@ -257,6 +263,24 @@ def fetch_json(pool: ProxyPool, url: str, what: str) -> Optional[dict]:
 
     log(f"  {what}: FAILED ({last_error})")
     return None
+
+
+def fetch_json(pool: ProxyPool, url: str, what: str,
+               referer: str = "https://www.sofascore.com/") -> Optional[dict]:
+    body = _fetch_bytes(pool, url, what, referer)
+    if body is None:
+        return None
+    try:
+        return json.loads(body.decode("utf-8", "replace"))
+    except json.JSONDecodeError:
+        log(f"  {what}: FAILED (non-JSON response)")
+        return None
+
+
+def fetch_text(pool: ProxyPool, url: str, what: str,
+               referer: str = FOTMOB + "/") -> Optional[str]:
+    body = _fetch_bytes(pool, url, what, referer)
+    return None if body is None else body.decode("utf-8", "replace")
 
 
 # ───────────────────────────── SofaScore scraping ────────────────────────────
@@ -404,6 +428,221 @@ def extract_cards(incidents: dict) -> dict:
     return out
 
 
+# ───────────────────────────── FotMob scraping ───────────────────────────────
+# The free replacement for the corner gap: no API key, no proxy, no bot
+# challenge. One pre-rendered match page carries corners (FT + HT), cards
+# (FT + HT) and the full-time score; half-time goals come from the goal
+# timeline and are only trusted when they reconcile with that score.
+# See docs/FREE-DATA-SOURCES.md.
+
+_NEXT_DATA_RE = re.compile(
+    r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', re.S
+)
+
+
+def _parse_iso(s: Optional[str]) -> Optional[datetime]:
+    if not s:
+        return None
+    try:
+        return datetime.fromisoformat(str(s).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def fotmob_day_events(pool: ProxyPool, day: datetime) -> list[dict]:
+    """Finished fixtures for a day, normalized into the SofaScore event shape so
+    the shared matcher and the rest of the orchestrator work unchanged."""
+    url = f"{FOTMOB}/api/data/matches?date={day:%Y%m%d}"
+    data = fetch_json(pool, url, f"fotmob day {day:%Y-%m-%d}", referer=FOTMOB + "/")
+    if not data:
+        return []
+
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=MATCH_AGE_MINUTES)
+    out: list[dict] = []
+    for league in data.get("leagues") or []:
+        for m in league.get("matches") or []:
+            status = m.get("status") or {}
+            # `awarded` matches had their result decided off the pitch — there
+            # are no corners to read, so they must not look like a 0-0.
+            if not status.get("finished") or status.get("cancelled") or status.get("awarded"):
+                continue
+            start = _parse_iso(status.get("utcTime"))
+            if start is None or start > cutoff or not m.get("id"):
+                continue
+            out.append({
+                "id": m.get("id"),
+                "startTimestamp": int(start.timestamp()),
+                "status": {"type": "finished"},
+                "homeTeam": {"name": (m.get("home") or {}).get("name", "")},
+                "awayTeam": {"name": (m.get("away") or {}).get("name", "")},
+            })
+    return out
+
+
+def fotmob_page(pool: ProxyPool, match_id: Any) -> Optional[dict]:
+    """Fetch a match page and return the pageProps JSON embedded in it.
+
+    Stats live in __NEXT_DATA__ for pre-rendered matches. Some matches ship a
+    deferred shell that has no `content` at all; those return None and the caller
+    skips the fixture rather than sending a half-empty payload.
+    """
+    html = fetch_text(pool, f"{FOTMOB}/match/{match_id}", f"fotmob match {match_id}")
+    if not html:
+        return None
+    m = _NEXT_DATA_RE.search(html)
+    if not m:
+        log(f"  fotmob {match_id}: page had no __NEXT_DATA__")
+        return None
+    try:
+        return (json.loads(m.group(1)).get("props") or {}).get("pageProps") or {}
+    except json.JSONDecodeError:
+        log(f"  fotmob {match_id}: __NEXT_DATA__ was not valid JSON")
+        return None
+
+
+def _fotmob_period_stat(periods: dict, period: str, titles: Iterable[str]) -> Optional[tuple[int, int]]:
+    """Positional [home, away] value of a named stat inside one period.
+
+    Shape: Periods[period].stats[] are GROUPS, each with its own stats[] items
+    of {title, key, stats: [home, away], format, type}.
+    """
+    wanted = {t.lower() for t in titles}
+    for group in ((periods.get(period) or {}).get("stats") or []):
+        for item in (group or {}).get("stats") or []:
+            if str(item.get("title", "")).strip().lower() in wanted:
+                vals = item.get("stats")
+                if isinstance(vals, list) and len(vals) >= 2:
+                    home, away = _to_int(vals[0]), _to_int(vals[1])
+                    if home is not None and away is not None:
+                        return home, away
+    return None
+
+
+FOTMOB_CORNER_TITLES = ("corners", "corner kicks")
+FOTMOB_YELLOW_TITLES = ("yellow cards",)
+FOTMOB_RED_TITLES = ("red cards",)
+
+
+def fotmob_corners(periods: dict) -> dict:
+    ft = _fotmob_period_stat(periods, "All", FOTMOB_CORNER_TITLES)
+    ht = _fotmob_period_stat(periods, "FirstHalf", FOTMOB_CORNER_TITLES)
+    return {
+        "ht": {"home": ht[0] if ht else None, "away": ht[1] if ht else None},
+        "ft": {"home": ft[0] if ft else None, "away": ft[1] if ft else None},
+    }
+
+
+def fotmob_cards(periods: dict) -> dict:
+    out: dict = {}
+    for bucket, period in (("ft", "All"), ("ht", "FirstHalf")):
+        yellow = _fotmob_period_stat(periods, period, FOTMOB_YELLOW_TITLES)
+        red = _fotmob_period_stat(periods, period, FOTMOB_RED_TITLES)
+        out[bucket] = {
+            "homeYellows": yellow[0] if yellow else None,
+            "awayYellows": yellow[1] if yellow else None,
+            "homeReds": red[0] if red else None,
+            "awayReds": red[1] if red else None,
+        }
+    return out
+
+
+def _fotmob_events(pp: dict) -> list[dict]:
+    ev = ((pp.get("content") or {}).get("matchFacts") or {}).get("events") or {}
+    items = ev.get("events") if isinstance(ev, dict) else None
+    return [e for e in (items or []) if isinstance(e, dict)]
+
+
+def fotmob_goals(pp: dict) -> dict:
+    """FT from the header score (authoritative, and shootout-free).
+
+    HT is derived from the goal timeline, but ONLY when that timeline accounts
+    for every goal the header claims and no own goal blurs the side. Otherwise
+    HT is null, which keeps the half-time goals markets in manual review instead
+    of settling them against a guess.
+    """
+    teams = ((pp.get("header") or {}).get("teams")) or []
+    ft_home = _to_int(teams[0].get("score")) if len(teams) > 0 and isinstance(teams[0], dict) else None
+    ft_away = _to_int(teams[1].get("score")) if len(teams) > 1 and isinstance(teams[1], dict) else None
+
+    goals = [e for e in _fotmob_events(pp) if e.get("type") == "Goal"]
+    ht_home = ht_away = 0
+    own_goal = False
+    for e in goals:
+        if e.get("ownGoal"):
+            own_goal = True
+        if (_to_int(e.get("time")) or 0) <= 45:
+            if e.get("isHome"):
+                ht_home += 1
+            else:
+                ht_away += 1
+
+    ht = None
+    if ft_home is not None and ft_away is not None:
+        if ft_home == 0 and ft_away == 0:
+            ht = {"home": 0, "away": 0}
+        elif len(goals) == ft_home + ft_away and not own_goal:
+            ht = {"home": ht_home, "away": ht_away}
+    return {
+        "ht": ht or {"home": None, "away": None},
+        "ft": {"home": ft_home, "away": ft_away},
+    }
+
+
+def fotmob_stats(pp: dict) -> Optional[dict]:
+    """All three families for the wire payload, or None if the page has no stats."""
+    periods = (((pp.get("content") or {}).get("stats") or {}).get("Periods")) or {}
+    if not periods:
+        return None
+    return {
+        "corners": fotmob_corners(periods),
+        "goals": fotmob_goals(pp),
+        "cards": fotmob_cards(periods),
+    }
+
+
+def fotmob_process(pool: ProxyPool, ev: dict) -> bool:
+    """Scrape + send one match from FotMob. Returns True when accepted."""
+    match_id = ev.get("id")
+    pp = fotmob_page(pool, match_id)
+    if not pp:
+        log(f"  fotmob {match_id}: page unavailable — skipping (no partial send)")
+        return False
+    general = pp.get("general") or {}
+    if not general.get("finished"):
+        log(f"  fotmob {match_id}: not finished yet — skipping")
+        return False
+    stats = fotmob_stats(pp)
+    if not stats:
+        log(f"  fotmob {match_id}: no stats block (deferred page shell) — skipping")
+        return False
+
+    # Same idempotency rule as the SofaScore path: stable per match + revision,
+    # so a retry of the same scrape is recognised while a later correction is
+    # processed as new data.
+    revision = hashlib.sha256(json.dumps(stats, sort_keys=True).encode()).hexdigest()[:12]
+    payload = {
+        "eventId": f"fotmob-{match_id}-{revision}",
+        "source": "settle-worker-fotmob",
+        "match": {
+            "externalId": str(match_id),
+            "kickoff": datetime.fromtimestamp(int(ev["startTimestamp"]), tz=timezone.utc).isoformat(),
+            "homeName": (general.get("homeTeam") or {}).get("name") or ev["homeTeam"]["name"],
+            "awayName": (general.get("awayTeam") or {}).get("name") or ev["awayTeam"]["name"],
+            "status": "FINISHED",
+        },
+        "stats": stats,
+        "meta": {
+            "scrapedAt": datetime.now(timezone.utc).isoformat(),
+            "url": f"{FOTMOB}/match/{match_id}",
+        },
+    }
+    ok, detail = post_payload(payload)
+    label = f"{payload['match']['homeName']} vs {payload['match']['awayName']}"
+    log(f"  {'OK  ' if ok else 'FAIL'} {label} corners FT {stats['corners']['ft']} "
+        f"yellows FT {stats['cards']['ft']['homeYellows']}-{stats['cards']['ft']['awayYellows']} — {detail}")
+    return ok
+
+
 # ─────────────────────────────── webhook sender ──────────────────────────────
 
 
@@ -417,10 +656,12 @@ def sign(secret: str, timestamp: str, body: bytes) -> str:
 
 def post_payload(payload: dict) -> tuple[bool, str]:
     """POST a signed payload. Returns (ok, detail)."""
-    if not WEBHOOK_URL or not WEBHOOK_SECRET:
-        return False, "SETTLE_WEBHOOK_URL / SETTLE_WEBHOOK_SECRET not configured"
+    # Dry run first: its job is to prove the SCRAPE works, so it must not
+    # require a webhook to be configured yet.
     if DRY_RUN:
         return True, "dry-run (not sent)"
+    if not WEBHOOK_URL or not WEBHOOK_SECRET:
+        return False, "SETTLE_WEBHOOK_URL / SETTLE_WEBHOOK_SECRET not configured"
 
     body = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
     headers = _signed_headers(body)
@@ -632,6 +873,8 @@ def main() -> int:
                     help="ignore the backend work list and scrape every finished match")
     ap.add_argument("--selftest", action="store_true",
                     help="run the parser/matching self-test offline and exit")
+    ap.add_argument("--source", choices=("sofa", "fotmob"), default=SOURCE,
+                    help=f"upstream stats source (default: {SOURCE}; env SETTLE_SOURCE)")
     args = ap.parse_args()
 
     if args.selftest:
@@ -641,9 +884,15 @@ def main() -> int:
     if args.dry_run:
         DRY_RUN = True
 
-    log(f"settlement worker start (dry_run={DRY_RUN}, age>{MATCH_AGE_MINUTES}min)")
+    log(f"settlement worker start (source={args.source}, dry_run={DRY_RUN}, age>{MATCH_AGE_MINUTES}min)")
     pool = ProxyPool.from_env()
-    pool.healthcheck()
+    if args.source == "fotmob":
+        # FotMob needs neither a key nor a proxy. Healthchecking exits against a
+        # SofaScore URL would only burn them for nothing.
+        log("source=fotmob: no key and no proxy required"
+            + (" (proxies configured and will still be rotated)" if pool.proxies else ""))
+    else:
+        pool.healthcheck()
 
     days = (
         [datetime.strptime(args.date, "%Y-%m-%d").replace(tzinfo=timezone.utc)]
@@ -653,9 +902,12 @@ def main() -> int:
 
     # The daily schedule doubles as the id index: it is 1-2 cheap requests that
     # map our fixtures onto the scrape source's event ids.
+    day_events = fotmob_day_events if args.source == "fotmob" else find_finished_events
+    process = fotmob_process if args.source == "fotmob" else process_event
+
     events: list[dict] = []
     for day in days:
-        found = find_finished_events(pool, day)
+        found = day_events(pool, day)
         log(f"{day:%Y-%m-%d}: {len(found)} finished event(s) older than {MATCH_AGE_MINUTES}min")
         events += found
 
@@ -692,9 +944,12 @@ def main() -> int:
 
     sent = 0
     for ev in targets:
-        if process_event(pool, ev):
+        if process(pool, ev):
             sent += 1
-        if not pool.alive():
+        # Only stop for an exhausted pool. With no proxies configured we are
+        # talking to the source directly, and an empty pool is the normal state
+        # rather than a failure.
+        if pool.proxies and not pool.alive():
             log("proxy pool exhausted — stopping this run")
             break
 
@@ -794,6 +1049,75 @@ def selftest() -> int:
     check("sign matches the documented scheme",
           sign("secret", "1800000000", b'{"a":1}'),
           _hmac.new(b"secret", b'1800000000.{"a":1}', hashlib.sha256).hexdigest())
+
+    # 7. FotMob parsing. Payload captured verbatim from the live page for
+    #    Union Berlin 1-3 Schalke 04 (2026-09-11) — the match that proved
+    #    BigBallsData undercounts cards, so the expected 3-1 is the point.
+    fm_periods = {
+        "All": {"stats": [
+            {"title": "Top stats", "stats": [
+                {"title": "Ball possession", "key": "ball_possession", "stats": [66, 34]},
+                {"title": "Yellow cards", "key": "yellow_cards", "stats": [3, 1]},
+                {"title": "Corners", "key": "corners", "stats": [4, 5]},
+                {"title": "Red cards", "key": "red_cards", "stats": [0, 0]},
+            ]},
+        ]},
+        "FirstHalf": {"stats": [
+            {"title": "Top stats", "stats": [
+                {"title": "Yellow cards", "key": "yellow_cards", "stats": [1, 0]},
+                {"title": "Corners", "key": "corners", "stats": [1, 5]},
+                {"title": "Red cards", "key": "red_cards", "stats": [0, 0]},
+            ]},
+        ]},
+    }
+    fm_goals_events = [
+        {"type": "Goal", "time": 25, "isHome": False},
+        {"type": "Goal", "time": 46, "isHome": False},
+        {"type": "Goal", "time": 90, "isHome": True},
+        {"type": "Goal", "time": 90, "isHome": False},
+    ]
+    pp = {
+        "header": {"teams": [{"score": 1}, {"score": 3}]},
+        "content": {"stats": {"Periods": fm_periods},
+                    "matchFacts": {"events": {"events": fm_goals_events}}},
+    }
+    fm_corners = fotmob_corners(fm_periods)
+    check("fotmob corners ft", fm_corners["ft"], {"home": 4, "away": 5})
+    check("fotmob corners ht", fm_corners["ht"], {"home": 1, "away": 5})
+    fm_cards = fotmob_cards(fm_periods)
+    check("fotmob yellows ft (the undercount case)", 
+          [fm_cards["ft"]["homeYellows"], fm_cards["ft"]["awayYellows"]], [3, 1])
+    check("fotmob yellows ht",
+          [fm_cards["ht"]["homeYellows"], fm_cards["ht"]["awayYellows"]], [1, 0])
+    fm_goals = fotmob_goals(pp)
+    check("fotmob goals ft", fm_goals["ft"], {"home": 1, "away": 3})
+    check("fotmob goals ht", fm_goals["ht"], {"home": 0, "away": 1})
+
+    # A timeline that does not add up to the header score must yield a null HT,
+    # never a wrong one: that is what keeps HT markets in review.
+    broken = {"header": {"teams": [{"score": 1}, {"score": 3}]},
+              "content": {"stats": {"Periods": fm_periods},
+                          "matchFacts": {"events": {"events": fm_goals_events[:2]}}}}
+    check("fotmob ht goals null when timeline is short", fotmob_goals(broken)["ht"],
+          {"home": None, "away": None})
+
+    # An own goal blurs side attribution, so HT must also be withheld.
+    og = {"header": {"teams": [{"score": 1}, {"score": 3}]},
+          "content": {"stats": {"Periods": fm_periods},
+                      "matchFacts": {"events": {"events": [
+                          dict(e, ownGoal=True) if i == 0 else e
+                          for i, e in enumerate(fm_goals_events)]}}}}
+    check("fotmob ht goals null when an own goal is present", fotmob_goals(og)["ht"],
+          {"home": None, "away": None})
+
+    # A page with no stats block (deferred shell) yields None -> skip, no send.
+    check("fotmob stats None without a stats block",
+          fotmob_stats({"header": {"teams": [{"score": 0}, {"score": 0}]}, "content": {}}), None)
+    # A real 0-0 is still settled: zero is a fact, missing is not.
+    zero = {"header": {"teams": [{"score": 0}, {"score": 0}]},
+            "content": {"stats": {"Periods": fm_periods}, "matchFacts": {"events": {"events": []}}}}
+    check("fotmob 0-0 gives an actual 0-0 at HT", fotmob_goals(zero)["ht"],
+          {"home": 0, "away": 0})
 
     if failures:
         print("SELFTEST FAILED:")

@@ -69,6 +69,7 @@ SETTLE_PROXIES_FILE=/home/<user>/voltbets/proxies.txt
 | `SETTLE_MATCH_AGE_MINUTES` | `110` | skip anything younger than this |
 | `SETTLE_MAX_MATCHES` | `60` | cap per run |
 | `SETTLE_DRY_RUN` | off | scrape but never POST |
+| `SETTLE_SOURCE` | `sofa` | `sofa` = SofaScore behind the proxy pool; `fotmob` = FotMob, **no key and no proxy needed** |
 
 ## 4. First run — always dry
 
@@ -188,7 +189,42 @@ goes live** — that is where a provider change silently breaks settlement.
 
 ---
 
-## 9. Hybrid source probe — `test_hybrid_settlement.py`
+## 9. Choosing a source — `SETTLE_SOURCE` / `--source`
+
+Two upstreams are implemented. Both produce the identical wire payload, so
+switching is one variable and a bad swap is a one-line rollback.
+
+| | `sofa` (default) | `fotmob` |
+|---|---|---|
+| Key needed | no | **no** |
+| Proxy pool needed | **yes** — blocks without one | **no** — direct works |
+| Corners FT / HT | yes / yes | yes / yes |
+| Cards FT / HT | yes / yes | yes / yes |
+| Goals FT / HT | yes / yes | yes / yes |
+| Cost | free | free |
+
+```bash
+python3 settle_worker.py --source fotmob --dry-run --no-pending --limit 5   # prove it first
+SETTLE_SOURCE=fotmob python3 settle_worker.py                              # then run it
+```
+
+Always `--dry-run` first. It prints the corners and yellows it extracted per
+match without POSTing anything, which is enough to eyeball whether the numbers
+are sane before they can touch a bet.
+
+**Why `fotmob` exists.** BigBallsData cannot serve corners at all (its
+`team_stats` is empty), and TotalCorner costs money. FotMob fills the corner gap
+free, and on a 4-fixture live comparison its cards were also the more complete
+number — BigBallsData was short by exactly one booking on three of the four,
+because cards attached to rows with `team_id: null` are dropped by the filter
+that removes foreign-club contamination. Details and the evidence:
+`docs/FREE-DATA-SOURCES.md`.
+
+**Why `sofa` is still the default.** It is the path that has been running, and
+changing the source of a money path should be a deliberate act. Flip it when you
+have watched a few `fotmob` dry runs and compared them against the live site.
+
+## 10. Hybrid source probe — `test_hybrid_settlement.py`
 
 A standalone test script that builds a settlement payload for a day's finished
 fixtures from **two** APIs, so you can eyeball the numbers before wiring them
@@ -196,6 +232,8 @@ into the live path:
 
 * **BigBallsData** → goals (FT + HT), cards, match completion
 * **TotalCorner** → corners (FT + HT), plus goals/cards as a cross-check
+  *(the account is not a VIP member, so this returns `NO_PERMISSION`; corners are
+  covered by FotMob instead — see section 9)*
 
 It touches no database and settles no bets. Run it:
 
