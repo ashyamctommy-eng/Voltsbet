@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { getPrematchFeed, apiMatchToFeedGame } from "@/lib/feed";
 import { isLiveStatus } from "@/lib/game-status";
+import { sanitizeBannerCtas } from "@/lib/banner-cta";
 import BannerCarousel from "@/components/BannerCarousel";
 import MatchSlideshow from "@/components/MatchSlideshow";
 import MatchFeed, { type FeedGame as MatchFeedGame } from "@/components/MatchFeed";
@@ -25,7 +26,7 @@ export default async function HomePage() {
   // to source="API" alone silently dropped the entire 7-day calendar.
   const visibleSource = s.hideSeededGames ? { source: { in: ["API", "SCHEDULE"] } } : {};
 
-  const [banners, pricedGames, calendarGames, popularSports, promotions] = await Promise.all([
+  const [rawBanners, pricedGames, calendarGames, popularSports, promotions] = await Promise.all([
     prisma.banner.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
     // Priced, near-term fixtures (the odds sync owns these) — rendered first.
     // 0 API requests per page load: the free-tier-friendly path.
@@ -75,6 +76,11 @@ export default async function HomePage() {
       take: 3,
     }),
   ]);
+
+  // A banner CTA that names one specific game outlives that game (the daily
+  // cleanup removes it), which is how the seeded "El Clásico — Live" banner
+  // ended up pointing at a 404. Rewrite any CTA whose game is gone.
+  const banners = await sanitizeBannerCtas(rawBanners);
 
   // API bootstrap ONLY when the DB has no priced games (fresh deploy /
   // pre-first-cron). TTL-cached server-side (6h). Live matches are filtered

@@ -599,7 +599,10 @@ async function main() {
     sport: "football", comp: "Premier League", home: "Arsenal", away: "Liverpool",
     start: D(1), markets: footballMarkets("Arsenal", "Liverpool"),
   });
-  const g3 = await addGame({
+  // Created for the demo feed only — no variable, because nothing may hold a
+  // reference to a seeded game's id: those rows are expired and purged, and a
+  // banner CTA that names one rots into a 404 (see src/lib/banner-cta.ts).
+  await addGame({
     sport: "football", comp: "La Liga", home: "Real Madrid", away: "Barcelona",
     start: D(3), featured: true, markets: footballMarkets("Real Madrid", "Barcelona"),
   });
@@ -814,7 +817,9 @@ async function main() {
   // ── Content ─────────────────────────────────────────────────
   const banners = [
     { title: "Welcome to Voltbets", description: "100% first deposit bonus up to KSh 10,000", image: "", ctaText: "Claim Bonus", ctaUrl: "/register", sortOrder: 0 },
-    { title: "El Clásico — Live", description: "Real Madrid vs Barcelona. Live betting available.", image: "", ctaText: "Bet Now", ctaUrl: `/match/${g3.id}`, sortOrder: 1 },
+    // A banner outlives the fixtures it advertises, so a seeded CTA must point at a
+    // stable page, never at one demo game's id.
+    { title: "El Clásico — Live", description: "Real Madrid vs Barcelona. Live betting available.", image: "", ctaText: "Bet Now", ctaUrl: "/live", sortOrder: 1 },
     { title: "Crypto Deposits", description: "Instant, secure deposits with BTC, ETH, USDT & more.", image: "", ctaText: "Deposit", ctaUrl: "/account/deposit", sortOrder: 2 },
   ];
   for (const b of banners) await prisma.banner.create({ data: b });

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { handle, ok } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
+import { sanitizeBannerCtas } from "@/lib/banner-cta";
 
 /**
  * Public banner feed — serves the hero carousel on the home/match feeds.
@@ -20,5 +21,6 @@ export const GET = handle(async (_req: NextRequest) => {
       ctaUrl: true,
     },
   });
-  return ok({ banners });
+  // A CTA naming a game that no longer exists would 404 on click — rewrite it.
+  return ok({ banners: await sanitizeBannerCtas(banners) });
 });
