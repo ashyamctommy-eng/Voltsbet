@@ -5,11 +5,17 @@ posts them to the Railway app, which settles the bets. Architecture, threat
 model and the wire contract live in **`docs/AUTO-SETTLEMENT.md`** — this file is
 the practical "make it run" guide.
 
-> **Status: interim.** This worker exists because the previous in-app stats feed
-> (API-Sports.io free tier) was unreliable. It is a stop-gap while a better
-> provider is evaluated — see *Exit path* at the bottom. Nothing about the
-> backend contract changes if the source changes: only `fetch_json` targets and
-> the extractors need replacing.
+> **Status: interim, and the exit is decided.** The previous in-app stats feed
+> (API-Sports.io free tier) was unreliable, so this worker scrapes SofaScore as
+> a stop-gap. The intended replacement is **BigBallsData**
+> (`api.bigballsdata.com`, free tier, bearer auth) — the full switch plan,
+> confirmed API facts, the half-time-corners caveat and the free-tier rate-limit
+> trap are in **`docs/NEXT-SESSION.md` §2**. Read that before changing anything
+> here.
+>
+> Nothing about the backend contract changes with the source: only `fetch_json`
+> targets and the three extractors need replacing. Keep the SofaScore path
+> working behind a `SETTLE_SOURCE` switch so a bad swap is a one-line rollback.
 
 ---
 
@@ -156,14 +162,26 @@ sides of the wire. If a match will not resolve, the names have drifted
   recognised, while a genuinely corrected score is new data.
 - Proxy credentials are masked in every log line.
 
-## 8. Exit path (when a better source is found)
+## 8. Exit path — moving to BigBallsData (the decided replacement)
 
 The backend contract is source-agnostic — it only cares about the payload in
-`docs/AUTO-SETTLEMENT.md` §2. To swap the source you replace exactly two things:
+`docs/AUTO-SETTLEMENT.md` §2. Swapping the source replaces exactly two things:
 
 1. `fetch_json` targets (the `SOFASCORE` URLs),
 2. `extract_corners` / `extract_goals` / `extract_cards` (parse the new shape).
 
-Then extend `--selftest` with a real payload from the new provider — that is
-where a provider change silently breaks settlement, so a captured sample
-belongs in the self-test before it goes live.
+Then extend `--selftest` with a real payload from the new provider **before it
+goes live** — that is where a provider change silently breaks settlement.
+
+**Full switch plan: `docs/NEXT-SESSION.md` §2.** Highlights that will bite:
+
+- Auth is `Authorization: Bearer bbs_...` (or `x-api-key`), base
+  `https://api.bigballsdata.com`, envelope `{ data, meta, error }`.
+- **Half-time goals come from `Score.period_scores` (period 1) — but `Stat` has
+  no period field**, so half-time CORNERS/CARDS likely stay manual. Confirm
+  before assuming.
+- Free tier: 1,000 req/day (2,000 with GitHub), 100/min, and a **4xx circuit
+  breaker** — the current retry loop is too aggressive for it and would trigger
+  a cooldown. Honour `Retry-After`, read `X-RateLimit-Remaining`, treat 4xx as
+  do-not-retry.
+- No proxy pool needed once this lands — that is the real operational win.

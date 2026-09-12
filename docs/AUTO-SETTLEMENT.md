@@ -137,6 +137,16 @@ claims*, not because of the dedupe.
 - A missing statistic is sent as `null`, never `0`. Zero corners and "could not
   read the corner count" are very different things.
 
+### 1.5b Next source: BigBallsData
+
+The scraper is interim. The decided replacement is **BigBallsData**
+(`api.bigballsdata.com`, bearer auth, free tier 1,000 req/day — 2,000 with
+GitHub — 100/min). Confirmed API facts, the file-by-file switch plan, the
+half-time-availability finding and the 4xx-circuit-breaker trap are in
+**`docs/NEXT-SESSION.md` §2**. The backend contract in §2 below does not change:
+a source swap touches only the worker's request targets and its three
+extractors.
+
 ### 1.6 Recommended refinements (not yet built)
 
 1. ~~A pending-settlement work list.~~ **Built** — see §2.1. `GET
