@@ -156,80 +156,90 @@ Relevant schemas (verbatim from the spec):
   "short_name": "…", "country": "ESP" }
 ```
 
-### 2.2 The finding that matters most
+### 2.2 FINDINGS FROM A LIVE KEY — read before planning anything
 
-**`Score.period_scores` gives you the half-time GOALS** (period 1) — so the
-`auto-ht` market family (`OVER_UNDER_1H`, `OVER_UNDER_2H`, `FIRST_HALF_BTTS`,
-`HT_FT`) becomes machine-settleable from this source.
+A live key was tested on **2026-09-12** against `api.bigballsdata.com`. These are
+measured results, not documentation claims. **They change the plan.**
 
-**But `Stat` has no period field.** There is no obvious half-time split for
-**corners or cards** on the stats endpoint — it is per-team, match-level. Treat
-this as the key open question (§2.4). Practical consequence today: half-time
-**corner** markets (and HT card markets) probably stay manual, while half-time
-**goals** become automatic. Our resolvers already handle this shape — a missing
-number is sent as `null` and the outcome falls to review.
+| Need | Status | Evidence |
+|---|---|---|
+| **Goals, full time** | ✅ | `score: {home, away}` |
+| **Goals, HALF TIME** | ✅ | `linescore: {home:[1,1], away:[2,2]}` — **per-period [1H, 2H]**, proven on Venezia 2-4 Fiorentina (goals at 22/29/30 and 66/84/86). Cumulative [HT,FT] would have been [1,2]/[2,4]. |
+| **Goals per minute** | ✅ | `/v1/matches/:id/events` → `elapsed` (52), `elapsed_extra`, `team`, `event_type: "Goal"`, `event_detail` |
+| Match status | ✅ | `scheduled · in_progress · finished · postponed · cancelled · suspended` |
+| Team identity | ✅ | `home.id` / `away.id` (UUIDs) + `name` / `short_name` |
+| Kickoff | ✅ | `kickoff_utc` |
+| **Corners** | ❌ **NOT SERVED** | `data.team_stats` is an **empty array on every match tested** — 2026-08-24, 08-28, 09-05 and 09-11, across Ligue 1 and Serie A. Not a lag problem: empty on every date. |
+| **Cards** | ❌ **NOT TRUSTWORTHY** | Events return **goals only** (a match with 5 yellows returned zero card events). The per-match `players[]` array DOES carry `yellow_cards`/`red_cards`, but it is **contaminated** — see below. |
 
-### 2.3 Implementation plan
+**Two data-quality traps worth more than the endpoint list:**
 
-1. **Read the real response once** (see §2.4) — capture
-   `/v1/stored/matches/:id/stats` and `/v1/matches/:id/events` for a finished
-   match into `worker/samples/`.
-2. Extend `--selftest` with those captured payloads **first**. A source change
-   breaks settlement *silently* — the payload still parses, the numbers are just
-   wrong. This is the one habit that prevents an expensive class of bug.
-3. Add a `BigBallsSource` alongside the SofaScore code in
-   `worker/settle_worker.py` (keep both, select with `SETTLE_SOURCE=sofa|bigballs`
-   so a bad swap is a one-line rollback):
-   - `fetch_json` → plain HTTPS with the bearer header. **No proxy pool needed** —
-     keep `ProxyPool` for the SofaScore path only.
-   - `extract_corners(stats)` → map the `metric` rows per `team_id` onto
-     home/away using the team ids from the match, not names.
-   - `extract_goals(score)` → FT from `Score.home/away`; HT from
-     `period_scores[period=1]`.
-   - `extract_cards(events)` → count by `incidentType`/minute, exactly as now.
-   - Send our `eventId` as upstream `Idempotency-Key`.
-4. **Respect the rate limits — this is not optional.** Free tier is
-   **1,000 request/day (2,000 with GitHub linked), 100/minute**. More
-   importantly there is a **4xx circuit breaker**: sustained 4xx responses put
-   the key in a cooldown (`X-RateLimit-4xx-Cooldown`, and `error.code:
-   rate_limited`). Our current retry loop is aggressive — on this API it would
-   *cause* an outage. Rework it to: honour `Retry-After`, read
-   `X-RateLimit-Remaining` and back off, and treat 4xx as **do not retry**
-   (it already returns `4xx = don't retry, 5xx = retry` semantics downstream).
-5. Trust `meta.confidence` and `meta.fields_missing`: if a field is missing or
-   confidence is low, send `null` and let the market go to review. Same rule as
-   today — **a missing stat is never a zero.**
-6. Map our fixtures to their match ids. Two options, both viable:
-   - keep the existing name + kickoff matcher (`match_event`) against
-     `/v1/matches?sport=football&date=…`, or
-   - **better**: store their `bb_match_…` id on our `Game` so matching stops
-     being fuzzy. `Game.externalId` is already taken by the *odds* feed, so this
-     needs a new nullable column (e.g. `statsExternalId`) — remember the MySQL
-     mirror **and** `pnpm run check:schemas`.
-7. Update `worker/README.md` §8 and `docs/AUTO-SETTLEMENT.md` §8 to say the
-   source is BigBallsData, and note the free-tier ceiling in the runbook.
-8. Consider retiring the proxy pool once BigBallsData is proven — it is the main
-   operational cost and fragility of the current worker.
+1. **The per-match `players[]` array is not scoped to the match.** For
+   Venezia vs Fiorentina it contained rows for **Barcelona, Leeds United,
+   Napoli, Portugal, Everton, Torino and Hellas Verona**, plus one row with
+   `team_name: null`. Summing `yellow_cards` per team over that array produces a
+   number that looks plausible and is wrong — the worst possible failure mode
+   for settlement. **Never aggregate that array to settle a market.**
+2. **Team names differ between endpoints.** The match object says
+   `"Stade Rennais"`; the events feed says `"Rennes"`. A name-based matcher
+   (ours uses token coverage, so it would refuse rather than guess) cannot be
+   relied on here — **match on team ids**, which every other endpoint returns.
 
-### 2.4 Open questions — confirm with ONE authenticated call each
+**What this means:** BigBallsData can take over the **goals and half-time**
+half of settlement (the `auto-ht` family: `OVER_UNDER_1H`, `OVER_UNDER_2H`,
+`FIRST_HALF_BTTS`, `HT_FT`) — reliably, with no proxies. It **cannot** settle
+**corners or cards**. Those two families are the decision point:
 
-Do not guess these; a wrong mapping settles the wrong side of a market.
+- **Option A (hybrid)** — BigBallsData for goals/HT, keep the SofaScore scrape
+  (and the proxy pool) for corners/cards. Most automation, most moving parts.
+- **Option B (one source)** — BigBallsData only; corner and card markets go to
+  the manual review queue. Retires the proxy pool entirely. Simplest and safest.
+- **Option C (ask first)** — the docs advertise "Team stats (per game) …
+  Won Corners / Yellow Cards / Red Cards" on the **Free** tier, yet
+  `team_stats` is empty for every match. That is worth one email to
+  `support@bigballsdata.com` (or their Discord) before designing around it:
+  *is team_stats a tier gate, an ingestion gap, or a league-limited dataset?*
+  If it is merely gated, Option A collapses into a single clean source.
 
-- [ ] The exact `metric` strings `Stat` uses for **corners**, **yellow cards**,
-      **red cards** (the docs list "Won Corners", "Yellow Cards", "Red Cards" as
-      *field* names, but the API serves `metric` rows — the canonical metric
-      vocabulary is the thing to capture).
-- [ ] Whether the events endpoint carries a **card class** distinguishing
-      straight red / second yellow, and whether it has a period or only a minute.
-- [ ] Whether **half-time corners** exist anywhere (see §2.2). If not, HT corner
-      markets stay manual — write that down rather than approximating.
-- [ ] Whether the free tier covers the leagues you actually price (free covers
-      EPL, La Liga, Bundesliga, Serie A, Ligue 1, UCL, MLS, WC2026 — **not**
-      lower divisions or smaller federations).
-- [ ] Whether `/v1/matches` returns **team ids** for both sides (needed to attach
-      stats to the right side without name matching).
-- [ ] Free-tier daily cap vs your fixture volume: 1,000/day sounds like plenty
-      for a handful of fixtures, but a full day's card plus retries adds up.
+**Recommendation: Option B now, Option A only if corners must stay automated.**
+Half-time goals at zero operational cost is a real win, and the proxy pool is
+the single most fragile part of the current worker.
+
+### 2.3 Implementation plan (updated for the findings)
+
+1. **Decide A vs B vs C above.** Do not start coding the source until that is
+   settled — it changes which endpoints you need.
+2. Capture the real responses into `worker/samples/` (a finished match's
+   `/v1/matches/:id` and `/v1/matches/:id/events`), then extend `--selftest`
+   with them **before** going live. A source change breaks settlement silently —
+   the payload still parses, the numbers are just wrong.
+3. Add `BigBallsSource` alongside the SofaScore code, selected by
+   `SETTLE_SOURCE=sofa|bigballs`, so a bad swap is a one-line rollback.
+   - `extract_goals(score)` → FT from `score`, **HT from `linescore[0]`**.
+   - `extract_corners(...)` / `extract_cards(...)` → return `null`s under
+     Option B (the markets then fall to review, which is the correct outcome),
+     or keep the SofaScore path under Option A.
+   - Match to our fixture on `home.id`/`away.id` + `kickoff_utc`, not names.
+   - Send our `eventId` upstream as `Idempotency-Key`.
+4. **Respect the rate limits.** Measured on this key:
+   `x-ratelimit-limit: 100` (minute), `x-ratelimit-limit-day: 2000`,
+   `x-ratelimit-remaining: 99` — the GitHub bonus is active. The headers come
+   back on **every** authenticated response, so self-throttle from them. There is
+   also a **4xx circuit breaker** (sustained 4xx → key cooldown): our current
+   retry loop is too aggressive for this API and would *cause* the outage it is
+   meant to survive. Honour `Retry-After`, treat 4xx as do-not-retry.
+5. Because `team_stats` is empty, send `null` — **never 0** — for corners/cards
+   under Option B. The resolvers already refuse to settle on a null.
+6. Update `worker/README.md` §8 and `docs/AUTO-SETTLEMENT.md` §1.5b when the
+   source lands, and retire the proxy pool if Option B is chosen.
+
+### 2.4 Key handling
+
+The API key lives **outside the repo** (`/home/user/.secrets/bigballsdata-key`,
+`chmod 600` on the previous host) and **only on the cPanel worker** — the app
+never needs it, so it does not belong in Railway env or `.env.example`. If a key
+is ever pasted into a chat or ticket, rotate it at
+`https://bigballsdata.com/dashboard/keys`.
 
 ### 2.5 Still true from the old plan
 
@@ -285,8 +295,11 @@ Do this **before** debugging code when the user says "no changes".
 ## 5. Open items / known gaps
 
 1. **Swap the stats source to BigBallsData** (§2) — the main task.
-2. **HT corners may be unavailable** from BigBallsData → decide whether those
-   markets stay manual or are removed from the catalogue.
+2. **BigBallsData cannot settle corners or cards** (measured — §2.2). Decide
+   Option A (hybrid: keep the SofaScore scrape for corners/cards) vs Option B
+   (goals/HT only; corners + cards go to manual review), and email
+   `support@bigballsdata.com` about the empty `team_stats` before designing
+   around it.
 3. **`prisma migrate status` never verified against a live DB** for the
    settlement-engine migration.
 4. **Proxy retirement** — once BigBallsData is proven, drop the residential pool.
