@@ -264,6 +264,51 @@ is ever pasted into a chat or ticket, rotate it at
 
 ---
 
+### 2.6 TotalCorner is the corner source — verified API shape, needs a token
+
+Corners are the one family BigBallsData cannot serve (§2.2), and **TotalCorner
+covers exactly that gap**. Its API is real and documented at
+`https://www.totalcorner.com/page/api`; every claim below was confirmed against
+the live service on 2026-09-12 (its routing answers `TOKEN_ERROR` on
+`/v1/match/schedule` and `/v1/match/view/{id}`, and 404 on nonsense paths, so
+the routes exist).
+
+- Base `https://api.totalcorner.com/v1/`, auth is the **`?token=` query param**.
+- Endpoints: `/match/schedule?date=YYYYMMDD&columns=events&page=1`,
+  `/match/view/{match_id}`, `/match/today?type=upcoming|inplay|ended`,
+  `/league/schedule/{id}`, `/league/table/{id}`.
+- Envelope: `{"success": 1, "data": [...]}` or `{"success": 0, "error": {code, message}}`.
+  Codes seen in the docs: `TOKEN_ERROR`, `NO_PERMISSION` (not a VIP member),
+  `TOO_MANY_REQUEST`.
+- **Rate limit: 30 requests/minute**, advertised in
+  `X-Rate-Limit-Limit / -Remaining / -Reset`. The script self-throttles to one
+  call every ~2.05s and reads the remaining count.
+- Field names (all values are **strings**, cast them):
+  `hc`/`ac` corners FT, **`hf_hc`/`hf_ac` corners at HALF TIME**,
+  `hg`/`ag` goals, `hf_hg`/`hf_ag` half-time goals,
+  `hrc`/`arc` red cards, **`hyc`/`ayc` yellow cards**,
+  `h`/`a` team names, `h_id`/`a_id` team ids, `l` league,
+  `start` kickoff, `status` a **numeric code**, `ish` second-half flag.
+  The optional `columns=events` adds a timeline of goals, corners and red cards
+  (`{tp: "c"|"g"|"rc", h: "h"|"a", t: minute}`) — note **no yellow cards** there.
+- **`status` is an undocumented numeric code.** The documented finished sample
+  shows `"79"`, which is the only value the script treats as finished; verify the
+  rest against a live token before trusting it.
+- `start` carries **no timezone**, so kickoff is used only as a soft signal in
+  matching, never as the deciding one.
+- **Access requires a VIP membership** (`NO_PERMISSION` otherwise). Confirm the
+  subscription before building anything on this.
+
+**`worker/test_hybrid_settlement.py`** (new) merges the two sources into the
+settlement payload and writes `test_result.json`. Its BigBallsData half is
+verified live; its TotalCorner half is written to the schema above but has
+**not been run against a real token yet** — that is the outstanding gap. Run it
+with `--selftest` (no keys, no network) to exercise the parsers and the matcher.
+
+Note that TotalCorner also reports **half-time corners**, so 1H corner markets
+could be settled from it (`--include-ht-corners` emits them; off by default to
+keep the payload shape unchanged).
+
 ## 3. Deploy reality — check this FIRST if "my changes aren't showing"
 
 Once already, the live site at `voltbets.me` was serving a build from **before
@@ -303,12 +348,14 @@ Do this **before** debugging code when the user says "no changes".
 ## 5. Open items / known gaps
 
 1. **Swap the stats source to BigBallsData** (§2) — the main task.
-2. **BigBallsData cannot serve corners** (measured — §2.2; `team_stats` empty on
-   14 matches, the string `corner` absent from a 60 KB payload). Goals FT/HT and
-   cards FT ARE available. Decide Option A (hybrid: keep the SofaScore scrape for
-   corners only) vs Option B (corners + HT cards to manual review, retire the
-   proxies), and email `support@bigballsdata.com` about the empty `team_stats` —
-   the docs advertise "Won Corners" on the Free tier, so it may be a gate.
+2. **Corners come from TotalCorner, not BigBallsData** (measured — §2.2/§2.6).
+   BigBallsData serves goals FT/HT and cards FT; its `team_stats` is empty on 14
+   matches and the string `corner` is absent from a 60 KB payload. TotalCorner
+   supplies `hc`/`ac` (and `hf_hc`/`hf_ac` at half time). Two things block it:
+   a **VIP membership** and a **token** — get both, then run
+   `worker/test_hybrid_settlement.py` and check the `CROSS-CHECK` warnings.
+   With TotalCorner live, the SofaScore scrape and its proxy pool can be retired
+   entirely: that is the whole point of the hybrid.
 3. **`prisma migrate status` never verified against a live DB** for the
    settlement-engine migration.
 4. **Proxy retirement** — once BigBallsData is proven, drop the residential pool.

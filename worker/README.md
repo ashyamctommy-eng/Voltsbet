@@ -185,3 +185,60 @@ goes live** — that is where a provider change silently breaks settlement.
   a cooldown. Honour `Retry-After`, read `X-RateLimit-Remaining`, treat 4xx as
   do-not-retry.
 - No proxy pool needed once this lands — that is the real operational win.
+
+---
+
+## 9. Hybrid source probe — `test_hybrid_settlement.py`
+
+A standalone test script that builds a settlement payload for a day's finished
+fixtures from **two** APIs, so you can eyeball the numbers before wiring them
+into the live path:
+
+* **BigBallsData** → goals (FT + HT), cards, match completion
+* **TotalCorner** → corners (FT + HT), plus goals/cards as a cross-check
+
+It touches no database and settles no bets. Run it:
+
+```bash
+export BIGBALLSDATA_KEY=bbs_...
+export TOTALCORNER_TOKEN=...          # optional; corners stay null without it
+python3 worker/test_hybrid_settlement.py --date 2026-09-11 --verbose
+python3 worker/test_hybrid_settlement.py --selftest        # offline, no keys
+```
+
+Output goes to stdout and to `test_result.json` (gitignored), in the shape:
+
+```json
+{"event_id": "...", "totalcorner_id": "...", "match_status": "FT",
+ "home_team": "...", "away_team": "...",
+ "scores": {"HT": {"home": 1, "away": 0}, "FT": {"home": 2, "away": 1}},
+ "cards":  {"yellow_cards": {"home": 2, "away": 3},
+            "red_cards":    {"home": 0, "away": 1}},
+ "corners": {"FT": {"home": 6, "away": 4, "total": 10}}}
+```
+
+**How the two sources are reconciled.** BigBallsData and TotalCorner both report
+goals and cards, and the script compares them on every fixture, logging a
+`CROSS-CHECK` warning when they disagree. That disagreement rate is the number
+worth watching — it is the cheapest signal that one feed is drifting.
+
+**Team-name matching is deliberately conservative.** Clubs share cities, so
+"Manchester United" vs "Manchester City" and "Inter Milan" vs "AC Milan" both
+score high on naive string similarity and *must not* merge. The matcher caps the
+score whenever each name owns a token the other lacks, which means it will
+occasionally refuse a fixture that is genuinely the same club
+("Bayern Munich" vs "Bayern München"). That is the correct trade: a missed
+fixture costs one manual review, a wrong fixture settles the wrong bet. Record
+confirmed pairs in an aliases file and they are trusted from then on:
+
+```bash
+python3 worker/test_hybrid_settlement.py --aliases worker/team_aliases.json
+```
+
+```json
+{"Bayern Munich": ["Bayern München"], "1. FC Köln": ["Cologne"]}
+```
+
+**Known gap.** The BigBallsData half is verified against the live API. The
+TotalCorner half is written to the documented schema but has **not been run
+against a live token** — see `docs/NEXT-SESSION.md` §2.6.
