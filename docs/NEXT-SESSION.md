@@ -169,31 +169,36 @@ measured results, not documentation claims. **They change the plan.**
 | Match status | ✅ | `scheduled · in_progress · finished · postponed · cancelled · suspended` |
 | Team identity | ✅ | `home.id` / `away.id` (UUIDs) + `name` / `short_name` |
 | Kickoff | ✅ | `kickoff_utc` |
-| **Corners** | ❌ **NOT SERVED** | `data.team_stats` is an **empty array on every match tested** — 2026-08-24, 08-28, 09-05 and 09-11, across Ligue 1 and Serie A. Not a lag problem: empty on every date. |
-| **Cards** | ❌ **NOT TRUSTWORTHY** | Events return **goals only** (a match with 5 yellows returned zero card events). The per-match `players[]` array DOES carry `yellow_cards`/`red_cards`, but it is **contaminated** — see below. |
+| **Cards, full time** | ✅ **via player rows** — *but only when filtered by `team_id`* | `players[].stats.yellow_cards` / `.red_cards` are **per-match** and correct: on 1. FC Union Berlin 1-3 Schalke 04, minutes cap at 90 and the player `goals` sum to exactly 4 = the 1-3 score. Filtering to the two fixture `team_id`s gives Union 2 yellows / Schalke 1. |
+| Cards, half time | ❌ | Player rows carry no minute, so there is no HT split. |
+| **Corners** | ❌ **NOT SERVED** | The substring `corner` appears **0 times in the entire 60 KB response** for a Bundesliga match, and `data.team_stats` — the only team-level bucket — is an **empty array on all 14 matches tested**, across 2026-08-24 → 09-11 and four leagues. Not ingestion lag. |
 
 **Two data-quality traps worth more than the endpoint list:**
 
-1. **The per-match `players[]` array is not scoped to the match.** For
-   Venezia vs Fiorentina it contained rows for **Barcelona, Leeds United,
-   Napoli, Portugal, Everton, Torino and Hellas Verona**, plus one row with
-   `team_name: null`. Summing `yellow_cards` per team over that array produces a
-   number that looks plausible and is wrong — the worst possible failure mode
-   for settlement. **Never aggregate that array to settle a market.**
+1. **The per-match `players[]` array is not scoped to the match — filter by
+   `team_id`, never by `team_name`.** Union Berlin vs Schalke carried rows for
+   **Pisa** and **Wolverhampton Wanderers**, plus two rows with
+   `team_id: null` — and one of those nulls had a yellow card, so an unfiltered
+   sum silently adds a booking from a player who was not in the match. Venezia
+   vs Fiorentina was worse: Barcelona, Leeds, Napoli, Portugal, Everton and
+   Torino all appeared. **The rows are correct per-match; the array around them
+   is not.** Filter on the fixture's two `team_id`s and the numbers are sound —
+   this is what makes card settlement possible at all.
 2. **Team names differ between endpoints.** The match object says
    `"Stade Rennais"`; the events feed says `"Rennes"`. A name-based matcher
    (ours uses token coverage, so it would refuse rather than guess) cannot be
    relied on here — **match on team ids**, which every other endpoint returns.
 
-**What this means:** BigBallsData can take over the **goals and half-time**
-half of settlement (the `auto-ht` family: `OVER_UNDER_1H`, `OVER_UNDER_2H`,
-`FIRST_HALF_BTTS`, `HT_FT`) — reliably, with no proxies. It **cannot** settle
-**corners or cards**. Those two families are the decision point:
+**What this means:** three of the four data families are available —
+**goals (FT + HT)**, and **cards (FT)** via `team_id`-filtered player rows.
+Only **corners** (and half-time cards, which need a minute) are genuinely
+missing. So the gap is narrower than it first looked:
 
-- **Option A (hybrid)** — BigBallsData for goals/HT, keep the SofaScore scrape
-  (and the proxy pool) for corners/cards. Most automation, most moving parts.
-- **Option B (one source)** — BigBallsData only; corner and card markets go to
-  the manual review queue. Retires the proxy pool entirely. Simplest and safest.
+- **Option A (hybrid)** — BigBallsData for goals/HT/cards, keep the SofaScore
+  scrape (and the proxy pool) for **corners only**. Nearly everything automated;
+  one fragile component retained for one market family.
+- **Option B (one source)** — BigBallsData only; **corner** markets (and HT
+  cards) go to the manual review queue. Retires the proxy pool entirely.
 - **Option C (ask first)** — the docs advertise "Team stats (per game) …
   Won Corners / Yellow Cards / Red Cards" on the **Free** tier, yet
   `team_stats` is empty for every match. That is worth one email to
@@ -201,9 +206,10 @@ half of settlement (the `auto-ht` family: `OVER_UNDER_1H`, `OVER_UNDER_2H`,
   *is team_stats a tier gate, an ingestion gap, or a league-limited dataset?*
   If it is merely gated, Option A collapses into a single clean source.
 
-**Recommendation: Option B now, Option A only if corners must stay automated.**
-Half-time goals at zero operational cost is a real win, and the proxy pool is
-the single most fragile part of the current worker.
+**Recommendation: Option A is now the better call** — because only corners need
+the scrape, the proxy pool's blast radius shrinks to a single market family, and
+it can fail without touching goals/HT/cards. Choose B only if corner volume is
+low enough that manual review is acceptable (that retires the proxies outright).
 
 ### 2.3 Implementation plan (updated for the findings)
 
@@ -216,9 +222,10 @@ the single most fragile part of the current worker.
 3. Add `BigBallsSource` alongside the SofaScore code, selected by
    `SETTLE_SOURCE=sofa|bigballs`, so a bad swap is a one-line rollback.
    - `extract_goals(score)` → FT from `score`, **HT from `linescore[0]`**.
-   - `extract_corners(...)` / `extract_cards(...)` → return `null`s under
-     Option B (the markets then fall to review, which is the correct outcome),
-     or keep the SofaScore path under Option A.
+   - `extract_cards(players)` → sum `yellow_cards`/`red_cards` over player rows
+     **filtered to the fixture's two `team_id`s** (this is the whole trick).
+   - `extract_corners(...)` → the SofaScore path under Option A, or `null`s
+     under Option B (those markets then fall to review — the correct outcome).
    - Match to our fixture on `home.id`/`away.id` + `kickoff_utc`, not names.
    - Send our `eventId` upstream as `Idempotency-Key`.
 4. **Respect the rate limits.** Measured on this key:
@@ -228,8 +235,9 @@ the single most fragile part of the current worker.
    also a **4xx circuit breaker** (sustained 4xx → key cooldown): our current
    retry loop is too aggressive for this API and would *cause* the outage it is
    meant to survive. Honour `Retry-After`, treat 4xx as do-not-retry.
-5. Because `team_stats` is empty, send `null` — **never 0** — for corners/cards
-   under Option B. The resolvers already refuse to settle on a null.
+5. Because `team_stats` is empty, send `null` — **never 0** — for any statistic
+   you could not read (corners under Option B, HT cards always). The resolvers
+   already refuse to settle on a null.
 6. Update `worker/README.md` §8 and `docs/AUTO-SETTLEMENT.md` §1.5b when the
    source lands, and retire the proxy pool if Option B is chosen.
 
@@ -295,11 +303,12 @@ Do this **before** debugging code when the user says "no changes".
 ## 5. Open items / known gaps
 
 1. **Swap the stats source to BigBallsData** (§2) — the main task.
-2. **BigBallsData cannot settle corners or cards** (measured — §2.2). Decide
-   Option A (hybrid: keep the SofaScore scrape for corners/cards) vs Option B
-   (goals/HT only; corners + cards go to manual review), and email
-   `support@bigballsdata.com` about the empty `team_stats` before designing
-   around it.
+2. **BigBallsData cannot serve corners** (measured — §2.2; `team_stats` empty on
+   14 matches, the string `corner` absent from a 60 KB payload). Goals FT/HT and
+   cards FT ARE available. Decide Option A (hybrid: keep the SofaScore scrape for
+   corners only) vs Option B (corners + HT cards to manual review, retire the
+   proxies), and email `support@bigballsdata.com` about the empty `team_stats` —
+   the docs advertise "Won Corners" on the Free tier, so it may be a gate.
 3. **`prisma migrate status` never verified against a live DB** for the
    settlement-engine migration.
 4. **Proxy retirement** — once BigBallsData is proven, drop the residential pool.
