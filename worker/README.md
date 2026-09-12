@@ -335,3 +335,69 @@ every endpoint answers `NO_PERMISSION`. The API is a VIP privilege — see
 `docs/NEXT-SESSION.md` §2.6. Note also that this account advertises
 `X-Rate-Limit-Limit: 5` (the docs say 30); the client self-throttles from the
 response header, so that is handled, just slowly.
+
+---
+
+## 11. Hosting it: Railway cron service (recommended) or cPanel
+
+The worker is a **one-shot job** — it runs, scrapes, POSTs and exits. Nothing
+about it needs a web server, a port or a domain. That means it can live anywhere
+with Python 3.8+ and outbound HTTPS, and since `cross` needs **no key and no
+proxy pool**, the old reason to keep a separate scraping host is gone.
+
+### 11a. Railway service (recommended)
+
+Everything in one dashboard, env vars in one place, and the script updates
+automatically from the repo instead of being re-copied by hand.
+
+The container files live in this directory and are already wired:
+
+| File | Purpose |
+|---|---|
+| `Dockerfile` | `python:3.12-slim`, no dependencies (the worker is stdlib-only), unbuffered logs |
+| `run.sh` | entry point; defaults `--source cross`, honours `SETTLE_SOURCE`, forwards extra args |
+| `railway.json` | builds the Dockerfile; **no healthcheck** — a job that exits cannot answer one |
+
+**Create the service:** Railway → your project → **New** → **GitHub repo**
+(`ashyamctommy-eng/Voltsbet`) → then in the new service's **Settings**:
+
+| Setting | Value |
+|---|---|
+| Root Directory | `worker` |
+| Build | detected from `worker/railway.json` (Dockerfile) |
+| Cron Schedule | `*/10 * * * *` |
+| Start Command | *(leave empty — the image's `CMD` runs `run.sh`)* |
+| Networking → public domain | **do not generate one** |
+
+**Variables** (Service → Variables):
+
+```
+SETTLE_WEBHOOK_URL    = https://voltbets.me/api/v1/settlement/process
+SETTLE_WEBHOOK_SECRET = <the SAME value as the app's SETTLEMENT_WEBHOOK_SECRET>
+```
+
+`SETTLE_SOURCE` is optional — it already defaults to `cross`. Do **not** set
+`SETTLE_PROXIES_FILE`: there is no proxy pool, and the worker ignores one for
+these sources anyway.
+
+**First run, safely.** Set `SETTLE_DRY_RUN=true` as a variable first, trigger the
+service once (Deployments → the ⋯ menu → **Redeploy**, or just wait for the next
+cron tick), and read the logs: you want `OK <home> vs <away> corners FT {...}`
+lines and no `FAILED`. Then remove `SETTLE_DRY_RUN` to let it settle for real.
+
+**Reading logs.** Railway captures stdout, so the `CROSS-CHECK`,
+`SELF-CHECK` and `TIEBREAK` lines from §9b are searchable in the service's log
+view. No log rotation to manage.
+
+### 11b. cPanel (the original host)
+
+Still supported, and fine if you would rather not add a Railway service — it is
+just more manual. Copy `settle_worker.py` to `~/voltbets/`, then use the cron
+line in §5 with `SETTLE_SOURCE=cross` and **without** `SETTLE_PROXIES_FILE`.
+The trade-off: every worker change must be re-copied to that host by hand.
+
+### 11c. Which to choose
+
+`cross` reads keyless endpoints with ~1–4 requests per fixture, so there is no
+scraping cost that justifies a separate host. Prefer **11a** unless you have a
+reason to keep the cPanel account in the loop.

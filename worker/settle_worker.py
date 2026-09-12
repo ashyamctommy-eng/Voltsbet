@@ -56,6 +56,11 @@ FOTMOB = "https://www.fotmob.com"
 #            corners (FT + HT), cards (FT + HT) and goals (FT + HT)
 # See docs/FREE-DATA-SOURCES.md before changing this.
 SOURCE = os.environ.get("SETTLE_SOURCE", "sofa").strip().lower()
+# Sources that answer a datacentre IP directly: no key, and no proxy pool.
+KEYLESS_SOURCES = ("fotmob", "365", "cross")
+# Set from --source in main() so the proxy warnings describe the RUN, not the
+# compile-time default.
+ACTIVE_SOURCE = SOURCE
 WEBHOOK_URL = os.environ.get("SETTLE_WEBHOOK_URL", "")
 WEBHOOK_SECRET = os.environ.get("SETTLE_WEBHOOK_SECRET", "")
 PENDING_URL = os.environ.get("SETTLE_PENDING_URL", "")  # defaults from WEBHOOK_URL
@@ -129,7 +134,7 @@ class ProxyPool:
         random.shuffle(out)
         pool = cls(proxies=out)
         log(f"proxy pool loaded: {len(out)} exit(s)")
-        if not out:
+        if not out and ACTIVE_SOURCE not in KEYLESS_SOURCES:
             log("WARNING: no proxies configured — falling back to direct requests "
                 "(expect blocks; set SETTLE_PROXIES_FILE)")
         return pool
@@ -1566,12 +1571,14 @@ def main() -> int:
         DRY_RUN = True
 
     log(f"settlement worker start (source={args.source}, dry_run={DRY_RUN}, age>{MATCH_AGE_MINUTES}min)")
+    global ACTIVE_SOURCE
+    ACTIVE_SOURCE = args.source
     pool = ProxyPool.from_env()
     if args.source in ("fotmob", "365", "cross"):
         # These read keyless, datacentre-reachable endpoints. Healthchecking
         # exits against a SofaScore URL would only burn them for nothing.
         log(f"source={args.source}: no key and no proxy required"
-            + (" (proxies configured and will still be rotated)" if pool.proxies else ""))
+            + (" (proxy pool configured but ignored — this source goes direct)" if pool.proxies else ""))
     else:
         pool.healthcheck()
 
