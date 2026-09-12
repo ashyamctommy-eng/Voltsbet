@@ -296,8 +296,18 @@ the routes exist).
   rest against a live token before trusting it.
 - `start` carries **no timezone**, so kickoff is used only as a soft signal in
   matching, never as the deciding one.
-- **Access requires a VIP membership** (`NO_PERMISSION` otherwise). Confirm the
-  subscription before building anything on this.
+- **Access requires a VIP membership.** A token was supplied and tested on
+  2026-09-12: it is *recognised* (the API answers `NO_PERMISSION`, not
+  `TOKEN_ERROR`) but the account is **not a VIP member**, so
+  `/match/schedule`, `/match/today`, `/match/view/{id}`, `/league/table/{id}`
+  and `/league/schedule/{id}` all return `NO_PERMISSION` with no data. Buy VIP at
+  `https://www.totalcorner.com/membership`, then re-check. Until then every
+  corner figure is null by design.
+- **The rate limit is per-account and lower than the docs claim.** The
+  documented 30/min is what an entitled account is promised; this token
+  advertises `X-Rate-Limit-Limit: 5`, and 5 rapid calls produced
+  `TOO_MANY_REQUEST`. The client therefore reads that header on the first
+  response and throttles to the real value instead of trusting the docs.
 
 **`worker/test_hybrid_settlement.py`** (new) merges the two sources into the
 settlement payload and writes `test_result.json`. Its BigBallsData half is

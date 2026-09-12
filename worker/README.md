@@ -240,5 +240,10 @@ python3 worker/test_hybrid_settlement.py --aliases worker/team_aliases.json
 ```
 
 **Known gap.** The BigBallsData half is verified against the live API. The
-TotalCorner half is written to the documented schema but has **not been run
-against a live token** — see `docs/NEXT-SESSION.md` §2.6.
+TotalCorner half is written to the documented schema and the client is proven to
+degrade correctly, but it has **not yet returned real corner data**: the token
+supplied on 2026-09-12 is recognised while the account is not a VIP member, so
+every endpoint answers `NO_PERMISSION`. The API is a VIP privilege — see
+`docs/NEXT-SESSION.md` §2.6. Note also that this account advertises
+`X-Rate-Limit-Limit: 5` (the docs say 30); the client self-throttles from the
+response header, so that is handled, just slowly.

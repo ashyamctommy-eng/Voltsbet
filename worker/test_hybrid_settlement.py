@@ -57,8 +57,10 @@ from datetime import datetime, timedelta, timezone
 BB_BASE = "https://api.bigballsdata.com/v1"
 TC_BASE = "https://api.totalcorner.com/v1"
 
-# TotalCorner documents a hard 30 requests/minute window.
-TC_MIN_INTERVAL = 2.05          # seconds between calls -> stays under 30/min
+# TotalCorner documents 30 requests/minute, but the figure that matters is the
+# one in the response header: an unentitled token advertises 5. The client reads
+# X-Rate-Limit-Limit on the first response and throttles to the real value.
+TC_MIN_INTERVAL = 2.05          # starting guess (=30/min) until a header says otherwise
 TC_NAME_THRESHOLD = 0.72        # min name similarity to accept a fixture
 TC_AMBIGUITY_MARGIN = 0.03      # if top two are this close, refuse to merge
 TC_MAX_KICKOFF_DELTA_H = 6      # TotalCorner `start` has no timezone: stay generous
@@ -347,12 +349,27 @@ class TotalCornerSource:
         self.calls = 0
         self._last_call = 0.0
         self.blocked = False       # set once the token is rejected — stop trying
+        # The docs advertise 30 requests/minute, but the advertised figure is
+        # for entitled accounts: a token without VIP returns
+        # `X-Rate-Limit-Limit: 5`. Start at the documented value and correct
+        # from the response header on the first call.
+        self.min_interval = TC_MIN_INTERVAL
 
     def _throttle(self) -> None:
         gap = time.monotonic() - self._last_call
-        if gap < TC_MIN_INTERVAL:
-            time.sleep(TC_MIN_INTERVAL - gap)
+        if gap < self.min_interval:
+            time.sleep(self.min_interval - gap)
         self._last_call = time.monotonic()
+
+    def _observe_rate_limit(self, hdrs: dict) -> None:
+        """Self-throttle from the account's OWN limit, not the documented one."""
+        limit = (hdrs or {}).get("x-rate-limit-limit")
+        if limit and str(limit).isdigit() and int(limit) > 0:
+            self.min_interval = max(60.0 / int(limit), 0.5)
+        rem = (hdrs or {}).get("x-rate-limit-remaining")
+        if rem is not None and str(rem).isdigit() and int(rem) <= 1:
+            log("WARN", f"totalcorner: {rem} request(s) left in this window "
+                        f"(limit {limit or '?'}/min)")
 
     def _get(self, path: str, params: dict) -> tuple[dict | None, str | None]:
         """Return (data, error_code). TotalCorner wraps payloads in
@@ -364,10 +381,7 @@ class TotalCornerSource:
         self._throttle()
         self.calls += 1
         status, body, hdrs = _http_json(url, {"Accept": "application/json"}, self.timeout)
-
-        rem = hdrs.get("x-rate-limit-remaining")
-        if rem is not None and rem.isdigit() and int(rem) < 5:
-            log("WARN", f"totalcorner rate limit low: {rem} left this window")
+        self._observe_rate_limit(hdrs)
 
         if status == 429:
             return None, "TOO_MANY_REQUEST"
@@ -379,8 +393,26 @@ class TotalCornerSource:
             code = err.get("code") or "UNKNOWN"
             msg = err.get("message") or ""
             # These do not fix themselves; stop hammering the endpoint.
-            if code in ("TOKEN_ERROR", "NO_PERMISSION"):
+            if code == "NO_PERMISSION":
                 self.blocked = True
+                log("WARN", "totalcorner: this token is NOT a VIP member. The API is a VIP "
+                            "privilege (https://www.totalcorner.com/membership), so every "
+                            "endpoint returns NO_PERMISSION. Corners will be null.")
+                return None, code
+            if code == "TOKEN_ERROR":
+                self.blocked = True
+                log("WARN", f"totalcorner: token rejected ({msg}) — check the user centre "
+                            f"at https://www.totalcorner.com")
+                return None, code
+            if code == "TOO_MANY_REQUEST":
+                # Recoverable: wait out the window rather than disabling the source.
+                reset = hdrs.get("x-rate-limit-reset")
+                wait = float(reset) if (reset and str(reset).replace(".", "").isdigit()) else self.min_interval
+                wait = max(1.0, min(wait, 60.0))
+                log("WARN", f"totalcorner rate limited — waiting {wait:.0f}s "
+                            f"(limit {hdrs.get('x-rate-limit-limit', '?')}/min)")
+                time.sleep(wait)
+                return None, code
             log("WARN", f"totalcorner {path.split('/')[1]} -> {code}: {msg}")
             return None, code
         data = body.get("data")
@@ -758,6 +790,8 @@ def main() -> int:
         except Exception as e:  # noqa: BLE001 - never let the corner source kill the run
             tc_error = f"{type(e).__name__}: {e}"
             log("WARN", f"totalcorner schedule failed: {tc_error}")
+        if tc_error and not tc_rows:
+            warnings.append(f"TotalCorner returned {tc_error}: corners are null for every fixture")
 
     results = []
     for m in matches:
