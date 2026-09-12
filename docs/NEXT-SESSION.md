@@ -367,8 +367,15 @@ Do this **before** debugging code when the user says "no changes".
 ## 5. Open items / known gaps
 
 1. **Swap the stats source to BigBallsData** (§2) — the main task.
-2. **Corners: use free FotMob** (`docs/FREE-DATA-SOURCES.md`), not paid
-   TotalCorner. Verified live: FT + half-time corners, no key, no proxy. The same
+2. **Corners: free FotMob — IMPLEMENTED.** `worker/settle_worker.py` now carries
+   `SETTLE_SOURCE=sofa|fotmob` (`--source` for one-off runs). `fotmob` needs no
+   key and no proxy and returns corners FT+HT, cards FT+HT and goals FT+HT; a
+   live dry run on 4 fixtures worked at ~1s each. `sofa` is still the default.
+   **Next step is to watch a few `fotmob` dry runs against the live site, then
+   flip the default** — the source of a money path should change deliberately.
+   Also note cards: on that same 4-fixture sample BigBallsData agreed with FotMob
+   on only 1 of 4 (short by one booking each time), so card markets must not be
+   single-sourced. Details in `docs/FREE-DATA-SOURCES.md`. The same
    doc records that **BigBallsData undercounts cards** (rows with `team_id: null`
    are dropped), so cards must not be settled from one source.
    Historical note:
