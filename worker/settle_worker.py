@@ -224,6 +224,24 @@ def _http_get(url: str, proxy: Optional[str], timeout: float,
         return resp.read()
 
 
+# Hosts that answer a datacentre IP directly. Routing these through the proxy
+# pool adds latency, burns paid exits on requests that never needed one, and
+# turns a proxy outage into a settlement outage.
+KEYLESS_HOSTS = ("fotmob.com", "365scores.com")
+
+
+def _pool_for(url: str, pool: ProxyPool) -> ProxyPool:
+    """Use the proxy pool ONLY for a source that actually needs it.
+
+    SofaScore blocks datacentre IPs, so it goes through the pool. FotMob and
+    365Scores do not block, so they go direct — even when the pool is configured
+    (which is exactly the case where a slow exit must not stall settlement).
+    """
+    if any(h in url for h in KEYLESS_HOSTS):
+        return ProxyPool()
+    return pool
+
+
 def _fetch_bytes(pool: ProxyPool, url: str, what: str, referer: str) -> Optional[bytes]:
     """
     GET a URL, rotating proxies and purging bad exits.
@@ -232,7 +250,8 @@ def _fetch_bytes(pool: ProxyPool, url: str, what: str, referer: str) -> Optional
     than sending a partial payload. A missing corner count must never look like
     zero corners.
     """
-    last_error = "no proxy available"
+    pool = _pool_for(url, pool)
+    last_error = "no attempt made"
     for attempt in range(RETRIES_PER_REQUEST):
         proxy = pool.rotate()
         started = time.monotonic()
@@ -241,25 +260,35 @@ def _fetch_bytes(pool: ProxyPool, url: str, what: str, referer: str) -> Optional
             elapsed = time.monotonic() - started
             if elapsed > PROXY_MAX_LATENCY:
                 # Answered, but too slowly to keep in a cron window.
+                last_error = f"slow {elapsed:.1f}s"
                 pool.drop(proxy, f"slow {elapsed:.1f}s")
                 continue
             pool.mark_ok(proxy)
             return body
         except urllib.error.HTTPError as e:
+            last_error = f"HTTP {e.code}"
             if e.code in DROP_STATUSES:
                 pool.drop(proxy, f"HTTP {e.code}")
-            else:
-                last_error = f"HTTP {e.code}"
         except urllib.error.URLError as e:
-            pool.drop(proxy, f"conn {e.reason.__class__.__name__ if hasattr(e, 'reason') else 'error'}")
+            reason = e.reason.__class__.__name__ if hasattr(e, "reason") else "error"
+            last_error = f"conn {reason}"
+            pool.drop(proxy, f"conn {reason}")
         except (TimeoutError, ssl.SSLError) as e:
+            last_error = type(e).__name__
             pool.drop(proxy, type(e).__name__)
         except Exception as e:  # noqa: BLE001
+            last_error = type(e).__name__
             pool.drop(proxy, type(e).__name__)
 
-        if not pool.alive():
+        # Only stop when a CONFIGURED pool has been exhausted. With no proxies
+        # configured we talk to the source directly, so an empty pool is the
+        # normal state, not a reason to give up after one transient failure —
+        # the keyless sources (fotmob / 365) would otherwise fail a whole run
+        # on a single timeout and report it as "no proxy available".
+        if pool.proxies and not pool.alive():
             break
-        time.sleep(0.4 * (attempt + 1))
+        if attempt + 1 < RETRIES_PER_REQUEST:
+            time.sleep(0.4 * (attempt + 1))
 
     log(f"  {what}: FAILED ({last_error})")
     return None
@@ -546,6 +575,62 @@ def fotmob_cards(periods: dict) -> dict:
     return out
 
 
+def fotmob_card_events(pp: dict) -> Optional[dict]:
+    """Card counts read from FotMob's OWN event timeline, not its stats widget.
+
+    This is the free tiebreak: a source whose summary row disagrees with its own
+    minute-by-minute timeline is self-contradictory and can be discarded, with no
+    third provider, no key and no extra request (the page is already fetched).
+    Returns None when the page carries no timeline at all, so "no data" is never
+    mistaken for "no cards".
+    """
+    ev = ((pp.get("content") or {}).get("matchFacts") or {}).get("events")
+    items = ev.get("events") if isinstance(ev, dict) else None
+    if items is None:
+        return None
+    zero = {"homeYellows": 0, "awayYellows": 0, "homeReds": 0, "awayReds": 0}
+    out = {"ft": dict(zero), "ht": dict(zero)}
+    for e in items:
+        if not isinstance(e, dict) or e.get("type") != "Card":
+            continue
+        card = str(e.get("card") or "").lower()
+        if not card:
+            continue
+        # A second yellow ("YellowRed") is a red for counting purposes, matching
+        # the SofaScore extractor's convention.
+        is_red = "red" in card
+        home = bool(e.get("isHome"))
+        minute = _to_int(e.get("time")) or 0
+        for bucket in (("ft", "ht") if minute <= 45 else ("ft",)):
+            side = "home" if home else "away"
+            key = f"{side}{'Reds' if is_red else 'Yellows'}"
+            out[bucket][key] += 1
+    return out
+
+
+def s365_card_events(detail: Optional[dict]) -> Optional[dict]:
+    """Card counts from 365Scores' own event timeline. None when absent."""
+    g = (detail or {}).get("game") or {}
+    events = g.get("events")
+    if events is None:
+        return None
+    home_id = (g.get("homeCompetitor") or {}).get("id")
+    zero = {"homeYellows": 0, "awayYellows": 0, "homeReds": 0, "awayReds": 0}
+    out = {"ft": dict(zero), "ht": dict(zero)}
+    for e in events or []:
+        name = str(((e.get("eventType") or {}).get("name")) or "").lower()
+        if "card" not in name:
+            continue
+        is_red = "red" in name
+        home = e.get("competitorId") == home_id
+        minute = _to_int(e.get("gameTime")) or 0
+        for bucket in (("ft", "ht") if minute <= 45 else ("ft",)):
+            side = "home" if home else "away"
+            key = f"{side}{'Reds' if is_red else 'Yellows'}"
+            out[bucket][key] += 1
+    return out
+
+
 def _fotmob_events(pp: dict) -> list[dict]:
     ev = ((pp.get("content") or {}).get("matchFacts") or {}).get("events") or {}
     items = ev.get("events") if isinstance(ev, dict) else None
@@ -643,6 +728,507 @@ def fotmob_process(pool: ProxyPool, ev: dict) -> bool:
     return ok
 
 
+# ───────────────────────── 365Scores scraping (keyless) ──────────────────────
+#
+# A third, independent source. Unlike SofaScore it answers a datacentre IP
+# directly — no key, no proxy, no anti-bot challenge. It is what makes a
+# two-source agreement rule possible WITHOUT paying anyone.
+#
+#   day list : /games/allscores/?...&startDate=DD/MM/YYYY&endDate=DD/MM/YYYY
+#   stats    : /game/stats/?games=<id>            ← param is `games` (plural);
+#              `gameId=` returns HTTP 500
+#              &filterId=6 = 1st half, &filterId=8 = 2nd half
+#   detail   : /game/?gameId=<id>                 ← status + goal/card timeline
+#
+# Field semantics that matter for money:
+#   * statistic rows are {name, competitorId, value}; Corners=8, Yellow=1, Red=2.
+#     Map competitorId via the SAME response's games[0].homeCompetitor.id /
+#     .awayCompetitor.id — never by list order.
+#   * a filter that returns NOTHING for every family means the split is
+#     unsupported for that match (not "zero") — return None so the market goes
+#     to review instead of settling 0-0.
+S365 = "https://webws.365scores.com/web"
+S365_REFERER = "https://www.365scores.com/"
+# A normal day carries ~260 football fixtures; a handful means a truncated
+# response (seen live), so the day list is re-fetched and the larger kept.
+S365_DAY_MIN_GAMES = 50
+
+# Families that must be confirmed by a second source before settling. Cards are
+# the documented hazard (BigBallsData undercounts them; a single scrape can too),
+# so they default to agree-or-review. Add "corners" to tighten further.
+CROSS_REQUIRE = {
+    f.strip().lower()
+    for f in os.environ.get("SETTLE_CROSS_REQUIRE", "cards").split(",")
+    if f.strip()
+}
+
+
+def s365_day_events(pool: ProxyPool, day: datetime) -> list[dict]:
+    """Finished fixtures for a day, in the shared event shape.
+
+    The allscores endpoint intermittently answers with a PARTIAL list — observed
+    live: 19 games on one call, 263 on the next for the same date. A truncated
+    day list silently hides fixtures, and in cross mode a hidden fixture is
+    indistinguishable from a disagreement, so it must not be trusted blindly:
+    below the sanity floor it is re-fetched and the larger payload wins.
+    """
+    d = f"{day:%d/%m/%Y}"
+    url = (f"{S365}/games/allscores/?appTypeId=5&langId=1&timezoneName=UTC"
+           f"&sports=1&startDate={d}&endDate={d}")
+    data = None
+    best_n = -1
+    for attempt in range(2):
+        got = fetch_json(pool, url, f"365 day {day:%Y-%m-%d}", referer=S365_REFERER)
+        n = len((got or {}).get("games") or [])
+        if n > best_n:
+            data, best_n = got, n
+        if n >= S365_DAY_MIN_GAMES or attempt == 1:
+            break
+    if not data:
+        return []
+    if 0 < best_n < S365_DAY_MIN_GAMES:
+        log(f"  365 day {day:%Y-%m-%d}: only {best_n} games after a retry — "
+            f"the endpoint looks truncated, some fixtures may be missed")
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=MATCH_AGE_MINUTES)
+    out: list[dict] = []
+    for g in data.get("games") or []:
+        status = str(g.get("statusText") or "").lower()
+        group = g.get("statusGroup")
+        # statusGroup 4 / statusText "Ended" is the finished state; both are
+        # checked because neither is documented.
+        if status not in ("ended", "finished", "after penalties", "after extra time") and group != 4:
+            continue
+        start = _parse_iso(g.get("startTime"))
+        if start is None or start > cutoff or not g.get("id"):
+            continue
+        out.append({
+            "id": g.get("id"),
+            "startTimestamp": int(start.timestamp()),
+            "status": {"type": "finished"},
+            "homeTeam": {"name": (g.get("homeCompetitor") or {}).get("name", "")},
+            "awayTeam": {"name": (g.get("awayCompetitor") or {}).get("name", "")},
+        })
+    return out
+
+
+def _s365_rows(data: dict) -> dict:
+    """{statistic name -> (home value, away value)} using the response's own
+    home/away competitor ids. Values arrive as strings."""
+    games = data.get("games") or []
+    if not games:
+        return {}
+    g = games[0]
+    home_id = (g.get("homeCompetitor") or {}).get("id")
+    away_id = (g.get("awayCompetitor") or {}).get("id")
+    agg: dict = {}
+    for row in data.get("statistics") or []:
+        name = row.get("name")
+        cid = row.get("competitorId")
+        val = _to_int(row.get("value"))
+        if name is None or val is None:
+            continue
+        slot = 0 if cid == home_id else 1 if cid == away_id else None
+        if slot is None:
+            continue
+        pair = agg.setdefault(name, [None, None])
+        pair[slot] = val
+    return agg
+
+
+def _s365_side(rows: dict, name: str) -> Optional[tuple[int, int]]:
+    pair = rows.get(name)
+    if not pair or pair[0] is None or pair[1] is None:
+        return None
+    return pair[0], pair[1]
+
+
+def s365_payload_stats(pool: ProxyPool, gid: Any) -> Optional[tuple[dict, Optional[dict]]]:
+    """Corners + cards (FT and 1st half) for one fixture, or None if unavailable.
+
+    Three requests: FT stats, 1st-half stats, and the match detail (for status +
+    the goal timeline). Any family we cannot read is returned as null — never 0.
+
+    Returns (stats, card_events). `card_events` is the same match read from
+    365Scores' own timeline, which the cross-check uses to test whether this
+    source's summary row is self-consistent — no extra request, since the detail
+    call is already made for the goal timeline.
+    """
+    ft_raw = fetch_json(pool, f"{S365}/game/stats/?games={gid}", f"365 stats {gid}", referer=S365_REFERER)
+    if not ft_raw or not (ft_raw.get("games") or []):
+        return None
+    g = ft_raw["games"][0]
+    if str(g.get("statusText") or "").lower() not in ("ended", "finished", "after penalties", "after extra time") \
+            and g.get("statusGroup") != 4:
+        return None
+    ft = _s365_rows(ft_raw)
+    if not ft:
+        return None
+
+    ht_raw = fetch_json(pool, f"{S365}/game/stats/?games={gid}&filterId=6",
+                        f"365 stats {gid} 1H", referer=S365_REFERER)
+    ht = _s365_rows(ht_raw) if ht_raw else {}
+    # An empty 1st-half response means the split is unsupported for this match,
+    # NOT that everything was zero.
+    ht_supported = bool(ht)
+
+    def ht_or_none(name: str) -> Optional[tuple[int, int]]:
+        return _s365_side(ht, name) if ht_supported else None
+
+    corners_ft = _s365_side(ft, "Corners")
+    y_ft, r_ft = _s365_side(ft, "Yellow Cards"), _s365_side(ft, "Red Cards")
+    corners_ht, y_ht, r_ht = ht_or_none("Corners"), ht_or_none("Yellow Cards"), ht_or_none("Red Cards")
+
+    # Goals: FT from the detail payload's score, HT from the goal timeline, but
+    # only when the timeline reconciles with the score (same rule as FotMob).
+    detail = fetch_json(pool, f"{S365}/game/?gameId={gid}&appTypeId=5&langId=1&timezoneName=UTC",
+                        f"365 game {gid}", referer=S365_REFERER)
+    goals = _s365_goals(detail, g)
+
+    def pair(p: Optional[tuple[int, int]]) -> dict:
+        return {"home": p[0] if p else None, "away": p[1] if p else None}
+
+    def cards(p_ft, p_ht) -> dict:
+        out: dict = {}
+        out["ft"] = {
+            "homeYellows": p_ft[0][0] if p_ft[0] else None,
+            "awayYellows": p_ft[0][1] if p_ft[0] else None,
+            "homeReds": p_ft[1][0] if p_ft[1] else None,
+            "awayReds": p_ft[1][1] if p_ft[1] else None,
+        }
+        out["ht"] = {
+            "homeYellows": p_ht[0][0] if p_ht[0] else None,
+            "awayYellows": p_ht[0][1] if p_ht[0] else None,
+            "homeReds": p_ht[1][0] if p_ht[1] else None,
+            "awayReds": p_ht[1][1] if p_ht[1] else None,
+        }
+        return out
+
+    return ({
+        "corners": {"ft": pair(corners_ft), "ht": pair(corners_ht)},
+        "goals": goals,
+        "cards": cards((y_ft, r_ft), (y_ht, r_ht)),
+    }, s365_card_events(detail))
+
+
+def _s365_goals(detail: Optional[dict], game: dict) -> dict:
+    """FT from the score; HT from the goal timeline only when it reconciles."""
+    ft_home = _to_int((game.get("homeCompetitor") or {}).get("score"))
+    ft_away = _to_int((game.get("awayCompetitor") or {}).get("score"))
+    ht = None
+    if detail and ft_home is not None and ft_away is not None:
+        g = detail.get("game") or {}
+        home_id = (g.get("homeCompetitor") or {}).get("id", (game.get("homeCompetitor") or {}).get("id"))
+        goals = [e for e in (g.get("events") or []) if (e.get("eventType") or {}).get("name") == "Goal"]
+        h = a = 0
+        for e in goals:
+            if (e.get("gameTime") or 0) <= 45:
+                if e.get("competitorId") == home_id:
+                    h += 1
+                else:
+                    a += 1
+        if ft_home == 0 and ft_away == 0:
+            ht = (0, 0)
+        elif len(goals) == ft_home + ft_away:
+            ht = (h, a)
+    return {
+        "ht": {"home": ht[0] if ht else None, "away": ht[1] if ht else None},
+        "ft": {"home": ft_home, "away": ft_away},
+    }
+
+
+def s365_process(pool: ProxyPool, ev: dict) -> bool:
+    res = s365_payload_stats(pool, ev.get("id"))
+    if not res:
+        log(f"  365scores {ev.get('id')}: no statistics — skipping (no partial send)")
+        return False
+    stats, _events = res
+    return _send(pool, ev, stats, "365scores", f"{S365}/game/stats/?games={ev.get('id')}")
+
+
+# ─────────────────────────── cross-check (2 sources) ─────────────────────────
+#
+# FotMob is the coverage leader and 365Scores is an independent keyless source.
+# They are the free substitute for the SLA you are not buying: where they agree
+# the number is almost certainly right; where they disagree, the family is sent
+# as null so those markets land in the manual review queue instead of paying out
+# on one source's guess.
+
+
+def _same(a: Optional[int], b: Optional[int]) -> bool:
+    return a is not None and b is not None and a == b
+
+
+def _agree_pair(a: dict, b: dict) -> Optional[dict]:
+    """Return the agreed {home,away} or None when the sources differ/are missing."""
+    if _same(a.get("home"), b.get("home")) and _same(a.get("away"), b.get("away")):
+        return {"home": a["home"], "away": a["away"]}
+    return None
+
+
+CARD_KEYS = ("homeYellows", "awayYellows", "homeReds", "awayReds")
+
+
+NULL_PAIR = {"home": None, "away": None}
+NULL_CARDS = {"homeYellows": None, "awayYellows": None, "homeReds": None, "awayReds": None}
+
+
+def _decide_card(key, av, bv, ea, eb, tv) -> tuple[object, Optional[str]]:
+    """Decide ONE card field: agreement, then self-consistency, then a third source.
+
+    Order matters — each rung is cheaper and more trustworthy than the next:
+      1. FotMob and 365Scores agree                -> settled, done.
+      2. One of them contradicts its OWN timeline  -> discard that source; the
+         other one is settled. Costs nothing (both timelines are already read).
+      3. A third source resolves the split         -> settled on the majority.
+      4. Otherwise                                 -> null, to manual review.
+
+    `ea`/`eb` are that source's event-derived count for this field, or None when
+    it published no timeline. A source is only judged against its own timeline
+    when it actually reported a number, so "no data" is never a verdict.
+    """
+    if av is not None and bv is not None and av == bv:
+        return av, None
+
+    ca = None if (ea is None or av is None) else (av == ea)
+    cb = None if (eb is None or bv is None) else (bv == eb)
+    # "corroborated" beats "contradicted" OR "unverifiable": a source whose own
+    # minute-level timeline backs its summary is stronger evidence than a bare
+    # number nobody can check. Which of the two it was is named in the note, so
+    # the weaker case can be counted and gated separately.
+    if ca is True and cb is not True:
+        other = f"365 contradicts its own ({eb})" if cb is False else "365 published no timeline"
+        return av, f"SELF-CHECK fm={av} matches its own timeline; {other} -> settled on fm"
+    if cb is True and ca is not True:
+        other = f"fm contradicts its own ({ea})" if ca is False else "fm published no timeline"
+        return bv, f"SELF-CHECK 365={bv} matches its own timeline; {other} -> settled on 365"
+
+    if tv is not None:
+        if av is not None and av == tv:
+            return av, f"TIEBREAK fm={av} == third={tv} (365={bv}) -> settled"
+        if bv is not None and bv == tv:
+            return bv, f"TIEBREAK 365={bv} == third={tv} (fm={av}) -> settled"
+        if av is not None and bv is not None:
+            return None, f"3-WAY CONFLICT fm={av} 365={bv} third={tv} -> review"
+
+    if av is not None and bv is not None:
+        both = " (both match their own timeline)" if ca is True and cb is True else ""
+        return None, f"fm={av} 365={bv} disagree{both} -> review"
+    only = "fm" if av is not None else "365" if bv is not None else None
+    if only:
+        return None, f"only {only} reported it -> review (single-source)"
+    return None, None
+
+
+def _decide3(av, bv, tv) -> tuple[object, Optional[str]]:
+    """Decide ONE card field from up to three independent readings.
+
+    Returns (value, note). A field is settled only on agreement:
+      * FotMob and 365Scores agree            -> that value (no tiebreak needed)
+      * they differ, and the tiebreak source
+        agrees with one of them               -> the agreed value
+      * they differ and the tiebreak source
+        agrees with neither / is missing      -> None (review)
+      * only one source reported anything     -> None (never single-source cards)
+
+    0 vs None is NOT a conflict: 365Scores omits zero-valued rows from a half
+    filter, so a first half with no reds arrives as None while FotMob says 0 —
+    treating that as a disagreement would send every HT card market to review.
+    """
+    if av is not None and bv is not None and av == bv:
+        return av, None
+    if tv is not None:
+        if av is not None and av == tv:
+            return av, f"TIEBREAK fm={av} == third={tv} (365={bv}) -> settled"
+        if bv is not None and bv == tv:
+            return bv, f"TIEBREAK 365={bv} == third={tv} (fm={av}) -> settled"
+        if av is not None and bv is not None:
+            return None, f"3-WAY CONFLICT fm={av} 365={bv} third={tv} -> review"
+    if av is not None and bv is not None:
+        return None, f"fm={av} 365={bv} disagree -> review"
+    only = "fm" if av is not None else "365" if bv is not None else None
+    if only:
+        return None, f"only {only} reported it -> review (single-source)"
+    return None, None
+
+
+def reconcile(fm: dict, so: Optional[dict], require: set,
+              tb: Optional[dict] = None,
+              ev: Optional[dict] = None) -> tuple[dict, list[str]]:
+    """Merge two independent readings of one match.
+
+    `require` families must be confirmed by BOTH sources, else their numbers are
+    sent as null so the markets go to review. Families not in `require` use the
+    FotMob reading, but a mismatch is still reported — an unflagged silent
+    disagreement is how a wrong payout passes unnoticed.
+
+    `ev` carries each source's OWN event-timeline card counts ("fm"/"365"). It is
+    the free tiebreak: a source whose summary row contradicts its own timeline is
+    self-inconsistent and gets discarded, with no third party involved.
+
+    `tb` is an optional THIRD reading (cards only) used to break a disagreement:
+    if it sides with one source, that value is used; if it sides with neither,
+    the field stays null. A third source never manufactures agreement — two
+    sources that already agree are trusted as-is, so the extra request is only
+    spent on a real conflict.
+    """
+    notes: list[str] = []
+    out: dict = {
+        "corners": {"ft": dict(NULL_PAIR), "ht": dict(NULL_PAIR)},
+        "goals": {"ft": dict(NULL_PAIR), "ht": dict(NULL_PAIR)},
+        "cards": {"ft": dict(NULL_CARDS), "ht": dict(NULL_CARDS)},
+    }
+
+    def note(msg: str) -> None:
+        notes.append(msg)
+
+    for fam in ("corners", "goals"):
+        for bucket in ("ft", "ht"):
+            a = (fm.get(fam) or {}).get(bucket) or {}
+            b = ((so or {}).get(fam) or {}).get(bucket) or {}
+            agreed = _agree_pair(a, b)
+            if agreed:
+                out[fam][bucket] = agreed
+            elif fam in require:
+                if a or b:
+                    note(f"{fam}.{bucket} MISMATCH fm={a} 365={b} -> review")
+            else:
+                # not required to agree: use FotMob, but say so loudly
+                if a.get("home") is not None:
+                    out[fam][bucket] = {"home": a.get("home"), "away": a.get("away")}
+                if b and (a != b):
+                    note(f"{fam}.{bucket} differs (fm={a} 365={b}) — settled on fotmob")
+
+    ev_fm = (ev or {}).get("fm")
+    ev_365 = (ev or {}).get("365")
+    for bucket in ("ft", "ht"):
+        a = (fm.get("cards") or {}).get(bucket) or {}
+        b = ((so or {}).get("cards") or {}).get(bucket) or {}
+        t = ((tb or {}).get(bucket) or {}) if tb else {}
+        ea = ((ev_fm or {}).get(bucket) or {}) if ev_fm else {}
+        eb = ((ev_365 or {}).get(bucket) or {}) if ev_365 else {}
+        if "cards" in require:
+            merged: dict = {}
+            for k in CARD_KEYS:
+                value, why = _decide_card(k, a.get(k), b.get(k), ea.get(k), eb.get(k), t.get(k))
+                merged[k] = value
+                if why:
+                    note(f"cards.{bucket} {k}: {why}")
+            out["cards"][bucket] = merged
+        else:
+            if a.get("homeYellows") is not None:
+                out["cards"][bucket] = {k: a.get(k) for k in CARD_KEYS}
+            if b and a != b:
+                note(f"cards.{bucket} differs (fm={a} 365={b}) — settled on fotmob")
+
+    if so is None:
+        note("365scores event not found/unreadable — every required family is null")
+    return out, notes
+
+
+def _as_pending(ev: dict) -> dict:
+    """Reshape one source's event into the work-list shape match_event expects,
+    so the SAME team-name matcher resolves across sources (no second matcher)."""
+    return {
+        "homeName": (ev.get("homeTeam") or {}).get("name", ""),
+        "awayName": (ev.get("awayTeam") or {}).get("name", ""),
+        "kickoff": datetime.fromtimestamp(int(ev["startTimestamp"]), tz=timezone.utc).isoformat(),
+    }
+
+
+class Tiebreaker:
+    """A KEYLESS third opinion for disputed card fields.
+
+    Uses the existing SofaScore scrape over the proxy pool. No API key means no
+    account to get suspended mid-settlement — which is precisely why an
+    API-keyed tiebreak source is the wrong tool here. It is consulted only for a
+    fixture whose card fields actually conflict (rare), so the extra requests are
+    a rounding error against a whole-day scrape.
+    """
+
+    def __init__(self, pool: ProxyPool, days: list):
+        self.pool = pool
+        self.days = days
+        self.enabled = bool(pool.proxies)
+        self.index: Optional[list[dict]] = None
+
+    def _ensure_index(self) -> None:
+        if self.index is not None:
+            return
+        idx: list[dict] = []
+        for day in self.days:
+            idx += find_finished_events(self.pool, day)
+        self.index = idx
+        log(f"tiebreak: sofa index {len(idx)} event(s)")
+
+    def cards(self, pend: dict) -> Optional[dict]:
+        """Third card reading ({ft:{...}, ht:{...}}) or None if unavailable."""
+        if not self.enabled:
+            return None
+        self._ensure_index()
+        ev = align_event(pend, self.index or [])
+        if not ev:
+            log("  tiebreak: no sofa event matched this fixture")
+            return None
+        incidents = fetch_json(self.pool, f"{SOFASCORE}/event/{ev['id']}/incidents",
+                               f"tiebreak incidents {ev['id']}")
+        if incidents is None:
+            return None
+        return extract_cards(incidents)
+
+
+def cross_process(pool: ProxyPool, ev: dict, s365_ev: Optional[dict],
+                  tiebreak: Optional["Tiebreaker"] = None) -> bool:
+    """Scrape FotMob + 365Scores for one fixture, reconcile, then send."""
+    fb = fotmob_page(pool, ev.get("id"))
+    fm = fotmob_stats(fb) if fb else None
+    if not fm:
+        log(f"  cross {ev.get('id')}: fotmob page unusable — skipping (no partial send)")
+        return False
+    # s365_payload_stats returns None when the fixture has no usable stats, so
+    # unpack defensively — a bare `so, ev = ...` raised TypeError and killed the
+    # whole run the moment one fixture lacked stats.
+    res = s365_payload_stats(pool, s365_ev["id"]) if s365_ev else None
+    so, so_events = res if res else (None, None)
+    ev_readings = {"fm": fotmob_card_events(fb), "365": so_events}
+    stats, notes = reconcile(fm, so, CROSS_REQUIRE, ev=ev_readings)
+    # Spend a third request ONLY on a genuine conflict. Single-source and
+    # missing-fixture cases are not disagreements, and the work-list retry loop
+    # already handles those — a tiebreak would add cost without adding certainty.
+    if tiebreak is not None and any("disagree" in n for n in notes):
+        third = tiebreak.cards(_as_pending(ev))
+        if third:
+            stats, notes = reconcile(fm, so, CROSS_REQUIRE, third, ev_readings)
+        else:
+            notes.append("disputed, but no third source available -> review")
+    for n in notes:
+        log(f"  CROSS-CHECK {ev.get('homeTeam', {}).get('name')} vs "
+            f"{ev.get('awayTeam', {}).get('name')}: {n}")
+    return _send(pool, ev, stats, "cross", f"{FOTMOB}/match/{ev.get('id')}")
+
+
+def _send(pool: ProxyPool, ev: dict, stats: dict, source: str, url: str) -> bool:
+    """Shared payload construction + POST for any source."""
+    revision = hashlib.sha256(json.dumps(stats, sort_keys=True).encode()).hexdigest()[:12]
+    payload = {
+        "eventId": f"{source}-{ev.get('id')}-{revision}",
+        "source": f"settle-worker-{source}",
+        "match": {
+            "externalId": str(ev.get("id")),
+            "kickoff": datetime.fromtimestamp(int(ev["startTimestamp"]), tz=timezone.utc).isoformat(),
+            "homeName": ev["homeTeam"]["name"],
+            "awayName": ev["awayTeam"]["name"],
+            "status": "FINISHED",
+        },
+        "stats": stats,
+        "meta": {"scrapedAt": datetime.now(timezone.utc).isoformat(), "url": url},
+    }
+    ok, detail = post_payload(payload)
+    label = f"{payload['match']['homeName']} vs {payload['match']['awayName']}"
+    log(f"  {'OK  ' if ok else 'FAIL'} {label} corners FT {stats['corners']['ft']} "
+        f"yellows FT {stats['cards']['ft'].get('homeYellows')}-{stats['cards']['ft'].get('awayYellows')} — {detail}")
+    return ok
+
+
 # ─────────────────────────────── webhook sender ──────────────────────────────
 
 
@@ -691,6 +1277,40 @@ def _signed_headers(body: bytes) -> dict:
         "X-Voltbets-Signature": f"sha256={sign(WEBHOOK_SECRET, ts, body)}",
         "User-Agent": "voltbets-settle-worker/1.0",
     }
+
+
+def load_pending_file(path: str) -> list[dict]:
+    """Read a work list from a file instead of the backend.
+
+    Accepts either an exported /api/v1/settlement/pending payload
+    ({ "games": [...] } or { "data": { "games": [...] } }) or a plain JSON array.
+    Lets a shadow run measure the real thing against a saved list, with no
+    webhook secret and no chance of touching a bet.
+    """
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, json.JSONDecodeError) as e:
+        log(f"pending file {path}: unreadable ({type(e).__name__})")
+        return []
+    if isinstance(data, dict):
+        entries = data.get("games")
+        if entries is None and isinstance(data.get("data"), dict):
+            entries = data["data"].get("games")
+    else:
+        entries = data
+    out: list[dict] = []
+    for e in entries or []:
+        if not isinstance(e, dict):
+            continue
+        home = e.get("homeName") or e.get("home")
+        away = e.get("awayName") or e.get("away")
+        kick = e.get("kickoff") or e.get("startTime") or e.get("commence_time")
+        if home and away and kick:
+            out.append({"homeName": home, "awayName": away, "kickoff": kick,
+                        "gameId": e.get("gameId")})
+    log(f"pending file {path}: {len(out)} fixture(s)")
+    return out
 
 
 def fetch_pending(pool: "ProxyPool") -> list[dict]:
@@ -746,6 +1366,63 @@ def team_score(a: str, b: str) -> float:
 
 MIN_TEAM_SCORE = 0.6
 KICKOFF_TOLERANCE_MINUTES = 180
+
+
+def align_score(a: str, b: str) -> float:
+    """Name similarity for CROSS-SOURCE ALIGNMENT only — never for settlement.
+
+    FotMob and 365Scores name one club differently: 'Marseille' vs 'Olympique de
+    Marseille', 'Hobro' vs 'Hobro IK', 'Darmstadt' vs 'SV Darmstadt 98'. The
+    settlement matcher (team_score) divides by the LONGER token set, so those
+    land at 0.33-0.5 and fail its 0.6 bar. Alignment asks the different question:
+    is the shorter name fully contained in the longer one? Dividing by min()
+    makes that 1.0, while still refusing partial overlaps ('Manchester' alone)
+    and genuinely different clubs ('Manchester United' vs 'Manchester City' = 0.5,
+    'Austria Wien II' vs 'Austria Vienna Am' = 0.33).
+
+    A wrong alignment can only ever produce a disagreement (-> review), never a
+    wrong payout, because both sides of the fixture must still match.
+    """
+    xs, ys = set(normalize_team(a).split()), set(normalize_team(b).split())
+    if not xs or not ys:
+        return 0.0
+    if xs == ys:
+        return 1.0
+    return len(xs & ys) / min(len(xs), len(ys))
+
+
+ALIGN_MIN_SCORE = 1.0  # full containment of the shorter name
+
+
+def align_event(pending: dict, events: list[dict]) -> Optional[dict]:
+    """Find the same fixture in another source by names + kickoff.
+
+    Same kickoff tolerance as match_event, but scored with align_score so
+    abbreviated club names still resolve. Orientation (home/away swap) is
+    tolerated, exactly like the settlement matcher.
+    """
+    want_home, want_away = pending.get("homeName", ""), pending.get("awayName", "")
+    try:
+        want_kick = datetime.fromisoformat(pending["kickoff"].replace("Z", "+00:00"))
+    except (KeyError, ValueError):
+        return None
+
+    best, best_score = None, 0.0
+    for ev in events:
+        ts = ev.get("startTimestamp")
+        if not ts:
+            continue
+        delta = abs(datetime.fromtimestamp(int(ts), tz=timezone.utc) - want_kick).total_seconds() / 60
+        if delta > KICKOFF_TOLERANCE_MINUTES:
+            continue
+        home = (ev.get("homeTeam") or {}).get("name", "")
+        away = (ev.get("awayTeam") or {}).get("name", "")
+        straight = min(align_score(home, want_home), align_score(away, want_away))
+        swapped = min(align_score(home, want_away), align_score(away, want_home))
+        score = max(straight, swapped)
+        if score >= ALIGN_MIN_SCORE and score > best_score:
+            best, best_score = ev, score
+    return best
 
 
 def match_event(pending: dict, events: list[dict]) -> Optional[dict]:
@@ -871,10 +1548,14 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true", help="scrape but do not POST")
     ap.add_argument("--no-pending", action="store_true",
                     help="ignore the backend work list and scrape every finished match")
+    ap.add_argument("--pending-file",
+                    help="JSON work list to use instead of the backend (shadow runs / testing); "
+                         "an exported /api/v1/settlement/pending response, or a plain array")
     ap.add_argument("--selftest", action="store_true",
                     help="run the parser/matching self-test offline and exit")
-    ap.add_argument("--source", choices=("sofa", "fotmob"), default=SOURCE,
-                    help=f"upstream stats source (default: {SOURCE}; env SETTLE_SOURCE)")
+    ap.add_argument("--source", choices=("sofa", "fotmob", "365", "cross"), default=SOURCE,
+                    help=f"upstream stats source (default: {SOURCE}; env SETTLE_SOURCE). "
+                         f"'365' = 365Scores (keyless); 'cross' = fotmob + 365Scores agreement")
     args = ap.parse_args()
 
     if args.selftest:
@@ -886,10 +1567,10 @@ def main() -> int:
 
     log(f"settlement worker start (source={args.source}, dry_run={DRY_RUN}, age>{MATCH_AGE_MINUTES}min)")
     pool = ProxyPool.from_env()
-    if args.source == "fotmob":
-        # FotMob needs neither a key nor a proxy. Healthchecking exits against a
-        # SofaScore URL would only burn them for nothing.
-        log("source=fotmob: no key and no proxy required"
+    if args.source in ("fotmob", "365", "cross"):
+        # These read keyless, datacentre-reachable endpoints. Healthchecking
+        # exits against a SofaScore URL would only burn them for nothing.
+        log(f"source={args.source}: no key and no proxy required"
             + (" (proxies configured and will still be rotated)" if pool.proxies else ""))
     else:
         pool.healthcheck()
@@ -902,8 +1583,15 @@ def main() -> int:
 
     # The daily schedule doubles as the id index: it is 1-2 cheap requests that
     # map our fixtures onto the scrape source's event ids.
-    day_events = fotmob_day_events if args.source == "fotmob" else find_finished_events
-    process = fotmob_process if args.source == "fotmob" else process_event
+    if args.source == "fotmob":
+        day_events, process = fotmob_day_events, fotmob_process
+    elif args.source == "365":
+        day_events, process = s365_day_events, s365_process
+    elif args.source == "cross":
+        # FotMob drives discovery (best coverage); 365Scores is the second opinion.
+        day_events, process = fotmob_day_events, None
+    else:
+        day_events, process = find_finished_events, process_event
 
     events: list[dict] = []
     for day in days:
@@ -923,7 +1611,7 @@ def main() -> int:
     # markets, so a run touches a handful of fixtures instead of a full day.
     targets: list[dict] = []
     if not args.no_pending:
-        pending = fetch_pending(pool)
+        pending = load_pending_file(args.pending_file) if args.pending_file else fetch_pending(pool)
         if pending:
             unmatched = 0
             for entry in pending:
@@ -942,9 +1630,30 @@ def main() -> int:
         log("no work list configured — scraping every finished match this window")
         targets = unique[: args.limit]
 
+    tiebreak: Optional[Tiebreaker] = None
+    s365_index: list[dict] = []
+    if args.source == "cross":
+        seen365: set = set()
+        for day in days:
+            for ev in s365_day_events(pool, day):
+                if ev.get("id") in seen365:
+                    continue
+                seen365.add(ev.get("id"))
+                s365_index.append(ev)
+        log(f"cross-check index: {len(s365_index)} 365scores event(s)")
+        tiebreak = Tiebreaker(pool, days)
+        if tiebreak.enabled:
+            log("tiebreak: sofa (keyless) enabled for disputed card fields")
+        else:
+            log("tiebreak: no proxy pool configured — disputed cards go to review")
+
     sent = 0
     for ev in targets:
-        if process(pool, ev):
+        if args.source == "cross":
+            ok = cross_process(pool, ev, align_event(_as_pending(ev), s365_index), tiebreak)
+        else:
+            ok = process(pool, ev)
+        if ok:
             sent += 1
         # Only stop for an exhausted pool. With no proxies configured we are
         # talking to the source directly, and an empty pool is the normal state
@@ -1118,6 +1827,165 @@ def selftest() -> int:
             "content": {"stats": {"Periods": fm_periods}, "matchFacts": {"events": {"events": []}}}}
     check("fotmob 0-0 gives an actual 0-0 at HT", fotmob_goals(zero)["ht"],
           {"home": 0, "away": 0})
+
+    # 8. 365Scores parsing. The fixture mirrors the live response for
+    #    Sport Recife 2-0 Ponte Preta (2026-09-11) — and the competitors list is
+    #    deliberately in the WRONG order, so a home/away mix-up fails the test
+    #    instead of settling the wrong side.
+    s365_ft = {
+        "games": [{
+            "homeCompetitor": {"id": 1226, "name": "Sport Recife", "score": 2.0},
+            "awayCompetitor": {"id": 1266, "name": "Ponte Preta", "score": 0.0},
+            "statusText": "Ended", "statusGroup": 4,
+        }],
+        "competitors": [{"id": 1266, "name": "Ponte Preta"}, {"id": 1226, "name": "Sport Recife"}],
+        "statistics": [
+            {"name": "Corners", "competitorId": 1226, "value": "7"},
+            {"name": "Corners", "competitorId": 1266, "value": "3"},
+            {"name": "Yellow Cards", "competitorId": 1226, "value": "2"},
+            {"name": "Yellow Cards", "competitorId": 1266, "value": "2"},
+            {"name": "Red Cards", "competitorId": 1226, "value": "0"},
+            {"name": "Red Cards", "competitorId": 1266, "value": "0"},
+        ],
+    }
+    rows365 = _s365_rows(s365_ft)
+    check("365 corners keyed by competitor id, not list order", _s365_side(rows365, "Corners"), (7, 3))
+    check("365 yellows", _s365_side(rows365, "Yellow Cards"), (2, 2))
+    # A stat row for a competitor not in this fixture must be ignored, not
+    # attributed to the wrong side (the BigBallsData contamination lesson).
+    dirty = dict(s365_ft)
+    dirty["statistics"] = s365_ft["statistics"] + [{"name": "Corners", "competitorId": 999, "value": "9"}]
+    check("365 ignores foreign competitor rows", _s365_side(_s365_rows(dirty), "Corners"), (7, 3))
+
+    # Goals: FT from the score, HT only when the timeline reconciles.
+    detail_ok = {"game": {
+        "homeCompetitor": {"id": 1226}, "awayCompetitor": {"id": 1266},
+        "events": [
+            {"eventType": {"name": "Goal"}, "gameTime": 25, "competitorId": 1226},
+            {"eventType": {"name": "Goal"}, "gameTime": 60, "competitorId": 1226},
+            {"eventType": {"name": "Yellow Card"}, "gameTime": 30, "competitorId": 1266},
+        ],
+    }}
+    g365 = _s365_goals(detail_ok, s365_ft["games"][0])
+    check("365 goals ft", g365["ft"], {"home": 2, "away": 0})
+    check("365 goals ht", g365["ht"], {"home": 1, "away": 0})
+    detail_bad = {"game": {"homeCompetitor": {"id": 1226}, "awayCompetitor": {"id": 1266},
+                           "events": [{"eventType": {"name": "Goal"}, "gameTime": 25, "competitorId": 1226}]}}
+    check("365 ht goals null when the timeline does not reconcile",
+          _s365_goals(detail_bad, s365_ft["games"][0])["ht"], {"home": None, "away": None})
+
+    # 9. Cross-check reconciliation. Cards are in `require`, so a disagreement
+    #    must null the family (review) rather than pick a side; corners are not
+    #    required to agree but a difference must be reported.
+    fm_read = {
+        "corners": {"ft": {"home": 7, "away": 3}, "ht": {"home": None, "away": None}},
+        "goals": {"ft": {"home": 2, "away": 0}, "ht": {"home": 1, "away": 0}},
+        "cards": {"ft": {"homeYellows": 2, "awayYellows": 2, "homeReds": 0, "awayReds": 0},
+                  "ht": {"homeYellows": None, "awayYellows": None, "homeReds": None, "awayReds": None}},
+    }
+    s365_read = json.loads(json.dumps(fm_read))
+    s365_read["cards"]["ft"]["homeYellows"] = 3          # genuine card disagreement
+    s365_read["corners"]["ft"]["away"] = 4               # corners differ (not required)
+    out, notes = reconcile(fm_read, s365_read, {"cards"})
+    check("reconcile: agreed corners pass through", out["corners"]["ft"], {"home": 7, "away": 3})
+    check("reconcile: agreed goals pass through", out["goals"]["ft"], {"home": 2, "away": 0})
+    check("reconcile: a disputed card field is nulled, the agreed ones kept",
+          out["cards"]["ft"], {"homeYellows": None, "awayYellows": 2, "homeReds": 0, "awayReds": 0})
+    check("reconcile: card disagreement is reported", any("disagree" in n for n in notes), True)
+
+    # 365Scores omits zero rows from a half filter, so 0-vs-None must NOT be read
+    # as a disagreement — that would send every HT card market to review for nothing.
+    fm_zero = json.loads(json.dumps(fm_read))
+    fm_zero["cards"]["ht"] = {"homeYellows": 1, "awayYellows": 0, "homeReds": 0, "awayReds": 0}
+    so_sparse = json.loads(json.dumps(fm_zero))
+    so_sparse["cards"]["ht"]["homeReds"] = None
+    so_sparse["cards"]["ht"]["awayReds"] = None
+    z, _zn = reconcile(fm_zero, so_sparse, {"cards"})
+    check("reconcile: HT yellows survive 365 omitting zero reds",
+          [z["cards"]["ht"]["homeYellows"], z["cards"]["ht"]["awayYellows"]], [1, 0])
+    check("reconcile: unreported HT reds are null, not 0",
+          [z["cards"]["ht"]["homeReds"], z["cards"]["ht"]["awayReds"]], [None, None])
+
+    # 10. Cross-source alignment: abbreviated club names must still resolve, but
+    #     partial overlaps and genuine rivals must NOT.
+    check("align: Marseille vs Olympique de Marseille",
+          align_score("Olympique de Marseille", "Marseille"), 1.0)
+    check("align: Hobro vs Hobro IK", align_score("Hobro IK", "Hobro"), 1.0)
+    check("align: Darmstadt vs SV Darmstadt 98", align_score("SV Darmstadt 98", "Darmstadt"), 1.0)
+    check("align: Hacken vs BK Hacken", align_score("BK Häcken", "Häcken"), 1.0)
+    if align_score("Manchester United", "Manchester City") >= ALIGN_MIN_SCORE:
+        failures.append("align matched Manchester United vs Manchester City")
+    if align_score("Austria Wien II", "Austria Vienna Am") >= ALIGN_MIN_SCORE:
+        failures.append("align matched a reserve team to the wrong reserve team")
+
+    # 11. Three-way card decision: a third reading may break a tie, but never
+    #     manufacture agreement, and a 3-way conflict must stay in review.
+    # 12. Event-derived card counts + the free self-consistency tiebreak.
+    fm_card_pp = {"content": {"matchFacts": {"events": {"events": [
+        {"type": "Card", "card": "Yellow", "time": 45, "isHome": True},
+        {"type": "Card", "card": "Yellow", "time": 74, "isHome": True},
+        {"type": "Card", "card": "Yellow", "time": 79, "isHome": True},
+        {"type": "Card", "card": "Yellow", "time": 90, "isHome": False},
+        {"type": "Goal", "time": 20, "isHome": True},
+    ]}}}}
+    fce = fotmob_card_events(fm_card_pp)
+    check("fotmob card events: ft", [fce["ft"]["homeYellows"], fce["ft"]["awayYellows"]], [3, 1])
+    check("fotmob card events: ht split", [fce["ht"]["homeYellows"], fce["ht"]["awayYellows"]], [1, 0])
+    check("fotmob card events: no timeline -> None", fotmob_card_events({"content": {}}), None)
+    ty = fotmob_card_events({"content": {"matchFacts": {"events": {"events": [
+        {"type": "Card", "card": "YellowRed", "time": 80, "isHome": True}]}}}})
+    check("fotmob second yellow counts as a red", ty["ft"]["homeReds"], 1)
+
+    sce = s365_card_events({"game": {"homeCompetitor": {"id": 1}, "awayCompetitor": {"id": 2}, "events": [
+        {"eventType": {"name": "Yellow Card"}, "gameTime": 24, "competitorId": 1},
+        {"eventType": {"name": "Yellow Card"}, "gameTime": 57, "competitorId": 2},
+        {"eventType": {"name": "Red Card"}, "gameTime": 70, "competitorId": 2},
+    ]}})
+    check("365 card events: ft", [sce["ft"]["homeYellows"], sce["ft"]["awayYellows"], sce["ft"]["awayReds"]], [1, 1, 1])
+    check("365 card events: ht split", [sce["ht"]["homeYellows"], sce["ht"]["awayYellows"]], [1, 0])
+    check("365 card events: no timeline -> None", s365_card_events({"game": {}}), None)
+
+    # The free tiebreak: fm says 2, 365 says 1; 365's own timeline backs 1 while
+    # fm published none -> 365 wins, with no third party and no extra request.
+    val, why = _decide_card("awayYellows", 2, 1, None, 1, None)
+    check("self-check: the corroborated source wins", val, 1)
+    check("self-check: the reason is named", "SELF-CHECK" in why, True)
+    # Both corroborated but still disagreeing -> honest review, never a coin flip.
+    check("self-check: both corroborated -> review",
+          _decide_card("awayYellows", 2, 1, 2, 1, None)[0], None)
+    # A source contradicted by its own timeline loses to a clean one.
+    check("self-check: self-contradicting source loses",
+          _decide_card("awayYellows", 9, 1, 2, 1, None)[0], 1)
+    check("self-check: agreement still short-circuits",
+          _decide_card("awayYellows", 2, 2, 1, 1, None), (2, None))
+
+    check("decide3: agreement wins, tiebreak ignored", _decide3(2, 2, 1)[0], 2)
+    check("decide3: tiebreak sides with fotmob", _decide3(2, 1, 2), (2, "TIEBREAK fm=2 == third=2 (365=1) -> settled"))
+    check("decide3: tiebreak sides with 365", _decide3(2, 1, 1)[0], 1)
+    check("decide3: 3-way conflict -> review", _decide3(2, 1, 3)[0], None)
+    check("decide3: 3-way conflict is named", "3-WAY CONFLICT" in _decide3(2, 1, 3)[1], True)
+    check("decide3: plain disagreement -> review", _decide3(2, 1, None)[0], None)
+    check("decide3: only one source -> review", _decide3(2, None, None)[0], None)
+    check("decide3: a real 0 is still single-source", "single-source" in _decide3(0, None, None)[1], True)
+    check("decide3: neither reported -> silent", _decide3(None, None, None), (None, None))
+
+    tb_read = {"ft": {"homeYellows": 2, "awayYellows": 2, "homeReds": 0, "awayReds": 0},
+               "ht": {"homeYellows": None, "awayYellows": None, "homeReds": None, "awayReds": None}}
+    tb_out, tb_notes = reconcile(fm_read, s365_read, {"cards"}, tb_read)
+    check("reconcile+tiebreak: disputed field settles when a third source agrees",
+          tb_out["cards"]["ft"]["homeYellows"], 2)
+    check("reconcile+tiebreak: the tiebreak is reported",
+          any("TIEBREAK" in n for n in tb_notes), True)
+    bad_tb = {"ft": {"homeYellows": 0, "awayYellows": 0, "homeReds": 0, "awayReds": 0}}
+    bad_out, bad_notes = reconcile(fm_read, s365_read, {"cards"}, bad_tb)
+    check("reconcile+tiebreak: 3-way conflict stays null",
+          bad_out["cards"]["ft"]["homeYellows"], None)
+
+    check("reconcile: missing second source is reported",
+          any("not found/unreadable" in n for n in reconcile(fm_read, None, {"cards"})[1]), True)
+    agree_out, _ = reconcile(fm_read, json.loads(json.dumps(fm_read)), {"cards"})
+    check("reconcile: identical sources settle cards",
+          agree_out["cards"]["ft"], {"homeYellows": 2, "awayYellows": 2, "homeReds": 0, "awayReds": 0})
 
     if failures:
         print("SELFTEST FAILED:")

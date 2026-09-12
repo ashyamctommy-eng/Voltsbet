@@ -146,6 +146,25 @@ missing exactly one booking — the `team_id: null` row again. This is why card
 markets must not be settled from BigBallsData alone. FotMob also supplied the
 corners in the same request: 4-5, 6-4, 3-5, 2-4.
 
+## Card disputes without a paid provider — self-consistency
+
+An API-keyed tiebreak source is the wrong tool here: a suspended account is worse
+than a disagreement. Both free sources instead publish card **counts** and an
+independent card **timeline**, so each can be asked to prove itself:
+
+- FotMob: `content.matchFacts.events[].{type:"Card", card, time, isHome, player}`
+- 365Scores: `/game/` `events[].{eventType.name, gameTime, competitorId}`
+
+Both are already fetched on every run, so the check costs **zero extra
+requests**. A source whose summary row contradicts its own timeline is discarded
+and the corroborated source wins; if both corroborate themselves and still
+disagree, the field goes to review. A third source (SofaScore, via the proxy
+pool) is consulted only if a conflict survives all of that, and it can break a
+tie but never manufacture agreement.
+
+7-day shadow run over 287 offered-league fixtures: 964 card fields auto-settled,
+38 (3.8%) to review — 30 single-source, 4 genuine disagreements.
+
 ## Recommended architecture
 
 1. **Goals + HT + completion** — BigBallsData (already live, free).

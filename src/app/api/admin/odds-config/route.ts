@@ -155,9 +155,18 @@ export const PUT = handle(async (req: NextRequest) => {
   if (body.rateLimitMs !== undefined) updates.push({ key: "odds.rateLimitMs", value: num(body.rateLimitMs, 50) });
   if (body.eventBookmakers !== undefined) updates.push({ key: "odds.eventBookmakers", value: String(body.eventBookmakers).trim() || "" });
   if (body.markets !== undefined) updates.push({ key: "odds.markets", value: list(body.markets) });
-  if (body.feedMaxLeagues !== undefined) updates.push({ key: "odds.feedMaxLeagues", value: num(body.feedMaxLeagues, 1) });
   if (body.eventMarketLimit !== undefined) updates.push({ key: "odds.eventMarketLimit", value: num(body.eventMarketLimit, 0) });
   if (body.eventMarketLeagues !== undefined) updates.push({ key: "odds.eventMarketLeagues", value: list(body.eventMarketLeagues) });
+  // The catalog cap has its own guard: an empty value used to be written as ""
+  // (or coerced to 120 by the client), and a "" row reads back as the 120
+  // default — so the admin's edit silently "reset". Empty is now an explicit
+  // error; omit the field to keep the current value.
+  if (body.feedMaxLeagues !== undefined) {
+    if (typeof body.feedMaxLeagues === "string" && body.feedMaxLeagues.trim() === "") {
+      throw new ApiError(400, "Catalog-mode league cap must be a whole number ≥ 1. Leave the field unchanged to keep the current value.", "BAD_VALUE");
+    }
+    updates.push({ key: "odds.feedMaxLeagues", value: num(body.feedMaxLeagues, 1) });
+  }
   // Live scores & in-play odds knobs
   if (body.liveRefreshSeconds !== undefined) updates.push({ key: "live.refreshSeconds", value: num(body.liveRefreshSeconds, 10) });
   if (body.liveScoresThrottleSeconds !== undefined) updates.push({ key: "live.scoresThrottleSeconds", value: num(body.liveScoresThrottleSeconds, 10) });

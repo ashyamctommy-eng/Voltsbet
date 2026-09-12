@@ -69,7 +69,9 @@ SETTLE_PROXIES_FILE=/home/<user>/voltbets/proxies.txt
 | `SETTLE_MATCH_AGE_MINUTES` | `110` | skip anything younger than this |
 | `SETTLE_MAX_MATCHES` | `60` | cap per run |
 | `SETTLE_DRY_RUN` | off | scrape but never POST |
-| `SETTLE_SOURCE` | `sofa` | `sofa` = SofaScore behind the proxy pool; `fotmob` = FotMob, **no key and no proxy needed** |
+| `SETTLE_SOURCE` | `sofa` | `sofa` = SofaScore behind the proxy pool; `fotmob` = FotMob; `365` = 365Scores; `cross` = FotMob primary + 365Scores verification (**recommended**). The last three need **no key and no proxy** |
+| `SETTLE_CROSS_REQUIRE` | `cards` | families that must be confirmed by both sources in `cross` mode, else `null` → review |
+| `SETTLE_PENDING_FILE` | — | use a saved work-list JSON instead of the backend (shadow runs) |
 
 ## 4. First run — always dry
 
@@ -223,6 +225,54 @@ that removes foreign-club contamination. Details and the evidence:
 **Why `sofa` is still the default.** It is the path that has been running, and
 changing the source of a money path should be a deliberate act. Flip it when you
 have watched a few `fotmob` dry runs and compared them against the live site.
+
+## 9b. Two-source verification — `--source cross` (recommended)
+
+FotMob is the coverage leader (verified **100% of the 604 offered-league matches**
+tested, and 100% of the 287 fixtures in a 7-day shadow run), and `sofa` is
+retired by it. Its one real weakness is that **cards would be single-sourced**,
+which this project has already been burned by. `cross` fixes that with **no API
+key and no subscription**:
+
+```bash
+python3 settle_worker.py --source cross --dry-run --pending-file list.json
+```
+
+How a card field is decided (each rung is cheaper and stronger than the next):
+
+1. **Agreement** — FotMob and 365Scores match → settled.
+2. **Self-check (free, no extra request)** — both sources publish card *counts*
+   **and** an independent card *timeline* (`FotMob matchFacts.events[].card`,
+   `365Scores /game/ events[].eventType`). A source whose summary contradicts
+   its own minute-by-minute events is discarded and the corroborated source
+   wins. This needs nothing fetched beyond what the run already reads.
+3. **Third source** — if a proxy pool is configured, a disputed field is
+   re-read from SofaScore (`--source` is unchanged); it may break a tie, never
+   manufacture agreement. **If a disputed field must be settled, this is the
+   rung to fund.**
+4. **Review** — otherwise the field is sent as `null`, so those markets go to
+   manual review. A null leaves the selection unsettled, so the fixture stays on
+   the backend work list and is retried every run (the 10-minute cron, up to the
+   30-hour window) — post-match corrections settle many of these unaided.
+
+Log lines are deliberately distinct so the queue can be counted and alerted on:
+
+```
+cards.ft awayYellows: SELF-CHECK 365=1 matches its own timeline; fm contradicts its own (1) -> settled on 365
+cards.ft homeYellows: fm=2 365=1 disagree -> review
+cards.ft homeYellows: only 365 reported it -> review (single-source)
+```
+
+**Shadow week (7 days, 287 offered-league fixtures):** 287/287 accepted, 964 card
+fields auto-settled, **38 → review (3.8%)** — 30 single-source, 4 genuine
+disagreements, 21 of 287 fixtures (7.3%) touching review at all.
+
+**Proxy routing.** The proxy pool is used **only** for `sofascore.com`. FotMob
+and 365Scores answer a datacentre IP directly, so they always go direct — routing
+them through the pool adds latency, burns paid exits on requests that never
+needed one, and turns a proxy outage into a settlement outage.
+
+---
 
 ## 10. Hybrid source probe — `test_hybrid_settlement.py`
 

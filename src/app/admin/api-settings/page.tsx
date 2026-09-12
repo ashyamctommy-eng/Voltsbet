@@ -207,7 +207,9 @@ export default function AdminApiSettings() {
               rateLimitMs: Number(fm.rateLimitMs || 1100),
               eventBookmakers: fm.bookmakers,
               markets: fm.markets,
-              feedMaxLeagues: Number(fm.feedMaxLeagues || 120),
+              // Empty means "leave it alone" — coercing to 120 here is what made
+              // an edit look like it reset back to the default.
+              feedMaxLeagues: fm.feedMaxLeagues.trim() === "" ? undefined : Number(fm.feedMaxLeagues),
             };
     const res = await apiFetch<{ message: string }>("/api/admin/odds-config", { method: "PUT", body });
     setSavingOdds("");
@@ -446,8 +448,27 @@ export default function AdminApiSettings() {
           </div>
           <div>
             <label className="label">Catalog-mode league cap (per run)</label>
-            <input className="input" type="number" min={1} value={fm.feedMaxLeagues} onChange={(e) => setFm((f) => ({ ...f, feedMaxLeagues: e.target.value }))} />
-            <p className="mt-1 text-[11px] text-ink3">Only applies when the League Sync whitelist is empty.</p>
+            {/* When Railway sets ODDS_API_FEED_MAX_LEAGUES it is a HARD override:
+                the DB value below is ignored, so editing it changes nothing and
+                looks like a reset. Show the real number and lock the field. */}
+            <input
+              className="input"
+              type="number"
+              min={1}
+              value={odds?.env?.feedMaxLeagues ?? fm.feedMaxLeagues}
+              disabled={!!odds?.env?.feedMaxLeagues}
+              onChange={(e) => setFm((f) => ({ ...f, feedMaxLeagues: e.target.value }))}
+            />
+            {odds?.env?.feedMaxLeagues ? (
+              <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
+                Locked by Railway env <code>ODDS_API_FEED_MAX_LEAGUES={odds.env.feedMaxLeagues}</code> — that value wins,
+                so edits here have no effect. Change it in Railway (or remove the env var) to use this field.
+              </p>
+            ) : (
+              <p className="mt-1 text-[11px] text-ink3">
+                Only applies when the League Sync whitelist is empty — a whitelist overrides this cap. Whole number ≥ 1.
+              </p>
+            )}
             {envTag("feedMaxLeagues")}
           </div>
         </div>

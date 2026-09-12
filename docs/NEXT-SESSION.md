@@ -9,6 +9,7 @@ need is in this file and in the repo.
 | Repo | `ashyamctommy-eng/Voltsbet` |
 | Local clone (previous session) | `/home/user/.workspace/repos/Voltsbet` |
 | State at handover | `bf2c26e` — **`master` and `main` are identical**, working tree clean |
+| Working branch | `feat/365scores-crosscheck` — 365Scores source, cross-check, admin cap fix (not yet merged) |
 | Package manager | `pnpm` (v10) |
 | Deploy | Railway (app) · cPanel cron (scraper worker) |
 
@@ -371,8 +372,14 @@ Do this **before** debugging code when the user says "no changes".
    `SETTLE_SOURCE=sofa|fotmob` (`--source` for one-off runs). `fotmob` needs no
    key and no proxy and returns corners FT+HT, cards FT+HT and goals FT+HT; a
    live dry run on 4 fixtures worked at ~1s each. `sofa` is still the default.
-   **Next step is to watch a few `fotmob` dry runs against the live site, then
-   flip the default** — the source of a money path should change deliberately.
+   **Resolved in the next cycle.** A 7-day shadow run over 287 offered-league
+   fixtures gave 287/287 accepted, 964 card fields auto-settled and only 38
+   (3.8%) left for review. Cards are no longer single-sourced: `--source cross`
+   pairs FotMob with 365Scores and breaks conflicts by self-consistency (a
+   source whose summary contradicts its own event timeline is discarded) before
+   falling back to review. See `worker/README.md` §9b.
+   **Remaining step: set `SETTLE_SOURCE=cross` on the worker and drop the proxy
+   pool from the cron** — the source of a money path should change deliberately.
    Also note cards: on that same 4-fixture sample BigBallsData agreed with FotMob
    on only 1 of 4 (short by one booking each time), so card markets must not be
    single-sourced. Details in `docs/FREE-DATA-SOURCES.md`. The same
