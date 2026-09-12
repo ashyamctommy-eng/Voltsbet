@@ -264,7 +264,16 @@ is ever pasted into a chat or ticket, rotate it at
 
 ---
 
-### 2.6 TotalCorner is the corner source — verified API shape, needs a token
+### 2.6 Corners — use FREE FotMob, not paid TotalCorner
+
+> **Superseded by the decision below.** TotalCorner costs money (VIP) and the
+> account is not entitled, so it is **not** the path forward. The gap is filled
+> for free by **FotMob**, verified live: FT **and** half-time corners, no key, no
+> proxy, no bot challenge — see **`docs/FREE-DATA-SOURCES.md`**, which also
+> documents a money-critical finding: **BigBallsData undercounts cards**, because
+> cards on rows with `team_id: null` are silently dropped by the filter that
+> removes foreign-club contamination. Keep the TotalCorner section below for
+> reference only, in case the account is upgraded later.
 
 Corners are the one family BigBallsData cannot serve (§2.2), and **TotalCorner
 covers exactly that gap**. Its API is real and documented at
@@ -358,7 +367,11 @@ Do this **before** debugging code when the user says "no changes".
 ## 5. Open items / known gaps
 
 1. **Swap the stats source to BigBallsData** (§2) — the main task.
-2. **Corners come from TotalCorner, not BigBallsData** (measured — §2.2/§2.6).
+2. **Corners: use free FotMob** (`docs/FREE-DATA-SOURCES.md`), not paid
+   TotalCorner. Verified live: FT + half-time corners, no key, no proxy. The same
+   doc records that **BigBallsData undercounts cards** (rows with `team_id: null`
+   are dropped), so cards must not be settled from one source.
+   Historical note:
    BigBallsData serves goals FT/HT and cards FT; its `team_stats` is empty on 14
    matches and the string `corner` is absent from a 60 KB payload. TotalCorner
    supplies `hc`/`ac` (and `hf_hc`/`hf_ac` at half time). Two things block it:

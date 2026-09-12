@@ -773,6 +773,8 @@ at install time.
 | [`docs/HANDOVER.md`](docs/HANDOVER.md) | Client handover checklist |
 | [`docs/ACCOUNTS-CHECKLIST.md`](docs/ACCOUNTS-CHECKLIST.md) | Admin accounts & security checklist |
 | [`docs/ui/odds-widget/README.md`](docs/ui/odds-widget/README.md) | Odds cell layout rules + reference screenshots of every market, 320/360px, dark & light |
+| [`docs/AUTO-SETTLEMENT.md`](docs/AUTO-SETTLEMENT.md) | Auto-settlement engine: webhook contract, resolver rules, review queue |
+| [`docs/FREE-DATA-SOURCES.md`](docs/FREE-DATA-SOURCES.md) | Settling goals/cards/corners with free sources — FotMob verified, why BigBallsData undercounts cards |
 
 **Developer contact** — shown only inside the **Admin panel sidebar** (never on
 public pages, keeping the site white-label for end users). Links live in
