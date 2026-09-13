@@ -100,7 +100,7 @@ export default function LoginPage() {
                   <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="h-4 w-4 accent-[var(--vb-primary)]" />
                   Remember me
                 </label>
-                <a href="#" className="text-ink3 hover:text-ink" onClick={(e) => e.preventDefault()}>Forgot password?</a>
+                <Link href="/forgot" className="text-ink3 hover:text-ink">Forgot password?</Link>
               </div>
               <RecaptchaGate onChange={setCaptchaToken} resetSignal={captchaReset} />
               <button className="btn btn-primary w-full py-3" disabled={loading || (captchaRequired && !captchaToken)}>
