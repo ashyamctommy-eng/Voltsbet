@@ -195,6 +195,22 @@ TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN}"
 EOF
   chown "$APP_USER:$APP_USER" "$ENV_FILE"
   chmod 600 "$ENV_FILE"
+
+# ── Settlement worker secret (corners / cards / half-time stats) ──────
+# /api/v1/settlement/* fails CLOSED when this is unset, so every install needs
+# one or the worker has nowhere to deliver stats. Idempotent on purpose: an
+# existing value is never rotated, so re-running the installer cannot break a
+# worker that is already deployed against it.
+SETTLE_SECRET="$(grep -oP '^SETTLEMENT_WEBHOOK_SECRET="?\K[^"]+' "$ENV_FILE" 2>/dev/null || true)"
+if [ -z "$SETTLE_SECRET" ]; then
+  SETTLE_SECRET="$(openssl rand -hex 24)"
+  printf '\n# Settlement worker HMAC key — the worker sends it as SETTLE_WEBHOOK_SECRET\nSETTLEMENT_WEBHOOK_SECRET="%s"\n' "$SETTLE_SECRET" >> "$ENV_FILE"
+  log "Generated SETTLEMENT_WEBHOOK_SECRET for the settlement worker"
+else
+  log "SETTLEMENT_WEBHOOK_SECRET already present — keeping it"
+fi
+chown "$APP_USER:$APP_USER" "$ENV_FILE"
+chmod 600 "$ENV_FILE"
 fi
 
 # Run app steps as the unprivileged app user
@@ -283,8 +299,11 @@ fi
 ufw allow 22/tcp >/dev/null; ufw allow 80/tcp >/dev/null; ufw allow 443/tcp >/dev/null
 ufw --force enable >/dev/null
 
+# The settlement worker is plain Python 3 (stdlib only). Ubuntu ships python3,
+# but a minimal image may not — check loudly rather than letting cron fail mute.
+command -v python3 >/dev/null 2>&1 || warn "python3 not found — the settlement worker cron will fail until it is installed"
 # ── 11. Cron jobs ────────────────────────────────────────────────────
-log "Installing cron jobs (sync / schedule / settle / purge / reconcile)…"
+log "Installing cron jobs (sync / schedule / settle / purge / reconcile / backup / settlement worker)…"
 CRON_BASE="http://127.0.0.1:$APP_PORT/api/cron"
 MARK="# voltsbet-cron"
 BLOCK=$(cat <<EOF
@@ -294,6 +313,7 @@ $MARK
 */12 * * * * curl -fsS -m 120 "$CRON_BASE/settle?secret=$CRON_SECRET" >> $LOG_DIR/cron-settle.log 2>&1
 0 0 * * * curl -fsS -m 120 "$CRON_BASE/purge?secret=$CRON_SECRET" >> $LOG_DIR/cron-purge.log 2>&1
 */10 * * * * curl -fsS -m 120 "$CRON_BASE/reconcile?secret=$CRON_SECRET" >> $LOG_DIR/cron-reconcile.log 2>&1
+*/10 * * * * cd $INSTALL_DIR && SETTLE_WEBHOOK_URL=http://127.0.0.1:$APP_PORT/api/v1/settlement/process SETTLE_WEBHOOK_SECRET=$SETTLE_SECRET SETTLE_SOURCE=cross /usr/bin/python3 $INSTALL_DIR/worker/settle_worker.py >> $LOG_DIR/settle-worker.log 2>&1
 0 3 * * * bash $INSTALL_DIR/deploy/backup.sh >> $LOG_DIR/backup.log 2>&1
 $MARK-end
 EOF

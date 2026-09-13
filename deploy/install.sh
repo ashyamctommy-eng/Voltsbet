@@ -3,8 +3,9 @@
 # ⚡ VoltBet — one-command VPS installer (Ubuntu 22.04 / 24.04)
 # ===================================================================
 #   Installs everything a buyer needs to run VoltBet on their own VPS:
-#   Node 22 + pnpm + PostgreSQL + Nginx + PM2 + SSL + firewall + the 4
-#   cron jobs — then prints the admin login and next steps.
+#   Node 22 + pnpm + PostgreSQL + Nginx + PM2 + SSL + firewall + the cron
+#   jobs (incl. the corners/cards settlement worker) — then prints the admin
+#   login and next steps.
 #
 #   RAILWAY-SAFE: this script lives in deploy/ and touches ONLY this
 #   server. It never pushes, never modifies app code, never changes
@@ -142,6 +143,22 @@ CRON_SECRET="$CRON_SECRET"
 EOF
   chown "$APP_USER:$APP_USER" "$ENV_FILE"
   chmod 600 "$ENV_FILE"
+
+# ── Settlement worker secret (corners / cards / half-time stats) ──────
+# /api/v1/settlement/* fails CLOSED when this is unset, so every install needs
+# one or the worker has nowhere to deliver stats. Idempotent on purpose: an
+# existing value is never rotated, so re-running the installer cannot break a
+# worker that is already deployed against it.
+SETTLE_SECRET="$(grep -oP '^SETTLEMENT_WEBHOOK_SECRET="?\K[^"]+' "$ENV_FILE" 2>/dev/null || true)"
+if [ -z "$SETTLE_SECRET" ]; then
+  SETTLE_SECRET="$(openssl rand -hex 24)"
+  printf '\n# Settlement worker HMAC key — the worker sends it as SETTLE_WEBHOOK_SECRET\nSETTLEMENT_WEBHOOK_SECRET="%s"\n' "$SETTLE_SECRET" >> "$ENV_FILE"
+  log "Generated SETTLEMENT_WEBHOOK_SECRET for the settlement worker"
+else
+  log "SETTLEMENT_WEBHOOK_SECRET already present — keeping it"
+fi
+chown "$APP_USER:$APP_USER" "$ENV_FILE"
+chmod 600 "$ENV_FILE"
 fi
 
 # ── 7. Install, migrate, seed, build (as app user) ────────────────────
@@ -221,8 +238,11 @@ ufw allow 80/tcp >/dev/null
 ufw allow 443/tcp >/dev/null
 ufw --force enable >/dev/null
 
+# The settlement worker is plain Python 3 (stdlib only). Ubuntu ships python3,
+# but a minimal image may not — check loudly rather than letting cron fail mute.
+command -v python3 >/dev/null 2>&1 || warn "python3 not found — the settlement worker cron will fail until it is installed"
 # ── 12. Cron jobs (VPS crontab — the built-in scheduler) ──────────────
-log "Installing the 4 cron jobs for user $APP_USER…"
+log "Installing the cron jobs for user $APP_USER (incl. the settlement worker)…"
 CRON_SECRET="$(grep -oP '^CRON_SECRET="?\K[^"]+' "$ENV_FILE")"
 CRON_BASE="http://127.0.0.1:$APP_PORT/api/cron"
 CRON_MARKER="# voltsbet-cron"
@@ -233,6 +253,7 @@ $CRON_MARKER
 */12 * * * * curl -fsS -m 120 "$CRON_BASE/settle?secret=$CRON_SECRET" >> $LOG_DIR/cron-settle.log 2>&1
 0 0 * * * curl -fsS -m 120 "$CRON_BASE/purge?secret=$CRON_SECRET" >> $LOG_DIR/cron-purge.log 2>&1
 */10 * * * * curl -fsS -m 120 "$CRON_BASE/reconcile?secret=$CRON_SECRET" >> $LOG_DIR/cron-reconcile.log 2>&1
+*/10 * * * * cd $INSTALL_DIR && SETTLE_WEBHOOK_URL=http://127.0.0.1:$APP_PORT/api/v1/settlement/process SETTLE_WEBHOOK_SECRET=$SETTLE_SECRET SETTLE_SOURCE=cross /usr/bin/python3 $INSTALL_DIR/worker/settle_worker.py >> $LOG_DIR/settle-worker.log 2>&1
 $CRON_MARKER-end
 EOF
 )
@@ -242,7 +263,7 @@ if printf '%s' "$CURRENT_CRON" | grep -q "$CRON_MARKER"; then
   CURRENT_CRON="$(printf '%s\n' "$CURRENT_CRON" | sed "/$CRON_MARKER/,/$CRON_MARKER-end/d")"
 fi
 printf '%s\n%s\n' "$CURRENT_CRON" "$CRON_BLOCK" | crontab -u "$APP_USER" -
-touch "$LOG_DIR"/cron-{sync,schedule,settle,purge}.log
+touch "$LOG_DIR"/cron-{sync,schedule,settle,purge,settle-worker}.log
 chown -R "$APP_USER:$APP_USER" "$LOG_DIR"
 
 cat > /etc/logrotate.d/voltsbet <<EOF

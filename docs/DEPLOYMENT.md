@@ -22,7 +22,8 @@ credentials; then writes a sanitized `.env`, runs
 seed or build), generates `ecosystem.config.js` and boots the app under PM2
 (`pm2 save` + systemd startup), configures Nginx as a reverse proxy on
 80/443, issues a Let's Encrypt certificate when a domain is present, and
-INSTALLS THE 4 CRON JOBS into the `voltsbet` user's crontab (see below).
+INSTALLS THE CRON JOBS — the HTTP ones plus the **settlement worker** — into
+the `voltsbet` user's crontab (see below).
 Non-interactive use:
 
 ```bash
