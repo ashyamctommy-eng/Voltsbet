@@ -37,7 +37,7 @@ export default function LoginPage() {
     setError("");
     setNotice("");
     if (captchaRequired && !captchaToken) {
-      setError("Please complete the reCAPTCHA to log in.");
+      setError(t("login.captchaRequired"));
       return;
     }
     setLoading(true);
@@ -55,7 +55,7 @@ export default function LoginPage() {
     }
     if (res.data.otpRequired) {
       setOtpRequired(true);
-      setNotice(res.data.message ?? "Enter the code we sent to your Telegram.");
+      setNotice(res.data.message ?? t("login.otpNotice"));
       // The solved token is spent — the OTP step shows a fresh widget.
       bumpCaptchaReset();
       return;
@@ -78,8 +78,8 @@ export default function LoginPage() {
   return (
     <div className="mx-auto flex min-h-[70vh] max-w-md flex-col justify-center px-4 py-12">
       <div className="card p-8">
-        <h1 className="text-2xl font-extrabold">Welcome back</h1>
-        <p className="mt-1 text-sm text-ink2">Log in to your account to keep betting.</p>
+        <h1 className="text-2xl font-extrabold">{t("login.title")}</h1>
+        <p className="mt-1 text-sm text-ink2">{t("login.subtitle")}</p>
 
         <form onSubmit={submit} className="mt-6 space-y-4">
           {error && <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">{error}</div>}
@@ -88,29 +88,29 @@ export default function LoginPage() {
           {!otpRequired ? (
             <>
               <div>
-                <label className="label" htmlFor="identifier">Username or email</label>
+                <label className="label" htmlFor="identifier">{t("login.identifier")}</label>
                 <input id="identifier" className="input" value={identifier} onChange={(e) => setIdentifier(e.target.value)} autoComplete="username" required />
               </div>
               <div>
-                <label className="label" htmlFor="password">Password</label>
+                <label className="label" htmlFor="password">{t("login.password")}</label>
                 <input id="password" type="password" className="input" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
               </div>
               <div className="flex items-center justify-between text-sm">
                 <label className="flex cursor-pointer items-center gap-2 text-ink2">
                   <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="h-4 w-4 accent-[var(--vb-primary)]" />
-                  Remember me
+                  {t("login.remember")}
                 </label>
-                <Link href="/forgot" className="text-ink3 hover:text-ink">Forgot password?</Link>
+                <Link href="/forgot" className="text-ink3 hover:text-ink">{t("login.forgot")}</Link>
               </div>
               <RecaptchaGate onChange={setCaptchaToken} resetSignal={captchaReset} />
               <button className="btn btn-primary w-full py-3" disabled={loading || (captchaRequired && !captchaToken)}>
-                {loading ? "Logging in…" : "Log In"}
+                {loading ? t("login.submitting") : t("login.submit")}
               </button>
             </>
           ) : (
             <>
               <div>
-                <label className="label" htmlFor="otp">Telegram verification code</label>
+                <label className="label" htmlFor="otp">{t("login.otpLabel")}</label>
                 <input
                   id="otp"
                   className="input text-center font-mono text-lg tracking-[0.5em]"
@@ -123,25 +123,25 @@ export default function LoginPage() {
                   autoFocus
                   required
                 />
-                <p className="mt-1.5 text-xs text-ink3">Check your Telegram DMs — the code is valid for 5 minutes.</p>
+                <p className="mt-1.5 text-xs text-ink3">{t("login.otpHint")}</p>
               </div>
               <RecaptchaGate onChange={setCaptchaToken} resetSignal={captchaReset} />
               <button
                 className="btn btn-primary w-full py-3"
                 disabled={loading || otp.length !== 6 || (captchaRequired && !captchaToken)}
               >
-                {loading ? "Verifying…" : "Verify & Log In"}
+                {loading ? t("login.verifying") : t("login.verify")}
               </button>
               <button type="button" className="w-full text-center text-sm text-ink3 hover:text-ink" onClick={resetOtpStep}>
-                ← Back to password
+                {t("login.backToPassword")}
               </button>
             </>
           )}
         </form>
 
         <p className="mt-5 text-center text-sm text-ink2">
-          {siteName.trim() ? <>New to {siteName.trim()}?{" "}</> : "New here? "}
-          <Link href="/register" className="font-semibold text-brand-text hover:underline">Create an account</Link>
+          {siteName.trim() ? t("login.newTo", { siteName: siteName.trim() }) : t("login.newHere")}{" "}
+          <Link href="/register" className="font-semibold text-brand-text hover:underline">{t("login.createAccount")}</Link>
         </p>
       </div>
     </div>
