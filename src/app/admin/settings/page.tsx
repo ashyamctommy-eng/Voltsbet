@@ -212,6 +212,9 @@ export default function AdminSettings() {
   const [baseline, setBaseline] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState("");
+  /** Field key awaiting a destructive-toggle confirmation. */
+  const [confirmingToggle, setConfirmingToggle] = useState<string | null>(null);
+
   const searchRef = useRef<HTMLInputElement>(null);
   // Platform hint, written to the DOM after mount. Deliberately NOT state: a
   // `navigator` read during render is a hydration mismatch, and setting state in
@@ -311,9 +314,17 @@ export default function AdminSettings() {
     f.key.toLowerCase().includes(term) ||
     f.label.toLowerCase().includes(term) ||
     (f.hint ?? "").toLowerCase().includes(term);
-  const visibleGroups = GROUPS.map((g) => ({ ...g, fields: g.fields.filter(matches) })).filter(
+  const allVisible = GROUPS.map((g) => ({ ...g, fields: g.fields.filter(matches) })).filter(
     (g) => g.fields.length > 0,
   );
+  // Global kill-switches sort to the BOTTOM and render with the danger styling:
+  // a switch that takes the whole site down should not sit visually identical to
+  // the tagline field above it. Sorting (rather than a second render pass) keeps
+  // the field renderer in exactly one place.
+  const isDanger = (anchor: string) => DANGER_ANCHORS.includes(anchor);
+  const visibleGroups = allVisible
+    .slice()
+    .sort((a, b) => Number(isDanger(a.anchor)) - Number(isDanger(b.anchor)));
   const groupsIn = (anchors: string[]) => GROUPS.filter((g) => anchors.includes(g.anchor));
   const allDirty = (anchors: string[]) => groupsIn(anchors).some((g) => sectionDirty(g).length > 0);
 
@@ -517,10 +528,17 @@ export default function AdminSettings() {
             </div>
           )}
       {visibleGroups.map((g) => (
-        <div key={g.title} id={`section-${g.anchor}`} className="scroll-mt-40 card p-5">
+        <div
+          key={g.title}
+          id={`section-${g.anchor}`}
+          className={`scroll-mt-40 card p-5 ${isDanger(g.anchor) ? "border-bad/40" : ""}`}
+        >
+          {isDanger(g.anchor) && (
+            <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-bad">Danger zone</div>
+          )}
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="flex items-center gap-2 font-bold">
-              <span className="text-brand-text">{g.icon}</span>
+            <h3 className={`flex items-center gap-2 font-bold ${isDanger(g.anchor) ? "text-bad" : ""}`}>
+              <span className={isDanger(g.anchor) ? "text-bad" : "text-brand-text"}>{g.icon}</span>
               {g.title}
             </h3>
             {sectionDirty(g).length > 0 && (
@@ -539,6 +557,39 @@ export default function AdminSettings() {
               const value = settings[f.key] ?? "";
               if (f.type === "toggle") {
                 const on = value === "true";
+                // Enabling a global kill-switch gets a confirm; disabling it does
+                // not — restoring service should never need a second click.
+                const needsConfirm = f.key === "maintenance.enabled" && !on;
+                if (needsConfirm && confirmingToggle === f.key) {
+                  return (
+                    <div key={f.key} className="rounded-xl border border-bad/40 bg-bad/5 px-4 py-3 sm:col-span-2">
+                      <p className="text-sm font-semibold text-bad">Take the site down?</p>
+                      <p className="mt-1 text-[11px] text-ink2">
+                        Customers will see a branded maintenance screen and the API returns 503. Staff, /login,
+                        /api/health, cron jobs and payment webhooks keep working — so you can always switch it back.
+                      </p>
+                      <div className="mt-2.5 flex gap-2">
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          onClick={() => {
+                            set(f.key, "true");
+                            setConfirmingToggle(null);
+                          }}
+                        >
+                          Yes, enable maintenance
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => setConfirmingToggle(null)}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
                 return (
                   <div key={f.key} className="flex items-center justify-between rounded-xl border border-line bg-card px-4 py-3">
                     <span className="text-sm font-medium text-ink2">{f.label}</span>
@@ -547,7 +598,7 @@ export default function AdminSettings() {
                       role="switch"
                       aria-checked={on}
                       disabled={!!envOverrides[f.key]}
-                      onClick={() => set(f.key, on ? "false" : "true")}
+                      onClick={() => (f.key === "maintenance.enabled" && !on ? setConfirmingToggle(f.key) : set(f.key, on ? "false" : "true"))}
                       className={`relative h-6 w-11 rounded-full transition-colors ${on ? "bg-brand" : "bg-line2"}`}
                     >
                       <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${on ? "left-[22px]" : "left-0.5"}`} />
