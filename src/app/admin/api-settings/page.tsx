@@ -456,22 +456,23 @@ export default function AdminApiSettings() {
               type="number"
               min={1}
               value={odds?.env?.feedMaxLeagues ?? fm.feedMaxLeagues}
-              disabled={!!odds?.env?.feedMaxLeagues}
+              disabled={!!odds?.env?.feedMaxLeagues || (syncData?.configured?.length ?? 0) > 0}
+              aria-describedby="feed-cap-help"
               onChange={(e) => setFm((f) => ({ ...f, feedMaxLeagues: e.target.value }))}
             />
             {odds?.env?.feedMaxLeagues ? (
-              <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
+              <p id="feed-cap-help" className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
                 Locked by Railway env <code>ODDS_API_FEED_MAX_LEAGUES={odds.env.feedMaxLeagues}</code> — that value wins,
                 so edits here have no effect. Remove that env var in Railway to use this field.
               </p>
             ) : (syncData?.configured?.length ?? 0) > 0 ? (
-              <p className="mt-1 text-[11px] text-ink3">
+              <p id="feed-cap-help" className="mt-1 text-[11px] text-ink3">
                 <b>Not in use</b> — your League Sync whitelist ({syncData?.configured?.length} leagues) selects the
                 leagues that get synced, so this number changes nothing while a whitelist is set. It only applies
                 in catalog mode (whitelist empty). 120 is its default, not a leftover.
               </p>
             ) : (
-              <p className="mt-1 text-[11px] text-ink3">
+              <p id="feed-cap-help" className="mt-1 text-[11px] text-ink3">
                 Only applies when the League Sync whitelist is empty — a whitelist overrides this cap. Whole number ≥ 1.
               </p>
             )}
