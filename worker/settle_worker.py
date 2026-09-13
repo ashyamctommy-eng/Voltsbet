@@ -1284,7 +1284,7 @@ def _signed_headers(body: bytes) -> dict:
     }
 
 
-def load_pending_file(path: str) -> list[dict]:
+def load_pending_file(path: str) -> Optional[list[dict]]:
     """Read a work list from a file instead of the backend.
 
     Accepts either an exported /api/v1/settlement/pending payload
@@ -1297,7 +1297,7 @@ def load_pending_file(path: str) -> list[dict]:
             data = json.load(fh)
     except (OSError, json.JSONDecodeError) as e:
         log(f"pending file {path}: unreadable ({type(e).__name__})")
-        return []
+        return None
     if isinstance(data, dict):
         entries = data.get("games")
         if entries is None and isinstance(data.get("data"), dict):
@@ -1318,17 +1318,27 @@ def load_pending_file(path: str) -> list[dict]:
     return out
 
 
-def fetch_pending(pool: "ProxyPool") -> list[dict]:
+def fetch_pending(pool: "ProxyPool") -> Optional[list[dict]]:
     """
     Ask the backend which matches still need external stats.
 
     Without this the worker scrapes a whole day and discards nearly all of it,
-    burning both the proxy budget and the block rate on matches nobody bet on.
-    A failure here is not fatal: the caller falls back to the date scan.
+    burning requests on matches nobody bet on.
+
+    Returns:
+      * a list (possibly EMPTY) when the backend answered — `[]` means there is
+        genuinely nothing to settle, which is a normal, healthy state;
+      * None when there is no backend configured or the call failed, which is
+        the only case that justifies falling back to a full date scan.
+
+    The distinction matters: an empty work list is the common case (most runs
+    have nothing to settle), and treating it as "no list" made the worker scrape
+    an entire day of world football every ten minutes.
     """
     url = PENDING_URL or (WEBHOOK_URL.replace("/process", "/pending") if WEBHOOK_URL else "")
     if not url or not WEBHOOK_SECRET:
-        return []
+        log("work list not configured (need SETTLE_WEBHOOK_URL + SETTLE_WEBHOOK_SECRET)")
+        return None
     req = urllib.request.Request(url, method="GET", headers=_signed_headers(b""))
     try:
         with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT + 8) as resp:
@@ -1337,10 +1347,10 @@ def fetch_pending(pool: "ProxyPool") -> list[dict]:
         log(f"work list: {len(games)} game(s) with unsettled stat markets")
         return games
     except urllib.error.HTTPError as e:
-        log(f"work list unavailable (HTTP {e.code}) — falling back to date scan")
+        log(f"work list unavailable (HTTP {e.code})")
     except Exception as e:  # noqa: BLE001
-        log(f"work list unavailable ({type(e).__name__}) — falling back to date scan")
-    return []
+        log(f"work list unavailable ({type(e).__name__})")
+    return None
 
 
 def normalize_team(name: str) -> str:
@@ -1588,6 +1598,26 @@ def main() -> int:
         else [datetime.now(timezone.utc), datetime.now(timezone.utc) - timedelta(days=1)]
     )
 
+    # ASK THE BACKEND FIRST. The work list is usually empty (most runs have
+    # nothing to settle), and building the day index costs several requests to
+    # unofficial, keyless endpoints — so nothing is fetched until we know there
+    # is work. Being gentle with a scrape source we do not pay for is not
+    # politeness, it is what keeps it reachable.
+    pending: Optional[list[dict]] = None
+    if not args.no_pending:
+        if args.pending_file:
+            pending = load_pending_file(args.pending_file)
+            if pending is None:
+                # An explicit file that cannot be read must not silently become a
+                # full-day scrape — that is the opposite of what was asked for.
+                log("pending file unreadable — refusing to fall back to a full-day scrape")
+                return 1
+        else:
+            pending = fetch_pending(pool)
+        if pending is not None and not pending:
+            log("work list: nothing to settle this run — no scraping needed")
+            return 0
+
     # The daily schedule doubles as the id index: it is 1-2 cheap requests that
     # map our fixtures onto the scrape source's event ids.
     if args.source == "fotmob":
@@ -1617,21 +1647,19 @@ def main() -> int:
     # Prefer the backend work list: it names the matches with UNSETTLED stat
     # markets, so a run touches a handful of fixtures instead of a full day.
     targets: list[dict] = []
-    if not args.no_pending:
-        pending = load_pending_file(args.pending_file) if args.pending_file else fetch_pending(pool)
-        if pending:
-            unmatched = 0
-            for entry in pending:
-                ev = match_event(entry, unique)
-                if ev:
-                    targets.append(ev)
-                else:
-                    unmatched += 1
-            log(f"work list: resolved {len(targets)}/{len(pending)} to source events"
-                + (f", {unmatched} unmatched (names drifted or not in today's feed)" if unmatched else ""))
-            if not targets:
-                log("work list resolved nothing — check the team-name mapping before trusting a quiet run")
-                return 1
+    if pending is not None:
+        unmatched = 0
+        for entry in pending:
+            ev = match_event(entry, unique)
+            if ev:
+                targets.append(ev)
+            else:
+                unmatched += 1
+        log(f"work list: resolved {len(targets)}/{len(pending)} to source events"
+            + (f", {unmatched} unmatched (names drifted or not in today's feed)" if unmatched else ""))
+        if not targets:
+            log("work list resolved nothing — check the team-name mapping before trusting a quiet run")
+            return 1
 
     if not targets:
         log("no work list configured — scraping every finished match this window")
