@@ -5,6 +5,7 @@ import { apiFetch } from "@/lib/client";
 import { useToast } from "@/components/BetSlipContext";
 import { formatDateTime } from "@/lib/odds";
 import TelegramLinkCard from "@/components/TelegramLinkCard";
+import ChangePasswordCard from "@/components/account/ChangePasswordCard";
 
 type ProfileData = {
   user: {
@@ -82,6 +83,9 @@ export default function SettingsPage() {
           highlight={profile.user.verified ? "text-green-400" : "text-amber-400"}
         />
       </div>
+
+      {/* Password change — no out-of-band code needed (Path A). */}
+      <ChangePasswordCard />
 
       {/* Telegram linking — OTP delivery channel (replaces 2FA) */}
       <TelegramLinkCard />

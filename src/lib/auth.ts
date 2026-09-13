@@ -108,6 +108,53 @@ export async function destroySession() {
   store.delete(CSRF_COOKIE);
 }
 
+/**
+ * Change a signed-in customer's password.
+ *
+ * Path A: no SMS, no email, no Telegram. The current password is the proof of
+ * identity (the user is already authenticated; this is a re-authentication for
+ * a sensitive action, which is what OWASP recommends), and the real security
+ * benefit comes from the second half — revoking every OTHER session, which is
+ * what actually helps someone who believes they are compromised.
+ *
+ * Returns rather than throws so the API layer owns the HTTP mapping.
+ */
+export async function changePassword(opts: {
+  userId: string;
+  currentPassword: string;
+  newPassword: string;
+}): Promise<{ ok: true; revoked: number } | { ok: false; reason: "NOT_FOUND" | "BAD_CURRENT" | "UNCHANGED" }> {
+  const user = await prisma.user.findUnique({
+    where: { id: opts.userId },
+    select: { passwordHash: true },
+  });
+  if (!user) return { ok: false, reason: "NOT_FOUND" };
+
+  if (!(await verifyPassword(opts.currentPassword, user.passwordHash))) {
+    return { ok: false, reason: "BAD_CURRENT" };
+  }
+  // Reusing the old password would silently defeat the point of the change.
+  if (await verifyPassword(opts.newPassword, user.passwordHash)) {
+    return { ok: false, reason: "UNCHANGED" };
+  }
+
+  await prisma.user.update({
+    where: { id: opts.userId },
+    data: { passwordHash: await hashPassword(opts.newPassword) },
+  });
+
+  // Keep the caller signed in; kill everything else. Sessions may predate the
+  // hashing migration, so the raw token is matched too (same tolerance as
+  // destroySession). No cookie at all = revoke everything, never nothing.
+  const store = await cookies();
+  const raw = store.get(SESSION_COOKIE)?.value;
+  const keep = raw ? [hashToken(raw), raw] : [];
+  const res = await prisma.session.deleteMany({
+    where: { userId: opts.userId, ...(keep.length ? { token: { notIn: keep } } : {}) },
+  });
+  return { ok: true, revoked: res.count };
+}
+
 export async function getCsrfToken() {
   const store = await cookies();
   return store.get(CSRF_COOKIE)?.value ?? "";
