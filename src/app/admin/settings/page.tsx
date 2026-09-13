@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "@/lib/client";
 import { useToast } from "@/components/BetSlipContext";
 import { useRouter } from "next/navigation";
@@ -212,6 +212,13 @@ export default function AdminSettings() {
   const [baseline, setBaseline] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
+  // Platform hint, written to the DOM after mount. Deliberately NOT state: a
+  // `navigator` read during render is a hydration mismatch, and setting state in
+  // an effect to work around that trips react-hooks/set-state-in-effect. The
+  // element renders empty on the server and is filled in here.
+  const hintRef = useRef<HTMLSpanElement>(null);
+
   /** Settings an env var currently overrides (key → {env, value, effect}). */
   const [envOverrides, setEnvOverrides] = useState<Record<string, { env: string; value: string; effect: string }>>({});
 
@@ -272,6 +279,30 @@ export default function AdminSettings() {
       </span>
     );
   };
+
+  useEffect(() => {
+    const mac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+    if (hintRef.current) hintRef.current.textContent = mac ? "⌘K" : "Ctrl K";
+  }, []);
+
+  // ⌘K / Ctrl+K focuses the search from anywhere on the page; Escape clears it
+  // (then blurs once it is already empty, so one press never does both).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        searchRef.current?.focus();
+        searchRef.current?.select();
+        return;
+      }
+      if (e.key === "Escape" && document.activeElement === searchRef.current) {
+        if (query) setQuery("");
+        else searchRef.current?.blur();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [query]);
 
   // ── ⌘K search: match across key, label AND hint, then drop empty sections.
   const term = query.trim().toLowerCase();
@@ -338,6 +369,7 @@ export default function AdminSettings() {
         <h2 className="text-lg font-bold">Website Settings</h2>
         <div className="relative ml-auto w-full max-w-xs">
           <input
+            ref={searchRef}
             className="input pl-8"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -345,6 +377,13 @@ export default function AdminSettings() {
             aria-label="Search all settings"
           />
           <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink3">⌕</span>
+          {!query && (
+            <span
+              ref={hintRef}
+              aria-hidden
+              className="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 rounded border border-line px-1.5 py-0.5 font-mono text-[10px] text-ink3 sm:inline-block"
+            />
+          )}
           {query && (
             <button
               type="button"
