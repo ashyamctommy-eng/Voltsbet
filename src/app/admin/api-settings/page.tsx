@@ -462,7 +462,13 @@ export default function AdminApiSettings() {
             {odds?.env?.feedMaxLeagues ? (
               <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
                 Locked by Railway env <code>ODDS_API_FEED_MAX_LEAGUES={odds.env.feedMaxLeagues}</code> — that value wins,
-                so edits here have no effect. Change it in Railway (or remove the env var) to use this field.
+                so edits here have no effect. Remove that env var in Railway to use this field.
+              </p>
+            ) : (syncData?.configured?.length ?? 0) > 0 ? (
+              <p className="mt-1 text-[11px] text-ink3">
+                <b>Not in use</b> — your League Sync whitelist ({syncData?.configured?.length} leagues) selects the
+                leagues that get synced, so this number changes nothing while a whitelist is set. It only applies
+                in catalog mode (whitelist empty). 120 is its default, not a leftover.
               </p>
             ) : (
               <p className="mt-1 text-[11px] text-ink3">
