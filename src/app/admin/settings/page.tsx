@@ -378,6 +378,54 @@ export default function AdminSettings() {
         </div>
       )}
 
+      {/*
+        Mobile section nav. The grouped rail above is `hidden lg:block`, and the
+        old horizontal pill scroller was removed with it — which left phones and
+        any viewport under 1024px with NO way to jump between sections at all.
+        A native <details> keeps it zero-JS and collapses to one line.
+      */}
+      <details className="card mt-4 p-0 lg:hidden">
+        <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-bold">
+          Jump to a section
+          <span className="ml-auto text-ink3" aria-hidden>▾</span>
+        </summary>
+        <div className="border-t border-line p-2">
+          {BUCKETS.map((b) => (
+            <div key={b.id}>
+              <div className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-ink3">{b.label}</div>
+              {groupsIn(b.anchors).map((g) => (
+                <button
+                  key={g.anchor}
+                  type="button"
+                  onClick={() => jump(g.anchor)}
+                  className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm font-semibold text-ink2 hover:bg-hover-tint hover:text-ink"
+                >
+                  <span className="text-brand-text">{g.icon}</span>
+                  <span className="truncate">{g.title.replace(" (NOWPayments)", "").replace(" (Palplus)", "")}</span>
+                  {allDirty([g.anchor]) ? (
+                    <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-warn" />
+                  ) : (
+                    <span className="ml-auto shrink-0 font-mono text-[10px] text-ink3">{g.fields.length}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          ))}
+          <div className="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-bad">Danger zone</div>
+          {groupsIn(DANGER_ANCHORS).map((g) => (
+            <button
+              key={g.anchor}
+              type="button"
+              onClick={() => jump(g.anchor)}
+              className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm font-semibold text-bad hover:bg-bad/10"
+            >
+              <span>{g.icon}</span>
+              <span className="truncate">{g.title}</span>
+            </button>
+          ))}
+        </div>
+      </details>
+
       <div className="mt-4 flex items-start gap-5">
         {/* Grouped rail — replaces the horizontal pill scroller. */}
         <aside className="sticky top-20 hidden w-56 shrink-0 lg:block">
