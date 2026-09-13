@@ -26,6 +26,9 @@
 #   INSTALL_DIR     app directory        (default: /var/www/voltsbet)
 #   APP_PORT        internal app port    (default: 3000)
 #   DB_NAME/DB_USER/DB_PASSWORD / DB_HOST / DB_PORT
+#   SITE_NAME       brand name in the header   (default: VoltBet)
+#   BRAND_COLOR     primary brand color, hex   (default: #00e676)
+#   BRAND_ACCENT    accent brand color, hex    (default: #7c3aed)
 #   TELEGRAM_BOT_TOKEN   bot token from @BotFather (empty = configure later)
 #   NO_SSL=1        skip certbot (dev / IP-only installs)
 #   SKIP_DB_CREATE=1 use the given DB credentials as-is (managed Postgres)
@@ -83,8 +86,14 @@ DB_PORT="${DB_PORT:-5432}"
 ADMIN_USERNAME="${ADMIN_USERNAME:-}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"
+SITE_NAME="${SITE_NAME:-}"
+BRAND_COLOR="${BRAND_COLOR:-}"
+BRAND_ACCENT="${BRAND_ACCENT:-}"
 
 ask DOMAIN "Site domain (e.g. bet.example.com — empty = IP only, no SSL)" ""
+ask SITE_NAME "Site / brand name (header + page titles)" "VoltBet"
+ask BRAND_COLOR "Primary brand color (hex — buttons, selected odds, links)" "#00e676"
+ask BRAND_ACCENT "Accent brand color (hex — promo banners, badges)" "#7c3aed"
 ask DB_NAME "PostgreSQL database name" "voltsbet"
 ask DB_USER "PostgreSQL user" "voltsbet"
 if [ -z "$DB_PASSWORD" ]; then
@@ -110,6 +119,7 @@ fi
 DB_NAME="$(sanitize "$DB_NAME")"; DB_USER="$(sanitize "$DB_USER")"
 DB_PASSWORD="$(sanitize "$DB_PASSWORD")"; DB_HOST="$(sanitize "$DB_HOST")"; DB_PORT="$(sanitize "$DB_PORT")"
 THE_ODDS_API_KEY="$(sanitize "$THE_ODDS_API_KEY")"; TELEGRAM_BOT_TOKEN="$(sanitize "$TELEGRAM_BOT_TOKEN")"
+SITE_NAME="$(sanitize "$SITE_NAME")"; BRAND_COLOR="$(sanitize "$BRAND_COLOR")"; BRAND_ACCENT="$(sanitize "$BRAND_ACCENT")"
 DOMAIN="$(sanitize "$DOMAIN")"; ADMIN_EMAIL="$(sanitize "$ADMIN_EMAIL")"; ADMIN_USERNAME="$(sanitize "$ADMIN_USERNAME")"
 
 APP_URL="http://127.0.0.1:${APP_PORT}"
@@ -235,7 +245,7 @@ as_app "DATABASE_URL='${DB_URL}' NODE_ENV=production pnpm build"
 
 # ── 6b. Branding + Super Admin credentials + Telegram ────────────────
 log "Applying Super Admin credentials (${ADMIN_EMAIL})…"
-as_app "DATABASE_URL='${DB_URL}' TELEGRAM_BOT_TOKEN='${TELEGRAM_BOT_TOKEN}' node deploy/post-install.mjs '' '' '$ADMIN_EMAIL' '$ADMIN_PASSWORD' '$ADMIN_USERNAME'"
+as_app "DATABASE_URL='${DB_URL}' TELEGRAM_BOT_TOKEN='${TELEGRAM_BOT_TOKEN}' BRAND_ACCENT='${BRAND_ACCENT}' node deploy/post-install.mjs '${SITE_NAME}' '${BRAND_COLOR}' '$ADMIN_EMAIL' '$ADMIN_PASSWORD' '$ADMIN_USERNAME'"
 
 # ── 7. PM2 bootstrap ─────────────────────────────────────────────────
 log "Generating ecosystem.config.js and starting under PM2…"
@@ -337,6 +347,7 @@ echo "  Super Admin:  $ADMIN_EMAIL  (user: $ADMIN_USERNAME)"
 echo "  Password:     $ADMIN_PASSWORD   ← change it after first login"
 echo
 echo "  App dir:      $INSTALL_DIR"
+echo "  Brand:        $SITE_NAME  ($BRAND_COLOR / $BRAND_ACCENT)"
 echo "  Env file:     $ENV_FILE (secrets — never share or commit)"
 echo "  Logs:         $LOG_DIR/ · pm2 logs voltsbet"
 echo

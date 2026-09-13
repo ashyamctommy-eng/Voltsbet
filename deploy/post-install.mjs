@@ -7,6 +7,11 @@
  * Usage (needs DATABASE_URL in env):
  *   node deploy/post-install.mjs <siteName> <brandColor> <adminEmail> <newAdminPassword> [adminUsername]
  *
+ * Branding (optional):
+ *   BRAND_ACCENT=#7c3aed — second brand hue; promo banners, badges and
+ *   secondary highlights read it as --vb-accent. Without it the seed
+ *   default (#7c3aed) is kept.
+ *
  * Telegram settings via env (optional):
  *   TELEGRAM_BOT_TOKEN=…  TELEGRAM_BOT_USERNAME=… node deploy/post-install.mjs …
  *
@@ -34,6 +39,11 @@ try {
   if (brandColor) {
     await upsertSetting("branding.primaryColor", brandColor);
     console.log(`branding: branding.primaryColor = ${brandColor}`);
+  }
+  if (process.env.BRAND_ACCENT) {
+    const accent = process.env.BRAND_ACCENT.trim();
+    await upsertSetting("branding.accentColor", accent);
+    console.log(`branding: branding.accentColor = ${accent}`);
   }
   if (adminEmail && newPassword) {
     const hash = await bcrypt.hash(newPassword, 12);

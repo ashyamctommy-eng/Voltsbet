@@ -23,6 +23,7 @@
 #   APP_PORT       internal port (default: 3000)
 #   SITE_NAME      brand name shown in the header
 #   BRAND_COLOR    primary brand color, hex e.g. #00e676
+#   BRAND_ACCENT   accent brand color (banners/badges), hex e.g. #7c3aed
 #   ODDS_API_KEY   The Odds API key (required for odds; can add later)
 #   ADMIN_PASSWORD new admin password (auto-generated if empty)
 #   NO_SSL=1       skip certbot (dev / IP-only installs)
@@ -66,12 +67,14 @@ log "Your Railway deployment is untouched (additive files only)."
 
 SITE_NAME="${SITE_NAME:-}"
 BRAND_COLOR="${BRAND_COLOR:-}"
+BRAND_ACCENT="${BRAND_ACCENT:-}"
 ODDS_API_KEY="${ODDS_API_KEY:-}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"
 DOMAIN="${DOMAIN:-}"
 ask DOMAIN "Site domain (e.g. bet.example.com — empty = IP only)" ""
 ask SITE_NAME "Site name (branding)" "VoltBet"
 ask BRAND_COLOR "Primary brand color (hex)" "#00e676"
+ask BRAND_ACCENT "Accent brand color (hex — banners, badges)" "#7c3aed"
 ask ODDS_API_KEY "The Odds API key (https://the-odds-api.com — empty = add later)" "SKIP"
 [ "$ODDS_API_KEY" = "SKIP" ] && ODDS_API_KEY=""
 
@@ -171,7 +174,7 @@ su -s /bin/bash "$APP_USER" -c "export HOME=/home/$APP_USER && cd '$INSTALL_DIR'
 # ── 8. Branding + admin password (per-client identity, DB-driven) ─────
 log "Applying branding (site name + color) and resetting the admin password…"
 [ -z "$ADMIN_PASSWORD" ] && ADMIN_PASSWORD="$(openssl rand -base64 12 | tr -d '/+=')"
-su -s /bin/bash "$APP_USER" -c "export HOME=/home/$APP_USER && cd '$INSTALL_DIR' && DATABASE_URL='$DB_URL' node deploy/post-install.mjs '$SITE_NAME' '$BRAND_COLOR' '$ADMIN_EMAIL' '$ADMIN_PASSWORD'"
+su -s /bin/bash "$APP_USER" -c "export HOME=/home/$APP_USER && cd '$INSTALL_DIR' && DATABASE_URL='$DB_URL' BRAND_ACCENT='${BRAND_ACCENT}' node deploy/post-install.mjs '$SITE_NAME' '$BRAND_COLOR' '$ADMIN_EMAIL' '$ADMIN_PASSWORD'"
 # ── 9. PM2 ────────────────────────────────────────────────────────────
 if ! command -v pm2 >/dev/null; then
   log "Installing PM2…"
@@ -287,7 +290,7 @@ echo "════════════════════════�
 echo "  Site:        $URL"
 echo "  Admin:       $URL/admin   (email: $ADMIN_EMAIL)"
 echo "  Admin pass:  $ADMIN_PASSWORD   ← change it after first login"
-echo "  Brand:       $SITE_NAME · $BRAND_COLOR"
+echo "  Brand:       $SITE_NAME · primary $BRAND_COLOR · accent $BRAND_ACCENT"
 echo
 echo "  App dir:     $INSTALL_DIR"
 echo "  Env file:    $ENV_FILE (secrets — never share/commit)"
