@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { handle, ok, auditLog, ApiError, sharedAdminGuard } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { setSetting, invalidateSettingsCache } from "@/lib/settings";
+import { activeEnvOverrides } from "@/lib/settings-env";
 
 /**
  * Secret settings are masked on read: the raw value never leaves the server
@@ -36,6 +37,9 @@ export const GET = handle(async (req: NextRequest) => {
     settings: Object.fromEntries(
       settings.map((s) => [s.key, s.value && isSecret(s.key) ? MASK : s.value])
     ),
+    // Fields an env var currently wins over. The panel disables these so an
+    // admin never edits a value that cannot take effect.
+    env: activeEnvOverrides(),
   });
 });
 

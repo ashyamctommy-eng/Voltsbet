@@ -212,14 +212,20 @@ export default function AdminSettings() {
   const [baseline, setBaseline] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState("");
+  /** Settings an env var currently overrides (key → {env, value, effect}). */
+  const [envOverrides, setEnvOverrides] = useState<Record<string, { env: string; value: string; effect: string }>>({});
+
   /** Which secret fields are currently shown in plain text. */
   const [revealed, setRevealed] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    apiFetch<{ settings: Record<string, string> }>("/api/admin/settings").then((r) => {
+    apiFetch<{ settings: Record<string, string>; env?: Record<string, { env: string; value: string; effect: string }> }>(
+      "/api/admin/settings",
+    ).then((r) => {
       if (!r.ok) return;
       setSettings(r.data.settings);
       setBaseline(r.data.settings);
+      setEnvOverrides(r.data.env ?? {});
     });
   }, []);
 
@@ -252,6 +258,20 @@ export default function AdminSettings() {
   }
 
   const discard = () => setSettings(baseline);
+
+  /** Renders nothing unless an env var is winning over this field. */
+  const EnvTag = ({ k }: { k: string }) => {
+    const e = envOverrides[k];
+    if (!e) return null;
+    return (
+      <span
+        className="ml-1.5 inline-flex items-center gap-1 rounded border border-warn/45 bg-warn/10 px-1.5 py-0.5 align-middle text-[9.5px] font-black uppercase tracking-wide text-warn"
+        title={`${e.env}=${e.value} — ${e.effect}. Change it in the host environment, not here.`}
+      >
+        ⛔ {e.env}
+      </span>
+    );
+  };
 
   // ── ⌘K search: match across key, label AND hint, then drop empty sections.
   const term = query.trim().toLowerCase();
@@ -439,6 +459,7 @@ export default function AdminSettings() {
                       type="button"
                       role="switch"
                       aria-checked={on}
+                      disabled={!!envOverrides[f.key]}
                       onClick={() => set(f.key, on ? "false" : "true")}
                       className={`relative h-6 w-11 rounded-full transition-colors ${on ? "bg-brand" : "bg-line2"}`}
                     >
@@ -450,8 +471,8 @@ export default function AdminSettings() {
               if (f.type === "select") {
                 return (
                   <div key={f.key}>
-                    <label className="label">{f.label}</label>
-                    <select className="input" value={value} onChange={(e) => set(f.key, e.target.value)}>
+                    <label className="label">{f.label}<EnvTag k={f.key} /></label>
+                    <select className="input" value={value} disabled={!!envOverrides[f.key]} onChange={(e) => set(f.key, e.target.value)}>
                       {(f.options ?? []).map((o) => (
                         <option key={o} value={o}>{o === "" ? (f.emptyLabel ?? "— none —") : o}</option>
                       ))}
@@ -464,7 +485,7 @@ export default function AdminSettings() {
                 const url = appUrl ? `${appUrl}/api/webhooks/palplus` : "";
                 return (
                   <div key={f.key} className="sm:col-span-2">
-                    <label className="label">{f.label}</label>
+                    <label className="label">{f.label}<EnvTag k={f.key} /></label>
                     <div className="flex gap-2">
                       <input className="input flex-1 font-mono text-xs" readOnly value={url} placeholder="Set App & Homepage → Public app URL first" />
                       <button
@@ -494,7 +515,7 @@ export default function AdminSettings() {
                 const hex = /^#[0-9a-fA-F]{6}$/.test(value) ? value : "#000000";
                 return (
                   <div key={f.key}>
-                    <label className="label">{f.label}</label>
+                    <label className="label">{f.label}<EnvTag k={f.key} /></label>
                     <div className="flex items-center gap-2">
                       <span
                         className="h-9 w-9 shrink-0 rounded-lg border border-line"
@@ -504,6 +525,7 @@ export default function AdminSettings() {
                       <input
                         className="input font-mono text-xs"
                         value={value}
+                        disabled={!!envOverrides[f.key]}
                         onChange={(e) => set(f.key, e.target.value)}
                       />
                       <input
@@ -522,7 +544,7 @@ export default function AdminSettings() {
               if (isSecret) {
                 return (
                   <div key={f.key} className="sm:col-span-2">
-                    <label className="label">{f.label}</label>
+                    <label className="label">{f.label}<EnvTag k={f.key} /></label>
                     <div className="flex flex-wrap items-center gap-2">
                       <input
                         className="input min-w-0 flex-1 font-mono text-xs"
@@ -577,11 +599,12 @@ export default function AdminSettings() {
 
               return (
                 <div key={f.key}>
-                  <label className="label">{f.label}</label>
+                  <label className="label">{f.label}<EnvTag k={f.key} /></label>
                   <input
                     className="input font-mono text-xs"
                     type={f.type === "number" ? "number" : "text"}
                     value={value}
+                    disabled={!!envOverrides[f.key]}
                     onChange={(e) => set(f.key, e.target.value)}
                   />
                   {f.hint && <p className="mt-1 text-[11px] text-ink3">{f.hint}</p>}

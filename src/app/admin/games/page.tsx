@@ -5,6 +5,7 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/client";
 import { formatDateTime } from "@/lib/odds";
 import { useToast } from "@/components/BetSlipContext";
+import UnofferedFixturesCard from "@/components/admin/UnofferedFixturesCard";
 
 type Game = {
   id: string; homeName: string; awayName: string; startAt: string; status: string;
@@ -75,6 +76,10 @@ export default function AdminGames() {
 
   return (
     <div className="space-y-5">
+      {/* Cleanup for sports the book no longer syncs. Renders nothing when
+          there is nothing to report, and only ever previews before deleting. */}
+      <UnofferedFixturesCard onPurged={load} />
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-bold">Games</h2>
         <div className="flex items-center gap-3">
