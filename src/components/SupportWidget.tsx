@@ -142,7 +142,7 @@ export default function SupportWidget({ support, isStaff = false }: { support: S
                 {/* Messages */}
                 <div className="flex-1 space-y-2 overflow-y-auto p-4">
                   {msgs.map((m, i) => (
-                    <div key={i} className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm ${m.from === "bot" ? "rounded-bl-sm bg-card text-ink" : "ml-auto rounded-br-sm bg-brand/90 text-[#052e16]"}`}>
+                    <div key={i} className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm ${m.from === "bot" ? "rounded-bl-sm bg-card text-ink" : "ml-auto rounded-br-sm bg-brand/90 text-on-brand"}`}>
                       {m.text}
                     </div>
                   ))}
@@ -166,7 +166,7 @@ export default function SupportWidget({ support, isStaff = false }: { support: S
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                   />
-                  <button type="submit" aria-label="Send" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand text-[#052e16]">
+                  <button type="submit" aria-label="Send" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand text-on-brand">
                     <IconSend className="h-5 w-5" />
                   </button>
                 </form>

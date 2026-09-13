@@ -95,7 +95,7 @@ export default function LiveFeed({
   const pill = (active: boolean) =>
     `flex min-h-9 shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold transition-all active:scale-95 ${
       active
-        ? "bg-brand text-[#052e16]"
+        ? "bg-brand text-on-brand"
         : "border border-line bg-card2 text-ink2 hover:border-brand/40 hover:text-ink"
     }`;
 

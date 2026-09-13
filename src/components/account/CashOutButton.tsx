@@ -70,7 +70,7 @@ export default function CashOutButton({
           <button
             onClick={confirm}
             disabled={busy}
-            className="rounded-full bg-brand px-3 py-1.5 text-xs font-black text-[#052e16] transition-all hover:brightness-110 disabled:opacity-50"
+            className="rounded-full bg-brand px-3 py-1.5 text-xs font-black text-on-brand transition-all hover:brightness-110 disabled:opacity-50"
           >
             {busy ? "Cashing out…" : `Cash out ${Number(quote.value).toLocaleString()}?`}
           </button>

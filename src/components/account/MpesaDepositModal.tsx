@@ -208,7 +208,7 @@ export default function MpesaDepositModal({
 
           {phase === "success" && (
             <div className="flex flex-col items-center px-6 pb-7 pt-8 text-center">
-              <span className="pop-in flex h-16 w-16 items-center justify-center rounded-full bg-brand text-[#052e16] shadow-lg shadow-brand/30">
+              <span className="pop-in flex h-16 w-16 items-center justify-center rounded-full bg-brand text-on-brand shadow-lg shadow-brand/30">
                 <CheckCircle2 className="h-9 w-9" strokeWidth={2.4} />
               </span>
               <h3 className="mt-4 text-lg font-extrabold text-ink">Payment Received</h3>

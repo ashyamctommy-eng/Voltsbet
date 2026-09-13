@@ -290,13 +290,13 @@ function SlipBody(props: {
         {multiple && (
           <div className="mt-1.5 flex overflow-hidden rounded-lg border border-line2 text-xs font-semibold">
             <button
-              className={`px-3 py-1.5 ${mode === "SINGLE" ? "bg-brand text-[#052e16]" : "text-ink2 hover:text-ink"}`}
+              className={`px-3 py-1.5 ${mode === "SINGLE" ? "bg-brand text-on-brand" : "text-ink2 hover:text-ink"}`}
               onClick={() => setMode("SINGLE")}
             >
               {t("betslip.singles")}
             </button>
             <button
-              className={`px-3 py-1.5 ${mode === "MULTIPLE" ? "bg-brand text-[#052e16]" : "text-ink2 hover:text-ink"}`}
+              className={`px-3 py-1.5 ${mode === "MULTIPLE" ? "bg-brand text-on-brand" : "text-ink2 hover:text-ink"}`}
               onClick={() => setMode("MULTIPLE")}
             >
               {t("betslip.accumulator")}
@@ -427,7 +427,7 @@ function SlipBody(props: {
               guest). Label stays clean: the Potential Win row above already
               shows the return — no duplicated amount in the button. */}
           <button
-            className="mt-2.5 w-full rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 py-3 text-base font-black text-[#052e16] shadow-[0_6px_20px_rgba(0,230,118,0.35)] transition-transform active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+            className="mt-2.5 w-full rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 py-3 text-base font-black text-on-brand shadow-[0_6px_20px_rgba(0,230,118,0.35)] transition-transform active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
             disabled={ctaDisabled}
             onClick={() => {
               if (insufficient || guest) {

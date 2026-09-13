@@ -367,7 +367,7 @@ export default function Header({
                 key={v.id}
                 href={`${feedPath}?view=${v.id}`}
                 className={`shrink-0 rounded-full px-3.5 py-1.5 text-[11px] font-bold transition-colors sm:text-xs ${
-                  active ? "bg-brand text-[#052e16]" : "bg-card text-ink2 hover:text-ink"
+                  active ? "bg-brand text-on-brand" : "bg-card text-ink2 hover:text-ink"
                 }`}
                 aria-current={active ? "page" : undefined}
               >

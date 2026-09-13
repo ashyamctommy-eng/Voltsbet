@@ -107,7 +107,7 @@ export default function Drawer({
       >
         {/* Header */}
         <div className="flex items-center gap-3 border-b border-line px-4 py-4">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand text-lg font-black text-[#052e16]">{siteName.charAt(0).toUpperCase()}</span>
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand text-lg font-black text-on-brand">{siteName.charAt(0).toUpperCase()}</span>
           <div className="min-w-0">
             <div className="truncate text-base font-extrabold tracking-tight">{siteName}</div>
             <div className="text-[10px] font-semibold uppercase tracking-wider text-ink3">{t("nav.menu")}</div>

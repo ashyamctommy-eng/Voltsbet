@@ -46,7 +46,7 @@ export default function WithdrawalReceiptModal({
           <div className="relative flex flex-col items-center gap-3 border-b border-line bg-gradient-to-b from-brand/10 to-transparent px-6 pb-5 pt-7 text-center">
             <span className="relative flex h-16 w-16 items-center justify-center">
               <span aria-hidden className="ring-pulse absolute inset-0 rounded-full bg-brand/20" />
-              <span className="pop-in relative flex h-14 w-14 items-center justify-center rounded-full bg-brand text-[#052e16] shadow-lg shadow-brand/30">
+              <span className="pop-in relative flex h-14 w-14 items-center justify-center rounded-full bg-brand text-on-brand shadow-lg shadow-brand/30">
                 <CheckCircle2 className="h-8 w-8" strokeWidth={2.4} />
               </span>
             </span>

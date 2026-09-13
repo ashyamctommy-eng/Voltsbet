@@ -192,7 +192,7 @@ export default function FixtureMarkets({ game, markets }: { game: FixtureCtx; ma
                 key={c.id}
                 onClick={() => setCat(c.id)}
                 className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold transition-colors ${
-                  cat === c.id ? "bg-brand text-[#052e16]" : "bg-hover-tint text-ink2 hover:text-ink"
+                  cat === c.id ? "bg-brand text-on-brand" : "bg-hover-tint text-ink2 hover:text-ink"
                 }`}
               >
                 {c.label} ({c.count})
@@ -247,7 +247,7 @@ export default function FixtureMarkets({ game, markets }: { game: FixtureCtx; ma
                 )}
                 <span className="ml-auto flex shrink-0 items-center gap-1.5">
                   {selectedCount > 0 && (
-                    <span className="rounded-full bg-brand px-1.5 py-0.5 text-[10px] font-black leading-none text-[#052e16]">
+                    <span className="rounded-full bg-brand px-1.5 py-0.5 text-[10px] font-black leading-none text-on-brand">
                       {selectedCount}
                     </span>
                   )}

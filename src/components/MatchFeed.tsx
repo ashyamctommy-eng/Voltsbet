@@ -39,7 +39,7 @@ const ITEMS_PER_PAGE = 30;
  *  white in light). Hover tints via the adaptive hover-tint token. */
 const PILL = "bg-card text-ink2 hover:bg-hover-tint hover:text-ink";
 /** Active pill: brand green fill. */
-const PILL_ACTIVE = "bg-brand text-[#052e16]";
+const PILL_ACTIVE = "bg-brand text-on-brand";
 
 type SortMode = "soonest" | "top";
 

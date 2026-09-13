@@ -166,7 +166,7 @@ export default function CronJobsAdmin({ baseUrl, secret, initialSchedules }: Pro
                 <button
                   onClick={() => runJob(job)}
                   disabled={running === job.id}
-                  className="rounded-lg bg-brand px-3 py-1.5 text-xs font-bold text-[#052e16] transition-transform hover:scale-[1.03] disabled:opacity-50"
+                  className="rounded-lg bg-brand px-3 py-1.5 text-xs font-bold text-on-brand transition-transform hover:scale-[1.03] disabled:opacity-50"
                 >
                   {running === job.id ? "Running…" : "Run now"}
                 </button>

@@ -93,7 +93,7 @@ export default function BetSelections({ selections }: { selections: DetailSelect
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-bold">{s.home}</div>
                 <div className="mt-0.5 flex items-center gap-1.5">
-                  <span className="shrink-0 rounded-full bg-brand px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-[#052e16]">
+                  <span className="shrink-0 rounded-full bg-brand px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-on-brand">
                     VS
                   </span>
                   <span className="truncate text-sm font-bold text-ink2">{s.away}</span>

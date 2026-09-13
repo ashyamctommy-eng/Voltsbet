@@ -286,7 +286,7 @@ export default function DepositPage() {
           ["3", t("deposit.stepSendConfirm")],
         ].map(([n, label], i) => (
           <div key={n} className="flex items-center gap-2">
-            <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] ${step >= i ? "bg-brand text-[#052e16]" : "bg-card2 text-ink3"}`}>
+            <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] ${step >= i ? "bg-brand text-on-brand" : "bg-card2 text-ink3"}`}>
               {step > i ? "✓" : n}
             </span>
             <span className={step >= i ? "text-ink" : "text-ink3"}>{label}</span>
@@ -596,7 +596,7 @@ function MethodCard({ active, icon, title, sub, onClick }: { active: boolean; ic
           {icon}
         </span>
       ) : (
-        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-base font-black ${active ? "bg-brand text-[#052e16]" : "bg-card2 text-ink2"}`}>
+        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-base font-black ${active ? "bg-brand text-on-brand" : "bg-card2 text-ink2"}`}>
           {icon}
         </span>
       )}

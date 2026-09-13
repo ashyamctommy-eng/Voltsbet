@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import "./globals.css";
 import { getSettings } from "@/lib/settings";
+import { onBrandColor } from "@/lib/brand-contrast";
 import MaintenanceScreen from "@/components/MaintenanceScreen";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -76,6 +77,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             "--vb-primary": s.primaryColor,
             "--vb-secondary": s.secondaryColor,
             "--vb-accent": s.accentColor,
+            "--vb-on-brand": onBrandColor(s.primaryColor),
           } as React.CSSProperties
         }
       >
@@ -117,6 +119,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           "--vb-primary": s.primaryColor,
           "--vb-secondary": s.secondaryColor,
           "--vb-accent": s.accentColor,
+          "--vb-on-brand": onBrandColor(s.primaryColor),
         } as React.CSSProperties
       }
     >

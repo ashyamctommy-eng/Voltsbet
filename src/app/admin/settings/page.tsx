@@ -5,6 +5,7 @@ import { apiFetch } from "@/lib/client";
 import { useToast } from "@/components/BetSlipContext";
 import { useRouter } from "next/navigation";
 import { useSiteSettings } from "@/components/SiteSettingsContext";
+import BrandPreview from "@/components/admin/BrandPreview";
 import { IconWhatsApp, IconTelegram, IconCoins, IconSmartphone, IconGear, IconGlobe, IconGift2, IconPencil } from "@/components/icons";
 import { IconBell } from "@/components/icons";
 
@@ -29,7 +30,7 @@ const GROUPS: { title: string; anchor: string; icon: React.ReactNode; fields: Fi
       { key: "site.tagline", label: "Tagline", type: "text", hint: "Used in the footer + browser-tab meta description" },
       { key: "support.email", label: "Support email (support@yourdomain)", type: "text", hint: "Shown in the footer contact list + support surfaces. Set per client, e.g. support@voltbets.com — same value as Support & Social → Support email" },
       { key: "branding.primaryColor", label: "Primary color", type: "text", hint: "Hex, e.g. #00e676" },
-      { key: "branding.secondaryColor", label: "Background color", type: "text", hint: "Hex, e.g. #0b1220" },
+      { key: "branding.secondaryColor", label: "Background color", type: "text", hint: "NOT IN USE — this value is stored but no stylesheet reads it; the page background is fixed in globals.css. Leave as-is." },
       { key: "branding.accentColor", label: "Accent color", type: "text", hint: "Hex, e.g. #7c3aed" },
     ],
   },
@@ -348,6 +349,22 @@ export default function AdminSettings() {
               );
             })}
           </div>
+          {g.anchor === "branding" && (
+            <div className="mt-4 border-t border-line pt-4">
+              <BrandPreview
+                primary={settings["branding.primaryColor"] ?? ""}
+                accent={settings["branding.accentColor"] ?? ""}
+                siteName={settings["site.name"] ?? ""}
+                onApply={(primary, accent) =>
+                  setSettings((s) => ({
+                    ...s,
+                    "branding.primaryColor": primary,
+                    "branding.accentColor": accent,
+                  }))
+                }
+              />
+            </div>
+          )}
           {g.title.includes("Palplus") && (
             <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-line pt-4">
               <button type="button" className="btn btn-ghost btn-sm" disabled={testing} onClick={testPalplus}>

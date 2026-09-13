@@ -10,6 +10,10 @@
   --color-brand-dark: color-mix(in srgb, var(--vb-primary, #00e676) 80%, black);
   --color-brand-light: color-mix(in srgb, var(--vb-primary, #00e676) 18%, transparent);
   --color-accent: var(--vb-accent, #7c3aed);
+  /* Text colour that sits ON a bg-brand fill. Resolved per-render from the
+     brand luminance (src/lib/brand-contrast.ts) so a violet or blue client
+     brand no longer gets the dark-green ink that only suited green. */
+  --color-on-brand: var(--vb-on-brand, #052e16);
   --color-accent-light: color-mix(in srgb, var(--vb-accent, #7c3aed) 18%, transparent);
 
   /* ── Semantic theme tokens (root context classes) ─────────────
@@ -93,7 +97,7 @@ body {
   }
   .btn-primary {
     background: var(--vb-primary, #00e676);
-    color: #052e16;
+    color: var(--vb-on-brand, #052e16);
   }
   .btn-primary:hover { filter: brightness(1.08); }
   .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -405,7 +409,8 @@ html[data-theme="light"] .odds-placeholder {
 /* Sonar ripple: scale 1 → 1.8, opacity 0.8 → 0 */
 .vb-sonar {
   border-color: var(--vb-primary, #00e676);
-  box-shadow: 0 0 18px rgba(0, 230, 118, 0.35), inset 0 0 12px rgba(0, 230, 118, 0.2);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--vb-primary, #00e676) 35%, transparent),
+              inset 0 0 12px color-mix(in srgb, var(--vb-primary, #00e676) 20%, transparent);
   animation: vb-sonar 1.8s ease-out infinite;
 }
 @keyframes vb-sonar {
@@ -438,9 +443,9 @@ html[data-theme="light"] .odds-placeholder {
   background: #0d1a2c;
   color: var(--vb-primary, #00e676);
   border: 2px solid var(--vb-primary, #00e676);
-  box-shadow: 0 0 28px rgba(0, 230, 118, 0.5);
+  box-shadow: 0 0 28px color-mix(in srgb, var(--vb-primary, #00e676) 50%, transparent);
 }
 .vb-wordmark {
   color: var(--vb-primary, #00e676);
-  text-shadow: 0 0 12px rgba(0, 230, 118, 0.7);
+  text-shadow: 0 0 12px color-mix(in srgb, var(--vb-primary, #00e676) 70%, transparent);
 }

@@ -23,7 +23,7 @@ export default function VoltBetLogo({
 
   return (
     <span className={`flex shrink-0 items-center gap-2 ${className ?? ""}`}>
-      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand text-base font-black text-[#052e16] shadow-[0_0_16px_rgba(0,230,118,0.35)]">
+      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand text-base font-black text-on-brand shadow-[0_0_16px_rgba(0,230,118,0.35)]">
         {badge}
       </span>
       <span className="text-lg font-extrabold tracking-tight text-primary-text">

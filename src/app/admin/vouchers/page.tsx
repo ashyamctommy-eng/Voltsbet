@@ -371,7 +371,7 @@ export default function AdminVouchers() {
             }, [])
             .map((p, i) =>
               p === "…" ? <span key={`e${i}`} className="px-1 text-xs text-ink3">…</span> : (
-                <button key={p} onClick={() => setPage(p)} className={`h-8 min-w-8 rounded-lg px-2 text-xs font-bold ${p === page ? "bg-brand text-[#052e16]" : "bg-card"}`}>{p}</button>
+                <button key={p} onClick={() => setPage(p)} className={`h-8 min-w-8 rounded-lg px-2 text-xs font-bold ${p === page ? "bg-brand text-on-brand" : "bg-card"}`}>{p}</button>
               ),
             )}
           <button className="h-8 rounded-lg bg-card px-3 text-xs font-bold disabled:opacity-40" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>Next</button>

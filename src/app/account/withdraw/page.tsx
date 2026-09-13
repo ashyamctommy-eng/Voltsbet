@@ -99,7 +99,7 @@ export default function WithdrawPage() {
               effectiveMethod === "CRYPTO" ? "border-brand bg-brand/10" : "border-line2 hover:border-ink3"
             }`}
           >
-            <span className={`flex h-9 w-9 items-center justify-center rounded-full text-base font-black ${effectiveMethod === "CRYPTO" ? "bg-brand text-[#052e16]" : "bg-card2 text-ink2"}`}>₿</span>
+            <span className={`flex h-9 w-9 items-center justify-center rounded-full text-base font-black ${effectiveMethod === "CRYPTO" ? "bg-brand text-on-brand" : "bg-card2 text-ink2"}`}>₿</span>
             <span>
               <span className={`block text-sm font-bold ${effectiveMethod === "CRYPTO" ? "text-brand" : "text-ink"}`}>{t("withdraw.methodCrypto")}</span>
               <span className="block text-[11px] text-ink3">BTC · ETH · USDT</span>
@@ -114,7 +114,7 @@ export default function WithdrawPage() {
               effectiveMethod === "MPESA" ? "border-brand bg-brand/10" : "border-line2 hover:border-ink3"
             }`}
           >
-            <span className={`flex h-9 w-9 items-center justify-center rounded-full text-base font-black ${effectiveMethod === "MPESA" ? "bg-brand text-[#052e16]" : "bg-card2 text-ink2"}`}>📱</span>
+            <span className={`flex h-9 w-9 items-center justify-center rounded-full text-base font-black ${effectiveMethod === "MPESA" ? "bg-brand text-on-brand" : "bg-card2 text-ink2"}`}>📱</span>
             <span>
               <span className={`block text-sm font-bold ${effectiveMethod === "MPESA" ? "text-brand" : "text-ink"}`}>{t("withdraw.methodMpesa")}</span>
               <span className="block text-[11px] text-ink3">{t("withdraw.methodMpesaSub")}</span>
