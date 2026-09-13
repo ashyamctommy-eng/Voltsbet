@@ -94,7 +94,11 @@ const ODDS_CACHE_TTL_MS = (Number(process.env.ODDS_API_CACHE_TTL_SECONDS) || 30 
  * that Pinnacle serves btts, double_chance, draw_no_bet and correct_score
  * that way (the list endpoint 422s on them).
  */
-export const LIST_MARKETS = ["h2h", "spreads", "totals"] as const;
+import { LIST_MARKETS } from "@/lib/odds-cost-core";
+
+// Re-exported so existing importers keep working; the definition lives in the
+// client-safe core so the admin UI can price a draft selection too.
+export { LIST_MARKETS };
 
 /**
  * Market set for the /odds LIST endpoint — per The Odds API v4 docs the list

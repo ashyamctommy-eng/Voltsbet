@@ -1,4 +1,10 @@
-import { LIST_MARKETS, getEffectiveOddsMarkets } from "@/lib/providers/odds-api";
+import { getEffectiveOddsMarkets } from "@/lib/providers/odds-api";
+import { estimateSyncCost, type SyncCostEstimate } from "@/lib/odds-cost-core";
+
+// The pure model lives in odds-cost-core so client components can compute a
+// draft selection's cost without dragging settings/prisma into the bundle.
+export { LIST_MARKETS, estimateSyncCost, estimateDetailCost } from "@/lib/odds-cost-core";
+export type { SyncCostEstimate } from "@/lib/odds-cost-core";
 
 /**
  * Odds-sync credit cost model.
@@ -20,68 +26,6 @@ import { LIST_MARKETS, getEffectiveOddsMarkets } from "@/lib/providers/odds-api"
  * leagues you sync — that is why trimming leagues barely moves the bill while
  * trimming the extended market menu moves it a lot.
  */
-
-export type SyncCostEstimate = {
-  leagues: number;
-  listMarkets: number;
-  regions: number;
-  eventLeagues: number;
-  eventLimit: number;
-  extendedMarkets: number;
-  /** Upper bound on deep-pass requests (leagues × limit). */
-  maxEvents: number;
-  listCredits: number;
-  eventCredits: number;
-  totalCredits: number;
-  /** Rough monthly projection at a given runs/day. */
-  monthlyAt: (runsPerDay: number) => number;
-};
-
-function countRegions(regions: string): number {
-  const n = regions
-    .split(",")
-    .map((r) => r.trim())
-    .filter(Boolean).length;
-  return Math.max(1, n);
-}
-
-/** Pure estimate — pass the already-resolved market list. */
-export function estimateSyncCost(input: {
-  leagues: number;
-  markets: readonly string[];
-  regions: string;
-  eventLeagues: number;
-  eventLimit: number;
-}): SyncCostEstimate {
-  const listMarkets = input.markets.filter((m) =>
-    (LIST_MARKETS as readonly string[]).includes(m)
-  ).length;
-  // Every non-list market is charged on the per-event pass.
-  const extendedMarkets = Math.max(0, input.markets.length - listMarkets);
-  const regions = countRegions(input.regions);
-  const leagues = Math.max(0, Math.round(input.leagues));
-  const eventLeagues = Math.max(0, Math.round(input.eventLeagues));
-  const eventLimit = Math.max(0, Math.round(input.eventLimit));
-
-  const maxEvents = eventLeagues * eventLimit;
-  const listCredits = leagues * listMarkets * regions;
-  const eventCredits = maxEvents * extendedMarkets * regions;
-  const totalCredits = listCredits + eventCredits;
-
-  return {
-    leagues,
-    listMarkets,
-    regions,
-    eventLeagues,
-    eventLimit,
-    extendedMarkets,
-    maxEvents,
-    listCredits,
-    eventCredits,
-    totalCredits,
-    monthlyAt: (runsPerDay: number) => Math.round(totalCredits * runsPerDay * 30),
-  };
-}
 
 /** Resolve the effective market set (env → DB → default) and estimate. */
 export async function estimateSyncCostWithMarkets(input: {

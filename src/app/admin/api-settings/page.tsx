@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/client";
 import MarketPicker from "@/components/admin/MarketPicker";
 import { RECOMMENDED_BULK_MARKETS, RECOMMENDED_DETAIL_MARKETS } from "@/lib/market-catalog";
+import SyncCostMeter from "@/components/admin/SyncCostMeter";
+import { estimateSyncCost, estimateDetailCost } from "@/lib/odds-cost-core";
 import { useToast } from "@/components/BetSlipContext";
 import { IconSend, IconPlug, IconCheck, IconX, IconSearch, IconCopy } from "@/components/icons";
 
@@ -55,6 +57,11 @@ type OddsConfig = {
 };
 
 /** Accept one key per line, comma separated, or a JSON array. */
+/** Markets are a comma list here (leagues use the tolerant parser below). */
+function parseCsv(v: string): string[] {
+  return v.split(",").map((x) => x.trim()).filter(Boolean);
+}
+
 function parseLeagues(v: string): string[] {
   const raw = v.trim();
   if (raw.startsWith("[")) {
@@ -242,6 +249,19 @@ export default function AdminApiSettings() {
     : 0;
   const quotaLow = odds?.quota ? odds.quota.remaining < 1000 : false;
   const quotaWarn = odds?.quota ? odds.quota.remaining >= 1000 && odds.quota.remaining < 5000 : false;
+
+  // Live cost of the DRAFT selection — same pure model the server uses
+  // (lib/odds-cost-core), so the number here and the number the sweep acts on
+  // can never disagree. Recomputed on every toggle, before saving.
+  const draftCost = estimateSyncCost({
+    leagues: (syncData?.configured?.length ?? 0) || odds?.stored.feedMaxLeagues || 0,
+    markets: parseCsv(fm.markets),
+    regions: fm.regions,
+    eventLeagues: parseCsv(fm.evLeagues).length,
+    eventLimit: Number(fm.evLimit || 0),
+  });
+  const draftDetail = estimateDetailCost({ markets: parseCsv(fm.detailMarkets), regions: fm.regions });
+  const savedCost = odds?.costEstimate ?? null;
 
   const catalogFiltered = syncData?.catalog?.filter(
     (c) => c.key.toLowerCase().includes(search.toLowerCase()) || c.name.toLowerCase().includes(search.toLowerCase()),
@@ -534,6 +554,17 @@ export default function AdminApiSettings() {
         </div>
 
         <div className="mt-4">
+        <div className="mt-5">
+          <SyncCostMeter
+            estimate={draftCost}
+            savedTotal={savedCost?.totalCredits ?? null}
+            quotaRemaining={odds?.quota?.remaining ?? null}
+            creditCap={odds?.creditCap ?? null}
+            throttleMinutes={Number(odds?.env?.syncThrottleMinutes) > 0 ? Number(odds?.env?.syncThrottleMinutes) : 60}
+            detail={{ ...draftDetail, ttlSeconds: Number(fm.detailTtl || 0) }}
+          />
+        </div>
+
           <MarketPicker
             label="Tier 1 — bulk sweep markets"
             selected={fm.markets}
@@ -545,6 +576,10 @@ export default function AdminApiSettings() {
         </div>
 
         <div className="mt-5">
+          <p className="mb-2 text-[11px] text-ink3">
+            Tier 2 is billed per customer view (not per sync) and cached for the TTL below — its cost is the
+            per-view figure in the meter above.
+          </p>
           <MarketPicker
             label="Tier 2 — match detail deep markets"
             selected={fm.detailMarkets}

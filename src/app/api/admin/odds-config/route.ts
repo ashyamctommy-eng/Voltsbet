@@ -97,6 +97,7 @@ export const GET = handle(async (req: NextRequest) => {
     liveOddsMarkets: process.env.ODDS_API_LIVE_MARKETS,
     detailMarkets: process.env.SOCCER_DETAIL_MARKETS,
     detailCacheTtlSeconds: process.env.SOCCER_DETAIL_CACHE_TTL_SECONDS,
+    syncThrottleMinutes: process.env.SYNC_THROTTLE_MINUTES,
   };
 
   return ok({

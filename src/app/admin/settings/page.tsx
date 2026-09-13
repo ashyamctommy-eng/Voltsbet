@@ -212,6 +212,8 @@ export default function AdminSettings() {
   const [baseline, setBaseline] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState("");
+  /** Which secret fields are currently shown in plain text. */
+  const [revealed, setRevealed] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     apiFetch<{ settings: Record<string, string> }>("/api/admin/settings").then((r) => {
@@ -481,12 +483,104 @@ export default function AdminSettings() {
                   </div>
                 );
               }
+              // The generic renderer is why a hex colour used to get a plain
+              // text box and a secret got a bare input. Fields that HAVE a
+              // better control now get one; everything else is unchanged.
+              const isColour = /\.(primaryColor|secondaryColor|accentColor)$/.test(f.key);
+              const isSecret = f.type === "password";
+              const shown = revealed.has(f.key);
+
+              if (isColour) {
+                const hex = /^#[0-9a-fA-F]{6}$/.test(value) ? value : "#000000";
+                return (
+                  <div key={f.key}>
+                    <label className="label">{f.label}</label>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="h-9 w-9 shrink-0 rounded-lg border border-line"
+                        style={{ background: hex }}
+                        aria-hidden
+                      />
+                      <input
+                        className="input font-mono text-xs"
+                        value={value}
+                        onChange={(e) => set(f.key, e.target.value)}
+                      />
+                      <input
+                        type="color"
+                        className="h-9 w-9 shrink-0 cursor-pointer rounded-lg border border-line bg-transparent"
+                        value={hex}
+                        onChange={(e) => set(f.key, e.target.value)}
+                        aria-label={`${f.label} picker`}
+                      />
+                    </div>
+                    {f.hint && <p className="mt-1 text-[11px] text-ink3">{f.hint}</p>}
+                  </div>
+                );
+              }
+
+              if (isSecret) {
+                return (
+                  <div key={f.key} className="sm:col-span-2">
+                    <label className="label">{f.label}</label>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        className="input min-w-0 flex-1 font-mono text-xs"
+                        type={shown ? "text" : "password"}
+                        value={value}
+                        onChange={(e) => set(f.key, e.target.value)}
+                        autoComplete="off"
+                        spellCheck={false}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        onClick={() =>
+                          setRevealed((r) => {
+                            const next = new Set(r);
+                            if (next.has(f.key)) next.delete(f.key);
+                            else next.add(f.key);
+                            return next;
+                          })
+                        }
+                      >
+                        {shown ? "Hide" : "Reveal"}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        title="Generate a new 32-byte hex secret"
+                        onClick={() => {
+                          const bytes = new Uint8Array(24);
+                          crypto.getRandomValues(bytes);
+                          set(f.key, Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join(""));
+                        }}
+                      >
+                        Generate
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        disabled={!value}
+                        onClick={() => {
+                          void navigator.clipboard.writeText(value);
+                          push("success", `${f.label} copied`);
+                        }}
+                      >
+                        Copy
+                      </button>
+                    </div>
+                    {f.hint && <p className="mt-1 text-[11px] text-ink3">{f.hint}</p>}
+                  </div>
+                );
+              }
+
               return (
                 <div key={f.key}>
                   <label className="label">{f.label}</label>
                   <input
                     className="input font-mono text-xs"
-                    type={f.type === "password" ? "password" : f.type === "number" ? "number" : "text"}
+                    type={f.type === "number" ? "number" : "text"}
                     value={value}
                     onChange={(e) => set(f.key, e.target.value)}
                   />
