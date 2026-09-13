@@ -9,6 +9,11 @@ import { formatDateTime, statusColor } from "@/lib/odds";
 export type AccountDashboardProps = {
   bettingLockReason: string | null;
   balanceLabel: string;
+  /** Converted figure for the display currency, or null when they match. */
+  displayLabel: string | null;
+  displayCur: string;
+  /** Withdrawals still being processed — what the player is waiting on. */
+  pendingPayouts: number;
   bonusLabel: string | null;
   /** First successful deposit completed → bonus balance unlocked for betting. */
   hasDeposited: boolean;
@@ -48,11 +53,12 @@ export default function AccountDashboard(props: AccountDashboardProps) {
   const {
     bettingLockReason,
     balanceLabel,
+    displayLabel,
+    displayCur,
+    pendingPayouts,
     bonusLabel,
     hasDeposited,
     walletCur,
-    userStatus,
-    verified,
     appUrl,
     referralCode,
     openBets,
@@ -70,8 +76,15 @@ export default function AccountDashboard(props: AccountDashboardProps) {
       {/* Balance card */}
       <div className="card relative overflow-hidden p-6">
         <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-brand/15" />
-        <div className="text-sm font-medium text-slate-700 dark:text-slate-300">{t("dashboard.available_balance")}</div>
-        <div className="mt-1 text-3xl font-extrabold text-green-600 dark:text-green-400">{balanceLabel}</div>
+        <div className="text-sm font-medium text-slate-700 dark:text-slate-300">
+          {t("dashboard.available_balance")} · {walletCur}
+        </div>
+        <div className="mt-1 text-3xl font-extrabold text-ink tabular-nums">{balanceLabel}</div>
+        {displayLabel && (
+          <div className="mt-1 text-xs text-ink3">
+            ≈ {displayLabel} in {displayCur} · withdrawals settle in {walletCur}
+          </div>
+        )}
         {bonusLabel && (
           <div className="mt-1 text-xs font-medium text-slate-700 dark:text-slate-300">{t("dashboard.bonus_balance", { label: bonusLabel })}</div>
         )}
@@ -90,10 +103,12 @@ export default function AccountDashboard(props: AccountDashboardProps) {
 
       {/* Quick stats */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {/* Attention-first: what a player is waiting on or can act on. Status and
+            verification moved to the account header, where they gate withdrawals. */}
         <Stat label={t("dashboard.open_bets")} value={openBets.length.toString()} />
-        <Stat label={t("dashboard.status")} value={userStatus.replace("_", " ")} accent={userStatus === "ACTIVE"} />
-        <Stat label={t("dashboard.verified")} value={verified ? t("common.yes") : t("common.no")} accent={verified} />
-        <Stat label={t("dashboard.currency")} value={walletCur} />
+        <Stat label="Awaiting payout" value={pendingPayouts.toString()} accent={pendingPayouts === 0} />
+        <Stat label="Bonus balance" value={bonusLabel ?? "—"} />
+        <Stat label={t("dashboard.currency")} value={displayCur} />
       </div>
 
       {/* Referral */}

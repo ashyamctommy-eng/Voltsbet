@@ -1,50 +1,52 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
-
-const TABS = [
-  { href: "/account", label: "Dashboard" },
-  { href: "/account/bets", label: "My Bets" },
-  { href: "/account/deposit", label: "Deposit" },
-  { href: "/account/withdraw", label: "Withdraw" },
-  { href: "/account/transactions", label: "Transactions" },
-  { href: "/account/settings", label: "Settings" },
-];
+import { AccountSidebar, AccountTabs } from "@/components/account/AccountNav";
+import SignOutButton from "@/components/account/SignOutButton";
 
 export default async function AccountLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/account");
 
+  const verified = user.verified;
+  const active = user.status === "ACTIVE";
+
   return (
     <div className="mx-auto max-w-[1400px] px-4 py-6">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-extrabold">My Account</h1>
-        <span className="text-sm text-ink3">Signed in as <span className="font-semibold text-ink2">{user.username}</span></span>
+      {/* Identity block. Verification is the thing that blocks a withdrawal, so
+          it belongs in the header rather than buried as a dashboard stat. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span
+            aria-hidden
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-brand/40 bg-brand/15 font-black text-brand-text"
+          >
+            {user.username.charAt(0).toUpperCase()}
+          </span>
+          <div>
+            <h1 className="text-lg font-extrabold leading-tight">{user.username}</h1>
+            <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+              <span
+                className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                  active ? "bg-good/15 text-good" : "bg-bad/15 text-bad"
+                }`}
+              >
+                {active ? "● Active" : user.status.replace("_", " ")}
+              </span>
+              {!verified && (
+                <span className="rounded-full bg-warn/15 px-2 py-0.5 text-[10px] font-bold text-warn">
+                  Verify to withdraw
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+        <SignOutButton />
       </div>
 
       <div className="mt-5 flex gap-6">
-        <aside className="hidden w-48 shrink-0 md:block">
-          <nav className="sticky top-20 space-y-1">
-            {TABS.map((t) => (
-              <Link
-                key={t.href}
-                href={t.href}
-                className="block rounded-lg px-3 py-2 text-sm font-medium text-ink2 transition-colors hover:bg-hover-tint hover:text-ink"
-              >
-                {t.label}
-              </Link>
-            ))}
-          </nav>
-        </aside>
-
+        <AccountSidebar />
         <div className="min-w-0 flex-1 pb-8">
-          <div className="no-scrollbar -mx-1 mb-4 flex gap-1 overflow-x-auto px-1 md:hidden">
-            {TABS.map((t) => (
-              <Link key={t.href} href={t.href} className="shrink-0 rounded-full border border-line px-3 py-1.5 text-xs font-semibold text-ink2">
-                {t.label}
-              </Link>
-            ))}
-          </div>
+          <AccountTabs />
           {children}
         </div>
       </div>

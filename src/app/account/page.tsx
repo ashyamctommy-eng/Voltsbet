@@ -27,18 +27,29 @@ export default async function AccountDashboardPage() {
     userBlockReason(user.status, "bet"),
   ]);
 
-  // Wallet balance → user's display currency when set, else the platform's
-  // admin-configured default operating currency (settings.currencyDefault).
-  const displayCur = user.displayCurrencyCode ?? s.currencyDefault;
+  // WALLET CURRENCY, RAW — the app's one rule for money (see the comment in
+  // layout.tsx). This page used to convert the balance into the user's display
+  // currency, so it disagreed with the header, betslip and withdrawal screen
+  // about how much money the customer had, and it was the figure they'd most
+  // likely trust before withdrawing. The display equivalent is kept, but as a
+  // secondary hint.
   const walletCur = wallet?.currencyCode ?? "KES";
-  const balance = wallet ? await convert(Number(wallet.balance), walletCur, displayCur) : 0;
-  const balanceLabel = await formatMoney(balance, displayCur);
-  const bonusLabel = wallet ? await formatMoney(await convert(Number(wallet.bonusBalance), walletCur, displayCur), displayCur) : null;
+  const displayCur = user.displayCurrencyCode ?? s.currencyDefault;
+  const balanceLabel = wallet ? await formatMoney(Number(wallet.balance), walletCur) : await formatMoney(0, walletCur);
+  const displayLabel =
+    wallet && displayCur !== walletCur
+      ? await formatMoney(await convert(Number(wallet.balance), walletCur, displayCur), displayCur)
+      : null;
+  const bonusLabel = wallet ? await formatMoney(Number(wallet.bonusBalance), walletCur) : null;
+  const pendingPayouts = await prisma.withdrawal.count({ where: { userId: user.id, status: "PENDING" } });
 
   return (
     <AccountDashboard
       bettingLockReason={bettingLockReason}
       balanceLabel={balanceLabel}
+      displayLabel={displayLabel}
+      displayCur={displayCur}
+      pendingPayouts={pendingPayouts}
       bonusLabel={bonusLabel}
       hasDeposited={user.hasDeposited}
       walletCur={walletCur}
