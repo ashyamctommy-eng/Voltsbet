@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/client";
 import { useToast } from "@/components/BetSlipContext";
 import { useRouter } from "next/navigation";
 import { useSiteSettings } from "@/components/SiteSettingsContext";
 import BrandPreview from "@/components/admin/BrandPreview";
-import { IconWhatsApp, IconTelegram, IconCoins, IconSmartphone, IconGear, IconGlobe, IconGift2, IconPencil } from "@/components/icons";
+import { IconWhatsApp, IconCoins, IconSmartphone, IconGear, IconGlobe, IconGift2, IconPencil } from "@/components/icons";
 import { IconBell } from "@/components/icons";
 
 type FieldType = "text" | "password" | "number" | "toggle" | "select" | "copy";
@@ -188,18 +188,81 @@ const GROUPS: { title: string; anchor: string; icon: React.ReactNode; fields: Fi
   },
 ];
 
+/**
+ * The rail's five intent buckets. The section list above is grouped by WHEN a
+ * setting was added, which is not how anyone looks for one — "min stake" and
+ * "odds margin" belong together, and a payment key does not belong next to the
+ * site tagline. Order here is the order an operator thinks in.
+ */
+const BUCKETS: { id: string; label: string; anchors: string[] }[] = [
+  { id: "brand", label: "Brand & Identity", anchors: ["branding", "app"] },
+  { id: "betting", label: "Betting & Risk", anchors: ["betting", "odds-risk", "referrals", "signup-bonus"] },
+  { id: "money", label: "Money & Payments", anchors: ["payments", "mpesa"] },
+  { id: "integrations", label: "Integrations", anchors: ["automation", "telegram-bot"] },
+  { id: "content", label: "Content & Support", anchors: ["support", "broadcast"] },
+];
+/** Global-behaviour switches get their own area instead of sitting by a tagline. */
+const DANGER_ANCHORS = ["maintenance"];
+
 export default function AdminSettings() {
   const { push } = useToast();
   const router = useRouter();
   const { refresh: refreshBrand } = useSiteSettings();
   const [settings, setSettings] = useState<Record<string, string>>({});
+  const [baseline, setBaseline] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
-    apiFetch<{ settings: Record<string, string> }>("/api/admin/settings").then((r) => r.ok && setSettings(r.data.settings));
+    apiFetch<{ settings: Record<string, string> }>("/api/admin/settings").then((r) => {
+      if (!r.ok) return;
+      setSettings(r.data.settings);
+      setBaseline(r.data.settings);
+    });
   }, []);
 
   const set = (key: string, value: string) => setSettings((s) => ({ ...s, [key]: value }));
+
+  /** Keys whose unsaved value differs from what the server last confirmed. */
+  const dirtyKeys = useMemo(
+    () => Object.keys(settings).filter((k) => (settings[k] ?? "") !== (baseline[k] ?? "")),
+    [settings, baseline],
+  );
+  const dirtySet = useMemo(() => new Set(dirtyKeys), [dirtyKeys]);
+
+  const sectionKeys = (g: { fields: Field[] }) => g.fields.map((f) => f.key);
+  const sectionDirty = (g: { fields: Field[] }) => sectionKeys(g).filter((k) => dirtySet.has(k));
+
+  /** Save only the listed keys. The PUT is a per-key upsert, so a section save
+   *  cannot clobber a field the operator never touched. */
+  async function saveKeys(keys: string[], successMessage: string) {
+    if (!keys.length) return;
+    setLoading(true);
+    const body: Record<string, string> = {};
+    for (const k of keys) body[k] = settings[k] ?? "";
+    const res = await apiFetch("/api/admin/settings", { method: "PUT", body });
+    setLoading(false);
+    if (!res.ok) return push("error", res.error.message);
+    setBaseline((b) => ({ ...b, ...body }));
+    void refreshBrand();
+    router.refresh();
+    push("success", successMessage);
+  }
+
+  const discard = () => setSettings(baseline);
+
+  // ── ⌘K search: match across key, label AND hint, then drop empty sections.
+  const term = query.trim().toLowerCase();
+  const matches = (f: Field) =>
+    !term ||
+    f.key.toLowerCase().includes(term) ||
+    f.label.toLowerCase().includes(term) ||
+    (f.hint ?? "").toLowerCase().includes(term);
+  const visibleGroups = GROUPS.map((g) => ({ ...g, fields: g.fields.filter(matches) })).filter(
+    (g) => g.fields.length > 0,
+  );
+  const groupsIn = (anchors: string[]) => GROUPS.filter((g) => anchors.includes(g.anchor));
+  const allDirty = (anchors: string[]) => groupsIn(anchors).some((g) => sectionDirty(g).length > 0);
 
   const jump = (anchor: string) => {
     document.getElementById(`section-${anchor}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -248,37 +311,120 @@ export default function AdminSettings() {
   }
 
   return (
-    <form onSubmit={save} className="max-w-3xl space-y-5">
-      <div className="flex items-center justify-between">
+    <form onSubmit={save} className="max-w-6xl">
+      <div className="flex flex-wrap items-center gap-3">
         <h2 className="text-lg font-bold">Website Settings</h2>
-        <span className="hidden items-center gap-1.5 text-xs text-ink3 sm:flex">
-          <IconTelegram className="h-4 w-4" /> Sliding-menu social links &amp; payment keys live here
-        </span>
-      </div>
-
-      {/* Sticky section quick-nav */}
-      <div className="sticky top-16 z-30 -mx-1 px-1 py-2">
-        <div className="no-scrollbar flex gap-1.5 overflow-x-auto rounded-2xl border border-line bg-panel-bg/95 p-1.5 backdrop-blur-md">
-          {GROUPS.map((g) => (
+        <div className="relative ml-auto w-full max-w-xs">
+          <input
+            className="input pl-8"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search all settings…"
+            aria-label="Search all settings"
+          />
+          <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink3">⌕</span>
+          {query && (
             <button
-              key={g.title}
               type="button"
-              onClick={() => jump(g.anchor)}
-              className="flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold text-ink2 transition-colors hover:bg-hover-tint hover:text-ink"
+              onClick={() => setQuery("")}
+              aria-label="Clear search"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-ink3 hover:text-ink"
             >
-              <span className="text-brand-text">{g.icon}</span>
-              {g.title.replace(" (NOWPayments)", "").replace(" (Palplus)", "")}
+              ✕
             </button>
-          ))}
+          )}
         </div>
       </div>
 
-      {GROUPS.map((g) => (
+      {/* Unsaved-changes bar. Dirty state has to be visible from anywhere on the
+          page, not only at the footer — the old single "Save All" at the bottom
+          meant a change could sit unsaved for a 3,000px scroll. */}
+      {dirtyKeys.length > 0 && (
+        <div className="sticky top-16 z-30 mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-brand/40 bg-brand/10 px-3 py-2 backdrop-blur-md">
+          <span className="h-2 w-2 rounded-full bg-brand" />
+          <span className="text-xs font-bold">
+            {dirtyKeys.length} unsaved {dirtyKeys.length === 1 ? "change" : "changes"}
+          </span>
+          <span className="ml-auto flex gap-1.5">
+            <button type="button" className="btn btn-ghost btn-sm" onClick={discard} disabled={loading}>
+              Discard
+            </button>
+            <button type="submit" className="btn btn-primary btn-sm" disabled={loading}>
+              {loading ? "Saving…" : "Save changes"}
+            </button>
+          </span>
+        </div>
+      )}
+
+      <div className="mt-4 flex items-start gap-5">
+        {/* Grouped rail — replaces the horizontal pill scroller. */}
+        <aside className="sticky top-20 hidden w-56 shrink-0 lg:block">
+          <div className="card p-2">
+            <div className="px-2 py-1.5 text-[10px] font-black uppercase tracking-wider text-ink3">Groups</div>
+            {BUCKETS.map((b) => (
+              <div key={b.id}>
+                {groupsIn(b.anchors).map((g) => (
+                  <button
+                    key={g.anchor}
+                    type="button"
+                    onClick={() => jump(g.anchor)}
+                    className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs font-semibold text-ink2 transition-colors hover:bg-hover-tint hover:text-ink"
+                  >
+                    <span className="text-brand-text">{g.icon}</span>
+                    <span className="truncate">{g.title.replace(" (NOWPayments)", "").replace(" (Palplus)", "")}</span>
+                    {allDirty([g.anchor]) ? (
+                      <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-warn" title="unsaved changes" />
+                    ) : (
+                      <span className="ml-auto shrink-0 font-mono text-[10px] text-ink3">{g.fields.length}</span>
+                    )}
+                  </button>
+                ))}
+                <div className="my-1 border-t border-line/60" />
+              </div>
+            ))}
+            <div className="px-2 py-1.5 text-[10px] font-black uppercase tracking-wider text-bad">Danger zone</div>
+            {groupsIn(DANGER_ANCHORS).map((g) => (
+              <button
+                key={g.anchor}
+                type="button"
+                onClick={() => jump(g.anchor)}
+                className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs font-semibold text-bad transition-colors hover:bg-bad/10"
+              >
+                <span>{g.icon}</span>
+                <span className="truncate">{g.title}</span>
+                {allDirty([g.anchor]) && <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-warn" />}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 px-1 text-[10px] leading-relaxed text-ink3">
+            Each section saves on its own; the footer saves everything at once.
+          </p>
+        </aside>
+
+        <div className="min-w-0 flex-1 space-y-5">
+          {visibleGroups.length === 0 && (
+            <div className="card p-6 text-sm text-ink2">
+              No setting matches “{query}”. Try a shorter term — search covers each field&apos;s name, key and help text.
+            </div>
+          )}
+      {visibleGroups.map((g) => (
         <div key={g.title} id={`section-${g.anchor}`} className="scroll-mt-40 card p-5">
-          <h3 className="flex items-center gap-2 font-bold">
-            <span className="text-brand-text">{g.icon}</span>
-            {g.title}
-          </h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="flex items-center gap-2 font-bold">
+              <span className="text-brand-text">{g.icon}</span>
+              {g.title}
+            </h3>
+            {sectionDirty(g).length > 0 && (
+              <button
+                type="button"
+                className="btn btn-primary btn-sm ml-auto"
+                disabled={loading}
+                onClick={() => void saveKeys(sectionDirty(g), `${g.title} saved`)}
+              >
+                Save section ({sectionDirty(g).length})
+              </button>
+            )}
+          </div>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             {g.fields.map((f) => {
               const value = settings[f.key] ?? "";
@@ -376,7 +522,17 @@ export default function AdminSettings() {
         </div>
       ))}
 
-      <button className="btn btn-primary px-8" disabled={loading}>{loading ? "Saving…" : "Save All Settings"}</button>
+        </div>
+      </div>
+
+      <div className="mt-5 flex flex-wrap items-center gap-3">
+        <button className="btn btn-primary px-8" disabled={loading}>
+          {loading ? "Saving…" : "Save All Settings"}
+        </button>
+        {dirtyKeys.length > 0 && (
+          <span className="text-xs font-semibold text-warn">{dirtyKeys.length} unsaved</span>
+        )}
+      </div>
     </form>
   );
 }
