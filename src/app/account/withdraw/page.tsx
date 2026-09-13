@@ -101,7 +101,7 @@ export default function WithdrawPage() {
           >
             <span className={`flex h-9 w-9 items-center justify-center rounded-full text-base font-black ${effectiveMethod === "CRYPTO" ? "bg-brand text-on-brand" : "bg-card2 text-ink2"}`}>₿</span>
             <span>
-              <span className={`block text-sm font-bold ${effectiveMethod === "CRYPTO" ? "text-brand" : "text-ink"}`}>{t("withdraw.methodCrypto")}</span>
+              <span className={`block text-sm font-bold ${effectiveMethod === "CRYPTO" ? "text-brand-text" : "text-ink"}`}>{t("withdraw.methodCrypto")}</span>
               <span className="block text-[11px] text-ink3">BTC · ETH · USDT</span>
             </span>
           </button>
@@ -116,7 +116,7 @@ export default function WithdrawPage() {
           >
             <span className={`flex h-9 w-9 items-center justify-center rounded-full text-base font-black ${effectiveMethod === "MPESA" ? "bg-brand text-on-brand" : "bg-card2 text-ink2"}`}>📱</span>
             <span>
-              <span className={`block text-sm font-bold ${effectiveMethod === "MPESA" ? "text-brand" : "text-ink"}`}>{t("withdraw.methodMpesa")}</span>
+              <span className={`block text-sm font-bold ${effectiveMethod === "MPESA" ? "text-brand-text" : "text-ink"}`}>{t("withdraw.methodMpesa")}</span>
               <span className="block text-[11px] text-ink3">{t("withdraw.methodMpesaSub")}</span>
             </span>
           </button>
@@ -139,7 +139,7 @@ export default function WithdrawPage() {
             required
           />
           {max > 0 && (
-            <button type="button" className="mt-1.5 text-xs text-brand hover:underline" onClick={() => setAmount(String(max))}>
+            <button type="button" className="mt-1.5 text-xs text-brand-text hover:underline" onClick={() => setAmount(String(max))}>
               {t("withdraw.withdrawMax")}
             </button>
           )}

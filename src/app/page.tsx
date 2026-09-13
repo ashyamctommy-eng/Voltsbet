@@ -113,7 +113,7 @@ export default async function HomePage() {
       {/* Match feed with time + market filters — defaults to Football */}
       {apiFeed?.matches.length ? (
         <div className="mt-4 flex items-center gap-2">
-          <span className="flex items-center gap-1.5 rounded-full bg-brand/10 px-2.5 py-1 text-[10px] font-bold text-brand">
+          <span className="flex items-center gap-1.5 rounded-full bg-brand/10 px-2.5 py-1 text-[10px] font-bold text-brand-text">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand" />
             THE ODDS API
           </span>
@@ -137,7 +137,7 @@ export default async function HomePage() {
       <section className="mt-10">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-bold">Popular Sports</h2>
-          <Link href="/sports" className="text-sm font-semibold text-brand hover:underline">All sports →</Link>
+          <Link href="/sports" className="text-sm font-semibold text-brand-text hover:underline">All sports →</Link>
         </div>
         <div className="no-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:grid-cols-3 sm:px-0 md:grid-cols-4 lg:grid-cols-6">
           {popularSports.map((sp) => (
@@ -159,13 +159,13 @@ export default async function HomePage() {
         <section className="mt-10">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-bold">Promotions</h2>
-            <Link href="/promotions" className="text-sm font-semibold text-brand hover:underline">View all →</Link>
+            <Link href="/promotions" className="text-sm font-semibold text-brand-text hover:underline">View all →</Link>
           </div>
           <div className="grid gap-4 md:grid-cols-3">
             {promotions.map((p) => (
               <Link key={p.id} href="/promotions" className="card card-hover relative overflow-hidden p-5">
                 <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-brand/10" />
-                <span className="rounded-full bg-brand/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-brand">
+                <span className="rounded-full bg-brand/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-brand-text">
                   {p.bonusType?.replace("_", " ") ?? "Promo"}
                 </span>
                 <h3 className="mt-3 font-bold">{p.title}</h3>

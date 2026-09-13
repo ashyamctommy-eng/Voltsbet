@@ -21,7 +21,7 @@ export default function AdminPromotions() {
       ]}
       columns={[
         { key: "title", label: "Title" },
-        { key: "bonusType", label: "Type", render: (r) => <span className="rounded-full bg-brand/15 px-2 py-0.5 text-[10px] font-bold text-brand">{String(r.bonusType ?? "PROMO")}</span> },
+        { key: "bonusType", label: "Type", render: (r) => <span className="rounded-full bg-brand/15 px-2 py-0.5 text-[10px] font-bold text-brand-text">{String(r.bonusType ?? "PROMO")}</span> },
         { key: "active", label: "Status", render: (r) => <span className={`text-xs font-bold ${r.active ? "text-green-400" : "text-red-400"}`}>{r.active ? "ACTIVE" : "INACTIVE"}</span> },
       ]}
     />

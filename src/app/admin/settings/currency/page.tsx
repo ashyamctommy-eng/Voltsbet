@@ -92,7 +92,7 @@ export default function AdminDefaultCurrency() {
       <div className="card p-5">
         <div className="flex items-center justify-between">
           <span className="label mb-0 !p-0">Currently active</span>
-          <span className="flex items-center gap-2 rounded-full bg-brand/15 px-3 py-1 text-sm font-bold text-brand">
+          <span className="flex items-center gap-2 rounded-full bg-brand/15 px-3 py-1 text-sm font-bold text-brand-text">
             <IconCoins className="h-4 w-4" />
             {current}
           </span>
@@ -112,7 +112,7 @@ export default function AdminDefaultCurrency() {
                   onClick={() => setPick(code)}
                   className={`flex items-center gap-1.5 rounded-xl border px-4 py-2 text-sm font-bold transition-colors ${
                     isPick
-                      ? "border-brand bg-brand/15 text-brand"
+                      ? "border-brand bg-brand/15 text-brand-text"
                       : isKnown
                         ? "border-line2 text-ink2 hover:border-brand/60 hover:text-ink"
                         : "cursor-not-allowed border-line text-ink3 opacity-50"

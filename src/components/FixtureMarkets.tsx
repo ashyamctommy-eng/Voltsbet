@@ -238,7 +238,7 @@ export default function FixtureMarkets({ game, markets }: { game: FixtureCtx; ma
                   i
                 </span>
                 {m.isManual && (
-                  <span className="shrink-0 rounded-full bg-purple-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase text-purple-400">Manual</span>
+                  <span className="shrink-0 rounded-full bg-accent/15 px-1.5 py-0.5 text-[9px] font-bold uppercase text-accent">Manual</span>
                 )}
                 {!hasPriced && (
                   <span className="shrink-0 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-bold text-amber-400">

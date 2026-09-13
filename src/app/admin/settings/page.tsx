@@ -266,7 +266,7 @@ export default function AdminSettings() {
               onClick={() => jump(g.anchor)}
               className="flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold text-ink2 transition-colors hover:bg-hover-tint hover:text-ink"
             >
-              <span className="text-brand">{g.icon}</span>
+              <span className="text-brand-text">{g.icon}</span>
               {g.title.replace(" (NOWPayments)", "").replace(" (Palplus)", "")}
             </button>
           ))}
@@ -276,7 +276,7 @@ export default function AdminSettings() {
       {GROUPS.map((g) => (
         <div key={g.title} id={`section-${g.anchor}`} className="scroll-mt-40 card p-5">
           <h3 className="flex items-center gap-2 font-bold">
-            <span className="text-brand">{g.icon}</span>
+            <span className="text-brand-text">{g.icon}</span>
             {g.title}
           </h3>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">

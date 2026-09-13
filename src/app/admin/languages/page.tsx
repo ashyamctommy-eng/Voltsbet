@@ -61,7 +61,7 @@ export default function AdminLanguages() {
           <div key={l.code} className="flex items-center gap-3 px-4 py-3">
             <span className="w-16 font-bold">{l.code}</span>
             <span className="flex-1 text-sm text-ink2">{l.name}</span>
-            {l.isDefault && <span className="rounded-full bg-brand/15 px-2 py-0.5 text-[10px] font-bold text-brand">DEFAULT</span>}
+            {l.isDefault && <span className="rounded-full bg-brand/15 px-2 py-0.5 text-[10px] font-bold text-brand-text">DEFAULT</span>}
             {!l.active && <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-bold text-red-400">DISABLED</span>}
             <button className="btn btn-ghost btn-sm" onClick={() => openTranslations(l)}>Translations</button>
           </div>

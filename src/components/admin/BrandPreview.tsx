@@ -227,7 +227,7 @@ export default function BrandPreview({
           <span className="flex h-5 w-5 items-center justify-center rounded bg-brand text-[10px] font-black text-on-brand">
             {brand.charAt(0).toUpperCase()}
           </span>
-          <span className="text-[11px] font-black text-brand">{brand.toUpperCase()}</span>
+          <span className="text-[11px] font-black text-brand-text">{brand.toUpperCase()}</span>
           <span className="ml-auto text-[10px] text-ink3">KES 12,480</span>
         </div>
       </div>

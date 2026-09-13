@@ -267,7 +267,7 @@ export default function AdminApiSettings() {
     <div className="mx-auto w-full max-w-2xl px-0 sm:px-2">
       <div className="card p-6">
         <div className="flex items-center gap-3">
-          <span className="grid h-11 w-11 place-items-center rounded-xl bg-brand/15 text-brand">
+          <span className="grid h-11 w-11 place-items-center rounded-xl bg-brand/15 text-brand-text">
             <IconPlug className="h-5 w-5" />
           </span>
           <div>
@@ -281,7 +281,7 @@ export default function AdminApiSettings() {
         <div className="mt-5 space-y-3 text-sm">
           <div className="flex items-center justify-between rounded-xl border border-line bg-card2 px-4 py-3">
             <span className="font-semibold text-ink2">Provider</span>
-            <span className="font-mono font-bold text-brand">{config?.provider ?? "…"}</span>
+            <span className="font-mono font-bold text-brand-text">{config?.provider ?? "…"}</span>
           </div>
           <div className="flex items-center justify-between rounded-xl border border-line bg-card2 px-4 py-3">
             <span className="font-semibold text-ink2">API key (env ODDS_API_KEY)</span>
@@ -630,7 +630,7 @@ export default function AdminApiSettings() {
             <div className="mb-1 flex flex-wrap items-center justify-between gap-1">
               <label className="label !mb-0">Leagues to sync (one key per line, in priority order)</label>
               {whitelistOn && (
-                <span className="text-[11px] font-bold text-brand">
+                <span className="text-[11px] font-bold text-brand-text">
                   {parseLeagues(draft).length} league(s) ≈ {parseLeagues(draft).length} requests/run
                 </span>
               )}
@@ -689,7 +689,7 @@ export default function AdminApiSettings() {
                         key={prefix}
                         type="button"
                         className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wide transition-colors ${
-                          matches.length && anyOutside ? "bg-brand/15 text-brand hover:bg-brand/25" : "bg-card2 text-ink3"
+                          matches.length && anyOutside ? "bg-brand/15 text-brand-text hover:bg-brand/25" : "bg-card2 text-ink3"
                         }`}
                         onClick={() => {
                           const cur = parseLeagues(draft);
@@ -715,7 +715,7 @@ export default function AdminApiSettings() {
                           onClick={() => toggleKey(c.key)}
                           className={`flex w-full items-center gap-2 px-2 py-1.5 text-left transition-colors ${added ? "bg-brand/10" : "hover:bg-hover-tint"}`}
                         >
-                          <span className={`w-6 shrink-0 text-center text-xs font-black ${added ? "text-brand" : "text-ink3"}`}>{added ? "✓" : "＋"}</span>
+                          <span className={`w-6 shrink-0 text-center text-xs font-black ${added ? "text-brand-text" : "text-ink3"}`}>{added ? "✓" : "＋"}</span>
                           <code className="min-w-0 max-w-full flex-1 truncate font-mono text-[11px] text-ink">{c.key}</code>
                           <span className="shrink-0 max-w-[38%] truncate text-[10px] text-ink3">{c.name}</span>
                         </button>

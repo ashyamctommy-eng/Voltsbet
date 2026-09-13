@@ -12,7 +12,7 @@ type BatchDetail = {
 };
 
 const STATUS_BADGE: Record<string, string> = {
-  UNUSED: "bg-brand/15 text-brand",
+  UNUSED: "bg-brand/15 text-brand-text",
   REDEEMED: "bg-green-500/15 text-green-400",
   EXPIRED: "bg-hover-tint text-ink3",
   CANCELLED: "bg-red-500/15 text-red-400",
@@ -90,7 +90,7 @@ export default function VoucherBatchPage() {
                   {v.redeemedAt ? `${new Date(v.redeemedAt).toLocaleString()}${v.redeemedBy ? ` by ${v.redeemedBy.slice(0, 8)}…` : ""}` : "—"}
                 </td>
                 <td className="px-4 py-2">
-                  <Link href={`/admin/vouchers/${v.id}`} className="text-xs font-bold text-brand hover:underline">Details</Link>
+                  <Link href={`/admin/vouchers/${v.id}`} className="text-xs font-bold text-brand-text hover:underline">Details</Link>
                 </td>
               </tr>
             ))}

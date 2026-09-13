@@ -132,7 +132,7 @@ export default function LiveFeed({
               <button
                 type="button"
                 onClick={() => setSport("all")}
-                className="btn btn-ghost mt-3 min-h-11 w-full px-4 text-sm font-bold text-brand sm:w-auto"
+                className="btn btn-ghost mt-3 min-h-11 w-full px-4 text-sm font-bold text-brand-text sm:w-auto"
               >
                 Show all sports
               </button>
@@ -150,7 +150,7 @@ export default function LiveFeed({
               </div>
               <Link
                 href="/"
-                className="mt-3 flex min-h-11 w-full items-center justify-center gap-1 rounded-xl border border-line bg-card2 px-4 text-sm font-bold text-brand transition-colors hover:border-brand/40 hover:bg-card active:scale-[0.99] sm:mt-3 sm:min-h-0 sm:w-auto sm:justify-start sm:rounded-none sm:border-0 sm:bg-transparent sm:px-0 sm:text-xs sm:hover:bg-transparent sm:hover:underline"
+                className="mt-3 flex min-h-11 w-full items-center justify-center gap-1 rounded-xl border border-line bg-card2 px-4 text-sm font-bold text-brand-text transition-colors hover:border-brand/40 hover:bg-card active:scale-[0.99] sm:mt-3 sm:min-h-0 sm:w-auto sm:justify-start sm:rounded-none sm:border-0 sm:bg-transparent sm:px-0 sm:text-xs sm:hover:bg-transparent sm:hover:underline"
               >
                 View all matches →
               </Link>

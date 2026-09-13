@@ -48,7 +48,7 @@ export default function MobileNav({ liveCount = 0 }: { loggedIn: boolean; liveCo
               key={t.label}
               href={t.href}
               className={`relative flex flex-1 flex-col items-center gap-1 py-2.5 text-[10px] font-semibold transition-colors ${
-                t.active ? "text-brand" : "text-ink2"
+                t.active ? "text-brand-text" : "text-ink2"
               }`}
             >
               <span className="relative">

@@ -342,7 +342,7 @@ export default function DepositPage() {
                       <span className="flex h-8 w-8 items-center justify-center rounded-full text-sm font-black text-white shadow" style={{ background: meta.gradient }}>
                         {meta.symbol}
                       </span>
-                      <span className={`text-xs font-bold ${active ? "text-brand" : "text-ink2"}`}>{c}</span>
+                      <span className={`text-xs font-bold ${active ? "text-brand-text" : "text-ink2"}`}>{c}</span>
                     </button>
                   );
                 })}
@@ -379,7 +379,7 @@ export default function DepositPage() {
               {effectiveMethod === "CRYPTO" && cryptoAmount !== null && (
                 <div className="mt-2 flex items-center justify-between rounded-lg bg-brand/5 px-3 py-2 text-sm">
                   <span className="text-ink2">{t("deposit.youWillSend")}</span>
-                  <span className="font-bold text-brand">
+                  <span className="font-bold text-brand-text">
                     ≈ {cryptoAmount.toFixed(COIN_META[crypto]?.dp ?? 4)} {crypto}
                   </span>
                 </div>
@@ -394,7 +394,7 @@ export default function DepositPage() {
                 return (
                   <div className="mt-2 flex items-center justify-between rounded-lg bg-brand/5 px-3 py-2 text-sm">
                     <span className="text-ink2">{t("deposit.youWillBeCharged")}</span>
-                    <span className="font-bold text-brand">≈ KSh {kesCharge.toLocaleString("en-US", { maximumFractionDigits: 2 })}</span>
+                    <span className="font-bold text-brand-text">≈ KSh {kesCharge.toLocaleString("en-US", { maximumFractionDigits: 2 })}</span>
                   </div>
                 );
               })()}
@@ -443,7 +443,7 @@ export default function DepositPage() {
               { Icon: CheckCircle2, title: t("deposit.badgeNoFees"), sub: t("deposit.badgeNoFeesSub") },
             ].map(({ Icon, title, sub }) => (
               <div key={title} className="card p-3">
-                <Icon className="mx-auto h-5 w-5 text-brand" />
+                <Icon className="mx-auto h-5 w-5 text-brand-text" />
                 <div className="mt-1.5 text-xs font-bold">{title}</div>
                 <div className="text-[10px] text-ink3">{sub}</div>
               </div>
@@ -479,7 +479,7 @@ export default function DepositPage() {
                   {cryptoAmount ? t("deposit.sendToAddress", { amount: cryptoAmount.toFixed(COIN_META[crypto]?.dp ?? 4), coin: crypto }) : ""}
                 </div>
                 <div className="mt-2 flex items-center gap-2 rounded-lg bg-card2 p-3">
-                  <span className="min-w-0 flex-1 break-all text-left font-mono text-xs text-brand">{pending.paymentAddress}</span>
+                  <span className="min-w-0 flex-1 break-all text-left font-mono text-xs text-brand-text">{pending.paymentAddress}</span>
                   <button
                     type="button"
                     onClick={copyAddress}
@@ -503,7 +503,7 @@ export default function DepositPage() {
                 )}
                 {pending.expiresAt && <Countdown expiresAt={pending.expiresAt} />}
                 {effectiveMethod === "CRYPTO" && (
-                  <div className="mt-2 text-[11px] font-bold uppercase tracking-wide text-brand">
+                  <div className="mt-2 text-[11px] font-bold uppercase tracking-wide text-brand-text">
                     {t("deposit.sendOn", { chain: chainLabel(pending.cryptoCurrency, pending.network) })}
                   </div>
                 )}
@@ -601,7 +601,7 @@ function MethodCard({ active, icon, title, sub, onClick }: { active: boolean; ic
         </span>
       )}
       <span>
-        <span className={`block text-sm font-bold ${active ? "text-brand" : "text-ink"}`}>{title}</span>
+        <span className={`block text-sm font-bold ${active ? "text-brand-text" : "text-ink"}`}>{title}</span>
         <span className="block text-[11px] text-ink3">{sub}</span>
       </span>
     </button>

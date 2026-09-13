@@ -17,13 +17,13 @@ export default async function PromotionsPage() {
         {promotions.map((p) => (
           <div key={p.id} className="card card-hover relative overflow-hidden p-6">
             <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-brand/10" />
-            <span className="rounded-full bg-brand/15 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-brand">
+            <span className="rounded-full bg-brand/15 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-brand-text">
               {p.bonusType?.replace("_", " ") ?? "Promotion"}
             </span>
             <h2 className="mt-3 text-xl font-bold">{p.title}</h2>
             <p className="mt-2 text-sm text-ink2">{p.description}</p>
             {p.bonusValue !== null && p.bonusType === "WELCOME_BONUS" && (
-              <div className="mt-3 text-2xl font-extrabold text-brand">Up to {Number(p.bonusValue).toLocaleString()}</div>
+              <div className="mt-3 text-2xl font-extrabold text-brand-text">Up to {Number(p.bonusValue).toLocaleString()}</div>
             )}
             {p.terms && (
               <details className="mt-4">

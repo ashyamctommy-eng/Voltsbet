@@ -75,7 +75,7 @@ export default async function SportPage({ params }: { params: Promise<{ slug: st
                 key={sp.id}
                 href={`/sports/${sp.slug}`}
                 className={`block rounded-lg px-3 py-2 text-sm font-medium ${
-                  sp.id === sport.id ? "bg-brand/10 font-semibold text-brand" : "text-ink2 hover:bg-hover-tint hover:text-ink"
+                  sp.id === sport.id ? "bg-brand/10 font-semibold text-brand-text" : "text-ink2 hover:bg-hover-tint hover:text-ink"
                 }`}
               >
                 {sp.icon} {sp.name}

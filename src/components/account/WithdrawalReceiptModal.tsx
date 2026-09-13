@@ -56,7 +56,7 @@ export default function WithdrawalReceiptModal({
                 Your request is in the payout queue and being processed.
               </p>
             </div>
-            <span className="rounded-full border border-brand/40 bg-brand/10 px-3 py-1 font-mono text-xs font-bold tracking-wide text-brand">
+            <span className="rounded-full border border-brand/40 bg-brand/10 px-3 py-1 font-mono text-xs font-bold tracking-wide text-brand-text">
               Confirmation #{code}
             </span>
           </div>
@@ -72,7 +72,7 @@ export default function WithdrawalReceiptModal({
               <span className="font-mono text-xs font-semibold text-ink">{receipt.destination}</span>
             </Detail>
             <Detail label="Reference Code">
-              <span className="font-mono text-xs font-semibold text-brand">{receipt.trackingId}</span>
+              <span className="font-mono text-xs font-semibold text-brand-text">{receipt.trackingId}</span>
             </Detail>
             <Detail label="Processing Fee">
               <span className="text-sm font-semibold text-green-400">Free</span>

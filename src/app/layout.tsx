@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import "./globals.css";
 import { getSettings } from "@/lib/settings";
-import { onBrandColor } from "@/lib/brand-contrast";
+import { onBrandColor, brandTextColor } from "@/lib/brand-contrast";
 import MaintenanceScreen from "@/components/MaintenanceScreen";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -78,6 +78,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             "--vb-secondary": s.secondaryColor,
             "--vb-accent": s.accentColor,
             "--vb-on-brand": onBrandColor(s.primaryColor),
+            "--vb-on-accent": onBrandColor(s.accentColor),
+            // Base surface tint (proposal 05) — the setting existed but nothing
+            // read it. Dark-only: the light theme pins its own surfaces.
+            "--vb-base-dark": s.secondaryColor,
+            // Brand-as-text for BOTH themes, resolved up front because the theme
+            // is chosen client-side after hydration (proposal 02).
+            "--vb-brand-text-dark": brandTextColor(s.primaryColor, "#0b0e14"),
+            "--vb-brand-text-light": brandTextColor(s.primaryColor, "#ffffff"),
           } as React.CSSProperties
         }
       >
@@ -120,6 +128,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           "--vb-secondary": s.secondaryColor,
           "--vb-accent": s.accentColor,
           "--vb-on-brand": onBrandColor(s.primaryColor),
+          "--vb-on-accent": onBrandColor(s.accentColor),
+          // Base surface tint (proposal 05) — the setting existed but nothing
+          // read it. Dark-only: the light theme pins its own surfaces.
+          "--vb-base-dark": s.secondaryColor,
+          // Brand-as-text for BOTH themes, resolved up front because the theme
+          // is chosen client-side after hydration (proposal 02).
+          "--vb-brand-text-dark": brandTextColor(s.primaryColor, "#0b0e14"),
+          "--vb-brand-text-light": brandTextColor(s.primaryColor, "#ffffff"),
         } as React.CSSProperties
       }
     >

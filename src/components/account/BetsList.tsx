@@ -27,7 +27,7 @@ const FILTERS = ["all", "open", "closed", "settled", "won", "lost"] as const;
 type FilterId = (typeof FILTERS)[number];
 
 const STATUS_COLOR: Record<string, string> = {
-  OPEN: "bg-brand/15 text-brand",
+  OPEN: "bg-brand/15 text-brand-text",
   WON: "bg-green-500/15 text-green-400",
   LOST: "bg-red-500/15 text-red-400",
   VOID: "bg-hover-tint text-ink3",
@@ -88,7 +88,7 @@ export default function BetsList({ bets }: { bets: BetsListItem[] }) {
                     setOpen(false);
                   }}
                   className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-hover-tint ${
-                    fid === filter ? "text-brand" : "text-ink2 hover:text-ink"
+                    fid === filter ? "text-brand-text" : "text-ink2 hover:text-ink"
                   }`}
                 >
                   {t(`bet.filter.${fid}`)}
@@ -102,7 +102,7 @@ export default function BetsList({ bets }: { bets: BetsListItem[] }) {
       {filtered.length === 0 ? (
         <div className="card p-10 text-center text-sm text-ink3">
           {filter === "all" ? t("bet.noBets") : t("bet.noBetsFiltered", { filter: t(`bet.filter.${filter}`) })}{" "}
-          <Link href="/sports" className="text-brand hover:underline">{t("bet.browseSports")}</Link>
+          <Link href="/sports" className="text-brand-text hover:underline">{t("bet.browseSports")}</Link>
         </div>
       ) : (
         <div className="space-y-3">

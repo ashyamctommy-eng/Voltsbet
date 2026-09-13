@@ -47,7 +47,7 @@ export default function MarketPicker({
         title={`${m.name} — ${m.key}${m.listSupported ? " (list endpoint)" : " (per event)"}`}
         aria-pressed={active}
         className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[11px] font-bold transition-all active:scale-95 ${
-          active ? "border-brand bg-brand/15 text-brand" : "border-line bg-card2 text-ink2 hover:text-ink"
+          active ? "border-brand bg-brand/15 text-brand-text" : "border-line bg-card2 text-ink2 hover:text-ink"
         }`}
       >
         <span className={`inline-block h-2 w-2 rounded-full ${active ? "bg-brand" : "bg-line"}`} />

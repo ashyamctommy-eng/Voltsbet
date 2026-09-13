@@ -104,7 +104,7 @@ export default function LanguageSelector() {
                   aria-selected={l.code === lang}
                   onClick={() => pick(l.code)}
                   className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-hover-tint ${
-                    l.code === lang ? "text-brand" : "text-ink2 hover:text-ink"
+                    l.code === lang ? "text-brand-text" : "text-ink2 hover:text-ink"
                   }`}
                 >
                   <span>

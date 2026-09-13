@@ -4,7 +4,7 @@ import Link from "next/link";
 export default function NotFound() {
   return (
     <main className="mx-auto flex min-h-[70vh] w-full max-w-lg flex-col items-center justify-center px-6 text-center">
-      <span className="text-6xl font-black tracking-tight text-brand">404</span>
+      <span className="text-6xl font-black tracking-tight text-brand-text">404</span>
       <h1 className="mt-4 text-xl font-extrabold text-ink">Page not found</h1>
       <p className="mt-2 text-sm leading-relaxed text-ink2">
         The page you&apos;re looking for has moved or no longer exists.

@@ -88,7 +88,7 @@ export default function AdminSports() {
               <span className="font-semibold">{s.name}</span>
               <span className="ml-2 text-xs text-ink3">/{s.slug} · {s._count?.games ?? 0} games</span>
               {!s.active && <span className="ml-2 rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-bold text-red-400">DISABLED</span>}
-              {s.isPopular && <span className="ml-2 rounded-full bg-brand/15 px-2 py-0.5 text-[10px] font-bold text-brand">POPULAR</span>}
+              {s.isPopular && <span className="ml-2 rounded-full bg-brand/15 px-2 py-0.5 text-[10px] font-bold text-brand-text">POPULAR</span>}
             </div>
             <div className="flex gap-2">
               <button className="btn btn-ghost btn-sm" onClick={() => { setEditing(s); setForm({ name: s.name, slug: s.slug, icon: s.icon ?? "", isPopular: s.isPopular, active: s.active, sortOrder: s.sortOrder }); }}>Edit</button>

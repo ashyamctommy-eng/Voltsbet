@@ -206,7 +206,7 @@ export default function AdminBroadcast() {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-bold">{n.title}</span>
-                    <span className="rounded-full bg-brand/10 px-2 py-0.5 text-[10px] font-bold text-brand">{n.recipients}</span>
+                    <span className="rounded-full bg-brand/10 px-2 py-0.5 text-[10px] font-bold text-brand-text">{n.recipients}</span>
                   </div>
                   <p className="mt-1 whitespace-pre-wrap text-sm text-ink2">{n.message}</p>
                   <p className="mt-1 text-[11px] text-ink3">Sent {fmt(n.createdAt)}</p>
@@ -244,7 +244,7 @@ export default function AdminBroadcast() {
                       <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${STATUS_STYLE[b.status]}`}>
                         {b.status}
                       </span>
-                      <span className="rounded-full bg-brand/10 px-2 py-0.5 text-[10px] font-bold text-brand">{b.audience}</span>
+                      <span className="rounded-full bg-brand/10 px-2 py-0.5 text-[10px] font-bold text-brand-text">{b.audience}</span>
                     </div>
                     <p className="mt-1 whitespace-pre-wrap text-sm text-ink2">{b.message}</p>
                     <p className="mt-1 text-[11px] text-ink3">

@@ -70,7 +70,7 @@ export default function VoucherPrintPage() {
         {rows.map((code, i) => (
           <div key={`${code}-${i}`} className="voucher-card">
             <div className="text-center">
-              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-brand">{(siteName.trim() || "Sportsbook").toUpperCase()}</div>
+              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-text">{(siteName.trim() || "Sportsbook").toUpperCase()}</div>
               <div className="text-[9px] uppercase tracking-wider text-ink3">Deposit Voucher</div>
               <div className="mt-2 text-xl font-extrabold">
                 {cur} {Number(val || 0).toLocaleString()}
@@ -109,7 +109,7 @@ export default function VoucherPrintPage() {
             color: #000 !important;
             background: #fff !important;
           }
-          .voucher-card .text-brand { color: #000 !important; }
+          .voucher-card .text-brand-text { color: #000 !important; }
           .voucher-card .text-ink3 { color: #555 !important; }
         }
         .voucher-sheet-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; }

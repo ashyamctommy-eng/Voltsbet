@@ -24,7 +24,7 @@ export default function AdminBroadcastButton() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1.5 rounded-full bg-brand/15 px-3 py-1 text-sm font-semibold text-brand transition-colors hover:bg-brand/25"
+        className="inline-flex items-center gap-1.5 rounded-full bg-brand/15 px-3 py-1 text-sm font-semibold text-brand-text transition-colors hover:bg-brand/25"
       >
         <IconBell className="h-4 w-4" /> Broadcast
       </button>
@@ -139,7 +139,7 @@ function BroadcastDrawer({ onClose }: { onClose: () => void }) {
         <div className="flex-1 overflow-y-auto border-t border-line px-5 py-4">
           <div className="mb-2 flex items-center justify-between">
             <h3 className="text-xs font-bold uppercase tracking-wide text-ink3">Recent broadcasts</h3>
-            <a href="/admin/broadcast" className="text-[11px] font-bold text-brand hover:underline">
+            <a href="/admin/broadcast" className="text-[11px] font-bold text-brand-text hover:underline">
               Manage all →
             </a>
           </div>

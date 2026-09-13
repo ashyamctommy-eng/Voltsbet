@@ -79,3 +79,61 @@ export function brandGlow(brandHex: string | null | undefined, alpha = 0.35): st
   const rgb = parseHex(brandHex ?? "") ?? [0x00, 0xe6, 0x76];
   return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha})`;
 }
+
+/** Mix two RGB triples; f=0 → a, f=1 → b. */
+function blend(a: [number, number, number], b: [number, number, number], f: number): [number, number, number] {
+  return [
+    Math.round(a[0] + (b[0] - a[0]) * f),
+    Math.round(a[1] + (b[1] - a[1]) * f),
+    Math.round(a[2] + (b[2] - a[2]) * f),
+  ];
+}
+
+const hex = (c: [number, number, number]) =>
+  "#" + c.map((v) => Math.max(0, Math.min(255, v)).toString(16).padStart(2, "0")).join("");
+
+/** WCAG contrast ratio between two hex colours. */
+export function contrastRatio(a: string, b: string): number {
+  const x = parseHex(a), y = parseHex(b);
+  if (!x || !y) return 1;
+  const [hi, lo] = relativeLuminance(x) > relativeLuminance(y)
+    ? [relativeLuminance(x), relativeLuminance(y)]
+    : [relativeLuminance(y), relativeLuminance(x)];
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+const WHITE: [number, number, number] = [255, 255, 255];
+const BLACK: [number, number, number] = [0, 0, 0];
+
+/**
+ * A version of the brand colour that is readable AS TEXT on `surfaceHex`.
+ *
+ * `text-brand-text` is used ~100 times for wordmarks, links and icons sitting on the
+ * page or card surface. The raw brand clears 4.5:1 on the dark navy base for
+ * most palettes but fails badly on the light theme — Volt Green measures 1.54:1
+ * on #f4f6f8, Citrus 1.39:1. Mixing toward white on dark surfaces and toward
+ * black on light ones lands on a hue-stable, AA-passing variant.
+ *
+ * Returns the raw brand when it already passes, so the common case is unchanged.
+ */
+export function brandTextColor(brandHex: string | null | undefined, surfaceHex: string, target = 4.5): string {
+  const brand = parseHex(brandHex ?? "");
+  const surface = parseHex(surfaceHex);
+  if (!brand || !surface) return "#00e676";
+  if (contrastRatio(brandHex as string, surfaceHex) >= target) return hex(brand).toLowerCase();
+
+  const toward = relativeLuminance(surface) < 0.5 ? WHITE : BLACK;
+  let best = brand;
+  for (let f = 0.05; f <= 1.0001; f += 0.05) {
+    const c = blend(brand, toward, f);
+    best = c;
+    if (contrastRatio(hex(c), surfaceHex) >= target) break;
+  }
+  return hex(best);
+}
+
+/** True when the brand is safe as text on the given surface (no adjustment). */
+export function brandPassesAsText(brandHex: string | null | undefined, surfaceHex: string, target = 4.5): boolean {
+  if (!brandHex) return false;
+  return contrastRatio(brandHex, surfaceHex) >= target;
+}

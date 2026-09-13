@@ -139,7 +139,7 @@ function Dropdown({
                     setOpen(false);
                   }}
                   className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold hover:bg-hover-tint ${
-                    o.value === activeValue ? "text-brand" : "text-ink2 hover:text-ink"
+                    o.value === activeValue ? "text-brand-text" : "text-ink2 hover:text-ink"
                   }`}
                 >
                   <span className="truncate">{o.label}</span>

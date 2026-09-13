@@ -36,7 +36,7 @@ function RefBadge({ ref }: { ref: string }) {
         setTimeout(() => setCopied(false), 1600);
       }}
       className={`ml-2 rounded px-1.5 py-0.5 font-mono text-[10px] font-bold transition-colors ${
-        copied ? "bg-green-500/20 text-green-400" : "bg-brand/10 text-brand hover:bg-brand/20"
+        copied ? "bg-green-500/20 text-green-400" : "bg-brand/10 text-brand-text hover:bg-brand/20"
       }`}
     >
       {copied ? "✓ copied" : ref}
@@ -145,7 +145,7 @@ export default function AdminWithdrawals() {
               <b>{confirming.user.username}</b>
               {confirming.trackingId ? (
                 <>
-                  {" "}· ref <span className="font-mono text-brand">{confirming.trackingId}</span>
+                  {" "}· ref <span className="font-mono text-brand-text">{confirming.trackingId}</span>
                 </>
               ) : null}
               ? Funds were reserved at request time — this only finalizes the payout.

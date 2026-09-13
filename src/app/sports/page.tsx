@@ -15,7 +15,7 @@ export default async function SportsPage() {
     <div className="mx-auto max-w-[1600px] px-4">
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-extrabold">Sports</h1>
-        <Link href="/live" className="flex items-center gap-1.5 text-sm font-semibold text-brand">
+        <Link href="/live" className="flex items-center gap-1.5 text-sm font-semibold text-brand-text">
           <span className="live-dot" /> {liveCount} live now
         </Link>
       </div>

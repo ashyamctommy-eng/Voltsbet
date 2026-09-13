@@ -103,11 +103,11 @@ export default function AccountDashboard(props: AccountDashboardProps) {
           <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="flex items-center gap-2 font-bold">
-                <IconGift className="h-5 w-5 text-brand" /> {t("referral.title")}
+                <IconGift className="h-5 w-5 text-brand-text" /> {t("referral.title")}
               </h2>
               <p className="mt-1 text-sm text-ink2">{t("referral.subtitle")}</p>
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                <code className="rounded-lg border border-line bg-card px-3 py-1.5 font-mono text-sm text-brand">
+                <code className="rounded-lg border border-line bg-card px-3 py-1.5 font-mono text-sm text-brand-text">
                   {referralCode}
                 </code>
                 <CopyButton
@@ -124,12 +124,12 @@ export default function AccountDashboard(props: AccountDashboardProps) {
       <section>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="font-bold">{t("dashboard.open_bets")}</h2>
-          <Link href="/account/bets" className="text-sm font-semibold text-brand hover:underline">{t("common.view_all")} →</Link>
+          <Link href="/account/bets" className="text-sm font-semibold text-brand-text hover:underline">{t("common.view_all")} →</Link>
         </div>
         {openBets.length === 0 ? (
           <div className="card p-8 text-center text-sm text-ink3">
             {t("dashboard.no_open_bets")}{" "}
-            <Link href="/sports" className="text-brand hover:underline">{t("dashboard.find_match")} →</Link>
+            <Link href="/sports" className="text-brand-text hover:underline">{t("dashboard.find_match")} →</Link>
           </div>
         ) : (
           <div className="space-y-3">
@@ -159,7 +159,7 @@ export default function AccountDashboard(props: AccountDashboardProps) {
       <section>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="font-bold">{t("dashboard.recent_transactions")}</h2>
-          <Link href="/account/transactions" className="text-sm font-semibold text-brand hover:underline">{t("common.view_all")} →</Link>
+          <Link href="/account/transactions" className="text-sm font-semibold text-brand-text hover:underline">{t("common.view_all")} →</Link>
         </div>
         {transactions.length === 0 ? (
           <div className="card p-8 text-center text-sm text-ink3">{t("dashboard.no_transactions")}</div>

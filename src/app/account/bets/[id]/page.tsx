@@ -91,7 +91,7 @@ export default async function BetDetailPage({ params }: { params: Promise<{ id: 
           <span
             className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-wide ${
               bet.status === "OPEN"
-                ? "bg-brand/15 text-brand"
+                ? "bg-brand/15 text-brand-text"
                 : bet.status === "WON"
                   ? "bg-green-500/15 text-green-400"
                   : bet.status === "LOST"

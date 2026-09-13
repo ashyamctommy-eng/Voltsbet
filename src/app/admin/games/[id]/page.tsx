@@ -128,7 +128,7 @@ export default function AdminGameDetail() {
           <h2 className="text-xl font-extrabold">{game.homeName} vs {game.awayName}</h2>
           <div className="text-xs text-ink3">
             {game.sport.name} · Source: {game.source} · Started {new Date(game.startAt).toLocaleString("en-GB")}
-            {game.featured && <span className="ml-2 rounded-full bg-brand/15 px-2 py-0.5 font-bold text-brand">FEATURED</span>}
+            {game.featured && <span className="ml-2 rounded-full bg-brand/15 px-2 py-0.5 font-bold text-brand-text">FEATURED</span>}
           </div>
         </div>
         <span className="ml-auto rounded-full bg-card2 px-3 py-1 text-xs font-bold uppercase text-ink2">{game.status}</span>
@@ -213,7 +213,7 @@ export default function AdminGameDetail() {
                   </div>
                 ))}
               </div>
-              <button type="button" className="mt-2 text-xs font-semibold text-brand" onClick={() => setOutcomeRows((rs) => [...rs, { name: "", label: "", odds: "" }])}>
+              <button type="button" className="mt-2 text-xs font-semibold text-brand-text" onClick={() => setOutcomeRows((rs) => [...rs, { name: "", label: "", odds: "" }])}>
                 + Add outcome
               </button>
             </div>

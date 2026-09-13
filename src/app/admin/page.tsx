@@ -62,9 +62,9 @@ export default function AdminDashboard() {
       <section className="card p-5">
         <div className="flex items-center justify-between">
           <h2 className="flex items-center gap-2 font-bold">
-            <IconCoins className="h-5 w-5 text-brand" /> Payment Providers
+            <IconCoins className="h-5 w-5 text-brand-text" /> Payment Providers
           </h2>
-          <Link href="/admin/settings#payments" className="flex items-center gap-1 text-xs font-bold text-brand hover:underline">
+          <Link href="/admin/settings#payments" className="flex items-center gap-1 text-xs font-bold text-brand-text hover:underline">
             Configure <IconChevronRight className="h-3.5 w-3.5" />
           </Link>
         </div>
@@ -99,7 +99,7 @@ export default function AdminDashboard() {
                 <>
                   <div className="flex items-center justify-between">
                     <span className="flex items-center gap-2 text-sm font-bold">
-                      <IconSmartphone className="h-4 w-4 text-brand" /> M-Pesa
+                      <IconSmartphone className="h-4 w-4 text-brand-text" /> M-Pesa
                     </span>
                     <StatusPill ok={live} onText="Live" offText="Off" />
                   </div>
@@ -122,22 +122,22 @@ export default function AdminDashboard() {
 
       <div className="grid gap-4 md:grid-cols-3">
         <Link href="/admin/games" className="card card-hover p-5">
-          <IconCalendar className="h-6 w-6 text-brand" />
+          <IconCalendar className="h-6 w-6 text-brand-text" />
           <div className="mt-2 font-bold">Manage Games</div>
           <div className="text-xs text-ink3">Create manual games, control live scores, add markets.</div>
         </Link>
         <Link href="/admin/deposits" className="card card-hover p-5">
-          <IconDownload className="h-6 w-6 text-brand" />
+          <IconDownload className="h-6 w-6 text-brand-text" />
           <div className="mt-2 font-bold">Crypto Transactions</div>
           <div className="text-xs text-ink3">Track deposits, confirm payments, review history.</div>
         </Link>
         <Link href="/admin/mpesa-transactions" className="card card-hover p-5">
-          <IconSmartphone className="h-6 w-6 text-brand" />
+          <IconSmartphone className="h-6 w-6 text-brand-text" />
           <div className="mt-2 font-bold">M-Pesa Transactions</div>
           <div className="text-xs text-ink3">Track STK push logs, C2B/B2C payments, and manual transaction reconciliations</div>
         </Link>
         <Link href="/admin/users" className="card card-hover p-5">
-          <IconUsers className="h-6 w-6 text-brand" />
+          <IconUsers className="h-6 w-6 text-brand-text" />
           <div className="mt-2 font-bold">Users</div>
           <div className="text-xs text-ink3">Verify, suspend and manage player accounts.</div>
         </Link>
@@ -159,7 +159,7 @@ function StatusPill({ ok, onText, offText }: { ok: boolean; onText: string; offT
   return (
     <span
       className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ${
-        ok ? "bg-brand/15 text-brand" : "bg-gray-500/15 text-gray-400"
+        ok ? "bg-brand/15 text-brand-text" : "bg-gray-500/15 text-gray-400"
       }`}
     >
       {ok ? onText : offText}

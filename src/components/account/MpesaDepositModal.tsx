@@ -184,7 +184,7 @@ export default function MpesaDepositModal({
 
               <h3 className="mt-4 text-base font-extrabold text-ink">Processing…</h3>
               <p className="mt-1 text-sm leading-snug text-ink2">
-                Please check your phone for the <span className="font-semibold text-brand">M-PESA</span> prompt and enter your PIN.
+                Please check your phone for the <span className="font-semibold text-brand-text">M-PESA</span> prompt and enter your PIN.
               </p>
               <div className="mt-3 flex items-center gap-2 rounded-full border border-line bg-card2/60 px-3 py-1.5">
                 <span className="relative flex h-2 w-2">
@@ -213,7 +213,7 @@ export default function MpesaDepositModal({
               </span>
               <h3 className="mt-4 text-lg font-extrabold text-ink">Payment Received</h3>
               <p className="mt-1 text-sm text-ink2">
-                <span className="font-bold text-brand">{formatCurrency(deposit.amount, deposit.currencyCode)}</span> has been
+                <span className="font-bold text-brand-text">{formatCurrency(deposit.amount, deposit.currencyCode)}</span> has been
                 credited to your balance.
               </p>
               <button className="btn btn-primary mt-5 w-full py-3" onClick={onClose}>

@@ -14,6 +14,12 @@
      brand luminance (src/lib/brand-contrast.ts) so a violet or blue client
      brand no longer gets the dark-green ink that only suited green. */
   --color-on-brand: var(--vb-on-brand, #052e16);
+  /* brand used AS TEXT on a surface — flips per theme so wordmarks/links
+     stay legible on the light background (raw brands measure 1.39–3.91:1
+     there). See lib/brand-contrast.brandTextColor. */
+  --color-brand-text: var(--vb-brand-text, #00e676);
+  /* A readable ink ON the accent fill, for accent CTA labels. */
+  --color-on-accent: var(--vb-on-accent, #ffffff);
   --color-accent-light: color-mix(in srgb, var(--vb-accent, #7c3aed) 18%, transparent);
 
   /* ── Semantic theme tokens (root context classes) ─────────────
@@ -45,10 +51,16 @@
   --vb-primary: #00e676;
   --vb-secondary: #0b0e14;
   --vb-accent: #7c3aed;
+  --vb-brand-text: var(--vb-brand-text-dark, #00e676);
 
-  --panel-bg: #0b0e14;        /* primary app background */
-  --card-bg: #1a2235;         /* card panels */
-  --card-bg-2: #232e4a;       /* nested rows / insets */
+  /* Base surface tint. layout.tsx injects --vb-base-dark from the client's
+     branding.secondaryColor; the mix constants below are tuned so that the
+     DEFAULT base (#0b0e14) reproduces the previous hardcoded card ramp exactly
+     — per-client tinting costs existing installs nothing visually. */
+  --vb-base: var(--vb-base-dark, #0b0e14);
+  --panel-bg: var(--vb-base);                       /* primary app background */
+  --card-bg: color-mix(in srgb, var(--vb-base) 75%, #475e98);   /* card panels */
+  --card-bg-2: color-mix(in srgb, var(--vb-base) 65%, #5069ae); /* nested rows */
   --primary-text: #ffffff;    /* primary text */
   --text-secondary: #aebad2;
   --text-tertiary: #66738f;
@@ -179,20 +191,25 @@ body {
     color: #ffffff;                                /* dark: bold white odds */
   }
   .odds-btn:hover { background: #334155; }         /* dark: slate-700 */
-  .odds-btn:active { background: #047857; }        /* dark: emerald-700 */
+  /* Press feedback follows the brand, not a hardcoded emerald. */
+  .odds-btn:active { background: var(--vb-primary, #047857); }
   .odds-btn:active .odds-label,
-  .odds-btn:active .odds-price { color: #ffffff; }
+  .odds-btn:active .odds-price { color: var(--vb-on-brand, #052e16); }
 
-  /* Selected pick — persistent emerald fill with white text. emerald-700 is
-     the fill (not emerald-500) so white text clears AA contrast. */
+  /* Selected pick — BRAND fill. This is the most-tapped element in the app, so
+     a hardcoded emerald here meant tapping a price turned the cell green on
+     every non-green client brand. The fill is the brand and the label ink is
+     the computed on-brand colour (see lib/brand-contrast), which keeps the AA
+     guarantee the old emerald-700-not-500 note was protecting. */
   .odds-btn.selected {
-    background: #047857;
-    border-color: #10b981;
-    color: #ffffff;
-    box-shadow: 0 0 0 1px #10b981, 0 0 14px rgb(16 185 129 / 0.35);
+    background: var(--vb-primary, #047857);
+    border-color: var(--vb-primary, #10b981);
+    color: var(--vb-on-brand, #052e16);
+    box-shadow: 0 0 0 1px var(--vb-primary, #10b981),
+                0 0 14px color-mix(in srgb, var(--vb-primary, #10b981) 40%, transparent);
   }
   .odds-btn.selected .odds-label,
-  .odds-btn.selected .odds-price { color: #ffffff; }
+  .odds-btn.selected .odds-price { color: var(--vb-on-brand, #052e16); }
 
   .odds-btn:disabled {
     opacity: 0.45;
@@ -312,6 +329,8 @@ body {
 html[data-theme="light"] {
   color-scheme: light;
   --vb-secondary: #f4f6f8;
+  --vb-brand-text: var(--vb-brand-text-light, #008142);
+  --vb-base: #f4f6f8;
   --panel-bg: #f4f6f8;        /* primary app background */
   --card-bg: #ffffff;         /* card panels */
   --card-bg-2: #edf2f9;       /* nested rows / insets */

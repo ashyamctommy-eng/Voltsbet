@@ -83,7 +83,7 @@ export default function LoginPage() {
 
         <form onSubmit={submit} className="mt-6 space-y-4">
           {error && <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">{error}</div>}
-          {notice && <div className="rounded-lg border border-brand/40 bg-brand/10 px-3 py-2 text-sm text-brand">{notice}</div>}
+          {notice && <div className="rounded-lg border border-brand/40 bg-brand/10 px-3 py-2 text-sm text-brand-text">{notice}</div>}
 
           {!otpRequired ? (
             <>
@@ -141,7 +141,7 @@ export default function LoginPage() {
 
         <p className="mt-5 text-center text-sm text-ink2">
           {siteName.trim() ? <>New to {siteName.trim()}?{" "}</> : "New here? "}
-          <Link href="/register" className="font-semibold text-brand hover:underline">Create an account</Link>
+          <Link href="/register" className="font-semibold text-brand-text hover:underline">Create an account</Link>
         </p>
       </div>
     </div>

@@ -114,7 +114,7 @@ export default function SettingsPage() {
       <div className="card p-6">
         <div className="flex items-center justify-between">
           <h3 className="font-bold">Notifications</h3>
-          <button className="text-xs font-semibold text-brand hover:underline" onClick={markRead}>Mark all read</button>
+          <button className="text-xs font-semibold text-brand-text hover:underline" onClick={markRead}>Mark all read</button>
         </div>
         <div className="mt-3 space-y-2">
           {notifications.length === 0 && <p className="text-sm text-ink3">No notifications.</p>}

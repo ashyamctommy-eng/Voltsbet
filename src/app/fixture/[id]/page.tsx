@@ -37,7 +37,7 @@ export default async function FixturePage({ params }: { params: Promise<{ id: st
               {game.competitionName ?? game.competition?.name ?? game.sport.name}
             </span>
           </div>
-          <span className="shrink-0 rounded-full bg-brand/15 px-3 py-1 text-xs font-black text-brand">
+          <span className="shrink-0 rounded-full bg-brand/15 px-3 py-1 text-xs font-black text-brand-text">
             {openMarkets.length} Markets
           </span>
         </div>

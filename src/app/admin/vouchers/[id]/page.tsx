@@ -33,7 +33,7 @@ type VoucherDetail = {
 };
 
 const STATUS_BADGE: Record<string, string> = {
-  UNUSED: "bg-brand/15 text-brand",
+  UNUSED: "bg-brand/15 text-brand-text",
   REDEEMED: "bg-green-500/15 text-green-400",
   EXPIRED: "bg-hover-tint text-ink3",
   CANCELLED: "bg-red-500/15 text-red-400",
@@ -164,7 +164,7 @@ export default function VoucherDetailPage() {
             {data.audit.map((a) => (
               <div key={a.id} className="rounded-lg bg-card2 px-3 py-2 text-xs">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-bold text-brand">{a.action}</span>
+                  <span className="font-bold text-brand-text">{a.action}</span>
                   <span className="text-ink3">{a.adminName ?? a.userId ?? "system"} · {new Date(a.createdAt).toLocaleString()}{a.ip ? ` · ${a.ip}` : ""}</span>
                 </div>
                 {(a.prevValue || a.newValue) && (

@@ -121,7 +121,7 @@ const OPS: Op[] = [
 
 const TYPE_STYLE: Record<Op["type"], string> = {
   Monitor: "bg-sky-500/15 text-sky-400",
-  Sync: "bg-brand/15 text-brand",
+  Sync: "bg-brand/15 text-brand-text",
   Cron: "bg-amber-500/15 text-amber-400",
   API: "bg-purple-500/15 text-purple-400",
   Admin: "bg-hover-tint text-ink2",
@@ -171,7 +171,7 @@ export default async function OpsPage() {
             {OPS.map((op) => (
               <tr key={op.name} className="border-b border-line/60 transition-colors last:border-0 hover:bg-hover-tint">
                 <td className="px-4 py-3">
-                  <Link href={op.route} className="font-bold text-ink hover:text-brand">
+                  <Link href={op.route} className="font-bold text-ink hover:text-brand-text">
                     {op.name}
                   </Link>
                 </td>
@@ -199,7 +199,7 @@ export default async function OpsPage() {
       {/* Settlement explainer — derived + API-served markets */}
       <div className="card mt-4 p-5 text-sm">
         <h3 className="flex items-center gap-2 font-bold">
-          <IconCoins className="h-4 w-4 text-brand" />
+          <IconCoins className="h-4 w-4 text-brand-text" />
           Auto-settlement — derived &amp; API-served markets
         </h3>
         <div className="mt-2 space-y-1.5 text-xs leading-relaxed text-ink2">

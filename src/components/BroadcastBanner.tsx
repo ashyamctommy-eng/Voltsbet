@@ -71,7 +71,7 @@ export default function BroadcastBanner() {
           key={b.id}
           className="mx-auto flex max-w-[1200px] items-start gap-3 rounded-xl border border-brand/25 bg-brand/10 px-4 py-2.5"
         >
-          <IconBell className="mt-0.5 h-4 w-4 shrink-0 text-brand" />
+          <IconBell className="mt-0.5 h-4 w-4 shrink-0 text-brand-text" />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-bold text-ink">{b.title}</p>
             <p className="text-xs leading-relaxed text-ink2">{b.message}</p>

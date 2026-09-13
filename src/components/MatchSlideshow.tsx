@@ -199,7 +199,7 @@ function MatchSlide({ g, index, total }: { g: SlideGame; index: number; total: n
                 {g.homeScore} <span className="text-ink3">–</span> {g.awayScore}
               </span>
             ) : (
-              <span className="text-base font-black tracking-widest text-brand">VS</span>
+              <span className="text-base font-black tracking-widest text-brand-text">VS</span>
             )}
           </div>
 
@@ -234,7 +234,7 @@ function MatchSlide({ g, index, total }: { g: SlideGame; index: number; total: n
           <span className="text-[11px] font-semibold text-ink3">
             Match {index + 1} of {total}
           </span>
-          <span className="text-xs font-bold text-brand">View match →</span>
+          <span className="text-xs font-bold text-brand-text">View match →</span>
         </div>
       </div>
     </>

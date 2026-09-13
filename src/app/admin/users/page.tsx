@@ -422,7 +422,7 @@ export default function AdminUsers() {
                             ))}
                           </ul>
                         )}
-                        <a href={`/admin/audit`} className="mt-2 inline-block text-[11px] font-semibold text-brand hover:underline">
+                        <a href={`/admin/audit`} className="mt-2 inline-block text-[11px] font-semibold text-brand-text hover:underline">
                           Open full audit ledger →
                         </a>
                       </Section>
@@ -552,7 +552,7 @@ function Stat({
 }) {
   const toneClass =
     tone === "brand"
-      ? "text-brand"
+      ? "text-brand-text"
       : tone === "amber"
         ? "text-amber-400"
         : tone === "green"

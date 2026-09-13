@@ -172,7 +172,7 @@ export default function RegisterPage() {
               <input type="checkbox" checked={form.terms} onChange={(e) => set("terms", e.target.checked)} className="mt-0.5 h-4 w-4 accent-[var(--vb-primary)]" required />
               <span>
                 {t("register.termsPrefix")}{" "}
-                <Link href="/terms" className="text-brand hover:underline">{t("register.termsLink")}</Link>{" "}
+                <Link href="/terms" className="text-brand-text hover:underline">{t("register.termsLink")}</Link>{" "}
                 {t("register.termsSuffix")}
               </span>
             </label>
@@ -189,7 +189,7 @@ export default function RegisterPage() {
 
         <p className="mt-5 text-center text-sm text-ink2">
           {t("register.haveAccount")}{" "}
-          <Link href="/login" className="font-semibold text-brand hover:underline">{t("nav.login")}</Link>
+          <Link href="/login" className="font-semibold text-brand-text hover:underline">{t("nav.login")}</Link>
         </p>
       </div>
     </div>

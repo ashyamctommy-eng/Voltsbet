@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { onBrandColor, brandGlow, ON_BRAND_DARK, ON_BRAND_LIGHT } from "@/lib/brand-contrast";
+import {
+  onBrandColor,
+  brandGlow,
+  brandTextColor,
+  contrastRatio,
+  ON_BRAND_DARK,
+  ON_BRAND_LIGHT,
+} from "@/lib/brand-contrast";
 
 describe("onBrandColor", () => {
   // The whole point of this helper: the app used to hardcode dark-green ink on
@@ -47,5 +54,58 @@ describe("brandGlow", () => {
 
   it("falls back to the default green for an unparseable value", () => {
     expect(brandGlow("nonsense")).toBe("rgba(0, 230, 118, 0.35)");
+  });
+});
+
+describe("contrastRatio", () => {
+  it("matches known WCAG anchors", () => {
+    expect(contrastRatio("#ffffff", "#000000")).toBeCloseTo(21, 0);
+    expect(contrastRatio("#ffffff", "#ffffff")).toBeCloseTo(1, 5);
+  });
+});
+
+describe("brandTextColor (proposal 02)", () => {
+  const LIGHT = "#ffffff";
+  const DARK = "#0b0e14";
+
+  // The actual defect being fixed: every shipped template failed AA as text on
+  // the light surface. These cases assert the invariant, not specific hexes.
+  it("makes every shipped template readable as text on the light surface", () => {
+    for (const brand of ["#00e676", "#a3e635", "#fb923c", "#14b8a6", "#4f7cff", "#8b5cf6", "#ec4899"]) {
+      const fixed = brandTextColor(brand, LIGHT);
+      expect(contrastRatio(fixed, LIGHT)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("makes every shipped template readable as text on the dark surface", () => {
+    for (const brand of ["#00e676", "#a3e635", "#fb923c", "#14b8a6", "#4f7cff", "#8b5cf6", "#ec4899"]) {
+      const fixed = brandTextColor(brand, DARK);
+      expect(contrastRatio(fixed, DARK)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("leaves an already-passing brand untouched", () => {
+    // Volt Green on the dark base already clears AA — don't tint what works.
+    expect(contrastRatio("#00e676", DARK)).toBeGreaterThanOrEqual(4.5);
+    expect(brandTextColor("#00e676", DARK)).toBe("#00e676");
+  });
+
+  it("darkens toward black on light and lightens toward white on dark", () => {
+    const onLight = brandTextColor("#00e676", LIGHT);
+    const onDark = brandTextColor("#00e676", DARK);
+    // luminance ordering: light-surface variant must be darker than the raw,
+    // dark-surface variant no darker than the raw
+    const lum = (h: string) => {
+      const n = parseInt(h.slice(1), 16);
+      return ((n >> 16) & 255) * 0.2126 + ((n >> 8) & 255) * 0.7152 + (n & 255) * 0.0722;
+    };
+    expect(lum(onLight)).toBeLessThan(lum("#00e676"));
+    expect(lum(onDark)).toBeGreaterThanOrEqual(lum("#00e676"));
+  });
+
+  it("never returns junk", () => {
+    for (const bad of ["", "#", "nope", "#12345"]) {
+      expect(brandTextColor(bad, LIGHT)).toMatch(/^#[0-9a-fA-F]{3,6}$/);
+    }
   });
 });

@@ -71,7 +71,7 @@ export default function AdminCurrencies() {
             <div className="min-w-0 flex-1">
               <span className="font-bold">{c.code}</span>
               <span className="ml-2 text-sm text-ink2">{c.name} ({c.symbol})</span>
-              {c.isDefault && <span className="ml-2 rounded-full bg-brand/15 px-2 py-0.5 text-[10px] font-bold text-brand">DEFAULT</span>}
+              {c.isDefault && <span className="ml-2 rounded-full bg-brand/15 px-2 py-0.5 text-[10px] font-bold text-brand-text">DEFAULT</span>}
               {!c.active && <span className="ml-2 rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-bold text-red-400">DISABLED</span>}
             </div>
             <span className="text-xs text-ink3">rate {c.rate} · {c.decimals}dp</span>

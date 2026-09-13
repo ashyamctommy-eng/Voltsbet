@@ -192,9 +192,7 @@ export default function PromoBanner() {
       >
         <Link
           href={slide.href}
-          className={`relative block aspect-[16/6] w-full select-none sm:aspect-[16/4] ${
-            slide.image ? "" : `bg-gradient-to-br ${slide.grad}`
-          }`}
+          className="relative block aspect-[16/6] w-full select-none sm:aspect-[16/4]"
           style={
             slide.image
               ? {
@@ -202,7 +200,15 @@ export default function PromoBanner() {
                   backgroundSize: "cover",
                   backgroundPosition: "center",
                 }
-              : undefined
+              : {
+                  // Proposal 04 — the hero was one of three hardcoded gradients,
+                  // so the largest surface in the app could never show the
+                  // client's brand (and every install led with the same orange).
+                  // Now primary → accent, each blended 72% toward near-black so
+                  // the white headline clears AA no matter how light the brand.
+                  backgroundImage:
+                    "linear-gradient(115deg, color-mix(in srgb, var(--vb-primary, #00e676) 72%, #06080c), color-mix(in srgb, var(--vb-accent, #7c3aed) 72%, #06080c))",
+                }
           }
         >
           {/* decorative blobs (only on gradient slides) */}
@@ -215,7 +221,7 @@ export default function PromoBanner() {
 
           <div className="relative flex h-full flex-col justify-center px-4 sm:px-8">
             <span
-              className={`inline-flex w-fit items-center gap-1.5 rounded-full bg-white/20 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider ${slide.accent}`}
+              className="inline-flex w-fit items-center gap-1.5 rounded-full bg-white/20 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-white"
             >
               <slide.Icon className="h-3.5 w-3.5" /> {t("promo.promoTag")}
             </span>
@@ -226,7 +232,7 @@ export default function PromoBanner() {
               {slide.sub}
             </p>
             {slide.cta && (
-              <span className={`mt-2 inline-flex w-fit rounded-full bg-white px-3 py-1 text-[11px] font-black ${slide.accent} shadow`}>
+              <span className="mt-2 inline-flex w-fit rounded-full bg-white px-3 py-1 text-[11px] font-black text-[#0b0e14] shadow">
                 {slide.cta} →
               </span>
             )}

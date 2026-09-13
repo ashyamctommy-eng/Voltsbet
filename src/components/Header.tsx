@@ -227,7 +227,7 @@ export default function Header({
                     <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
                       <span className="text-sm font-bold">{t("common.notifications")}</span>
                       <button
-                        className="text-[11px] font-semibold text-ink3 transition-colors hover:text-brand"
+                        className="text-[11px] font-semibold text-ink3 transition-colors hover:text-brand-text"
                         onClick={() => { void toggleNotifs(); }}
                       >
                         ✕
@@ -345,7 +345,7 @@ export default function Header({
                 href={href}
                 className={`flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition-colors sm:text-sm ${
                   active
-                    ? "border-brand bg-brand/10 text-brand"
+                    ? "border-brand bg-brand/10 text-brand-text"
                     : "border-line bg-card text-ink2 hover:border-line2 hover:text-ink"
                 }`}
               >
@@ -493,7 +493,7 @@ function SearchBox() {
                   <SportIcon slug={g.sport?.slug} icon={g.sport?.icon} className="h-3.5 w-3.5 shrink-0" /> {g.homeName} vs {g.awayName}
                 </Link>
               ))}
-              <Link href={`/search?q=${encodeURIComponent(q)}`} className="block py-1.5 text-xs font-semibold text-brand">
+              <Link href={`/search?q=${encodeURIComponent(q)}`} className="block py-1.5 text-xs font-semibold text-brand-text">
                 {t("common.viewAll")} →
               </Link>
             </div>

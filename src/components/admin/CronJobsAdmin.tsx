@@ -25,7 +25,7 @@ function CopyBtn({ text, label }: { text: string; label: string }) {
           /* clipboard blocked — ignore */
         }
       }}
-      className="flex shrink-0 items-center gap-1 rounded-md border border-line bg-card px-2 py-1 text-[11px] font-bold text-ink2 transition-colors hover:border-brand hover:text-brand"
+      className="flex shrink-0 items-center gap-1 rounded-md border border-line bg-card px-2 py-1 text-[11px] font-bold text-ink2 transition-colors hover:border-brand hover:text-brand-text"
       title={label}
     >
       {copied ? <IconCheck className="h-3 w-3 text-green-400" /> : <IconCopy className="h-3 w-3" />}
@@ -102,7 +102,7 @@ export default function CronJobsAdmin({ baseUrl, secret, initialSchedules }: Pro
       {/* Provider recommendation + secret status */}
       <div className="grid gap-3 lg:grid-cols-2">
         <div className="card p-4">
-          <div className="text-xs font-black uppercase tracking-wider text-brand">Scheduler</div>
+          <div className="text-xs font-black uppercase tracking-wider text-brand-text">Scheduler</div>
           <h3 className="mt-1 font-bold">Cron Settings</h3>
           <p className="mt-1 text-xs text-ink3">
             Any scheduler that can hit an HTTPS URL on a schedule works — Railway Cron, UptimeRobot, cron-job.org,
@@ -152,7 +152,7 @@ export default function CronJobsAdmin({ baseUrl, secret, initialSchedules }: Pro
           <div key={job.id} className="card p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <IconClock className="h-4 w-4 text-brand" />
+                <IconClock className="h-4 w-4 text-brand-text" />
                 <h3 className="font-bold">{job.title}</h3>
                 <span
                   className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
@@ -187,7 +187,7 @@ export default function CronJobsAdmin({ baseUrl, secret, initialSchedules }: Pro
               <button
                 onClick={() => saveSchedule(job)}
                 disabled={saving === job.id}
-                className="rounded-lg border border-line bg-card px-3 py-1.5 text-xs font-bold text-ink2 transition-colors hover:border-brand hover:text-brand disabled:opacity-50"
+                className="rounded-lg border border-line bg-card px-3 py-1.5 text-xs font-bold text-ink2 transition-colors hover:border-brand hover:text-brand-text disabled:opacity-50"
               >
                 {savedFlash === job.id ? "✓ Saved" : saving === job.id ? "Saving…" : "Save"}
               </button>

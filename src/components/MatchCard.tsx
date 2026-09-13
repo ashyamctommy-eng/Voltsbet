@@ -318,13 +318,13 @@ export default function MatchCard({
       {/* Footer: +X Markets green callout badge, bottom right */}
       <div className="mt-2 flex items-center justify-end">
         {activeCount > 0 && (game.isApiMatch ? (
-          <span className="shrink-0 rounded-full bg-brand/10 px-2.5 py-1 text-[11px] font-black text-brand">
+          <span className="shrink-0 rounded-full bg-brand/10 px-2.5 py-1 text-[11px] font-black text-brand-text">
             {t("common.marketsCount", { count: activeCount })}
           </span>
         ) : (
           <Link
             href={`/fixture/${game.id}`}
-            className="shrink-0 rounded-full bg-brand/10 px-2.5 py-1 text-[11px] font-black text-brand transition-colors hover:bg-brand/20"
+            className="shrink-0 rounded-full bg-brand/10 px-2.5 py-1 text-[11px] font-black text-brand-text transition-colors hover:bg-brand/20"
           >
             {t("common.marketsCount", { count: activeCount })}
           </Link>

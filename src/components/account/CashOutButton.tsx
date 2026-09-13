@@ -89,7 +89,7 @@ export default function CashOutButton({
         <button
           onClick={openQuote}
           disabled={busy}
-          className="rounded-full border border-brand/40 px-3 py-1.5 text-xs font-black text-brand transition-colors hover:bg-brand/10 disabled:opacity-50"
+          className="rounded-full border border-brand/40 px-3 py-1.5 text-xs font-black text-brand-text transition-colors hover:bg-brand/10 disabled:opacity-50"
         >
           {busy ? "Quoting…" : "Cash Out"}
         </button>

@@ -129,7 +129,7 @@ export default function BetSelections({ selections }: { selections: DetailSelect
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-ink3">{t("bet.pick")}</span>
                   <span className="text-right font-semibold">
-                    {teamContext(s.outcome, s.marketKey, s.home, s.away)} <span className="text-brand">({fmtOdds(s.odds)})</span>
+                    {teamContext(s.outcome, s.marketKey, s.home, s.away)} <span className="text-brand-text">({fmtOdds(s.odds)})</span>
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-3">

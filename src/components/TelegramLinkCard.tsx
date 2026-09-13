@@ -67,7 +67,7 @@ export default function TelegramLinkCard() {
 
       {state.linked ? (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand/30 bg-brand/5 px-4 py-3">
-          <span className="flex items-center gap-2 text-sm font-bold text-brand">
+          <span className="flex items-center gap-2 text-sm font-bold text-brand-text">
             <span className="h-2.5 w-2.5 rounded-full bg-brand" />
             Linked {state.username ? `as @${state.username}` : ""}
           </span>
@@ -98,7 +98,7 @@ export default function TelegramLinkCard() {
               {busy ? "Generating…" : "Link Telegram"}
             </button>
             {linkUrl && (
-              <a href={linkUrl} target="_blank" rel="noopener noreferrer" className="break-all text-xs text-brand hover:underline">
+              <a href={linkUrl} target="_blank" rel="noopener noreferrer" className="break-all text-xs text-brand-text hover:underline">
                 {linkUrl}
               </a>
             )}

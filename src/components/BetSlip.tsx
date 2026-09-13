@@ -399,7 +399,7 @@ function SlipBody(props: {
                 <button
                   key={q}
                   type="button"
-                  className="rounded-lg border border-line2 px-2.5 py-1.5 text-xs font-bold text-ink2 transition-colors hover:border-brand hover:text-brand"
+                  className="rounded-lg border border-line2 px-2.5 py-1.5 text-xs font-bold text-ink2 transition-colors hover:border-brand hover:text-brand-text"
                   onClick={() => bumpStake(q)}
                 >
                   +{q.toLocaleString()}

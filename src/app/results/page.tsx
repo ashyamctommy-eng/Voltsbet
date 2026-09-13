@@ -40,7 +40,7 @@ export default async function ResultsPage() {
                 </span>
                 <span>{g.awayName}</span>
               </div>
-              <span className="text-xs font-semibold text-brand">Details →</span>
+              <span className="text-xs font-semibold text-brand-text">Details →</span>
             </Link>
           ))}
         </div>
