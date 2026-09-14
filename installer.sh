@@ -232,7 +232,11 @@ as_app() { su -s /bin/bash "$APP_USER" -c "export HOME=/home/$APP_USER && cd '$I
 # prod-only install cannot migrate, seed or generate the client. Runtime size
 # impact is small; prune later with: pnpm prune --prod (re-run migrate first).
 log "Installing dependencies (pnpm install, frozen lockfile)…"
-as_app "pnpm install --frozen-lockfile --no-audit 2>/dev/null || pnpm install --no-audit"
+# pnpm has no --no-audit (that is an npm flag) and pnpm 10 aborts on an unknown
+# option — passing it killed the install on a fresh VPS. Keep the frozen-lockfile
+# attempt first, but let a failure be VISIBLE: the previous 2>/dev/null hid the
+# very error that stopped the run.
+as_app "pnpm install --frozen-lockfile || pnpm install"
 
 log "Running Prisma migrations…"
 as_app "DATABASE_URL='${DB_URL}' pnpm exec prisma migrate deploy"
