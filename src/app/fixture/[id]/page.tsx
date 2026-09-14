@@ -105,7 +105,6 @@ export default async function FixturePage({ params }: { params: Promise<{ id: st
             name: m.name,
             key: m.key,
             status: m.status,
-            isManual: m.isManual,
             outcomes: m.outcomes.map((o) => ({
               id: o.id,
               name: o.name,

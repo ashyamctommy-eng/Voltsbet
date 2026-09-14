@@ -22,7 +22,6 @@ type FixtureMarket = {
   name: string;
   key: string;
   status: string;
-  isManual?: boolean;
   outcomes: FixtureOutcome[];
 };
 
@@ -237,9 +236,10 @@ export default function FixtureMarkets({ game, markets }: { game: FixtureCtx; ma
                 >
                   i
                 </span>
-                {m.isManual && (
-                  <span className="shrink-0 rounded-full bg-accent/15 px-1.5 py-0.5 text-[9px] font-bold uppercase text-accent">Manual</span>
-                )}
+                {/* No "Manual" badge on the customer-facing board: whether a
+                    market was created by an operator rather than the feed is an
+                    internal fact and means nothing to a punter. Admin → Games
+                    still labels manual markets for staff. */}
                 {!hasPriced && (
                   <span className="shrink-0 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-bold text-amber-400">
                     {t("common.suspended")}

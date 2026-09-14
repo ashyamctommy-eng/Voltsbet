@@ -114,7 +114,6 @@ export default async function MatchPage({ params }: { params: Promise<{ id: stri
             name: m.name,
             key: m.key,
             status: m.status,
-            isManual: m.isManual,
             outcomes: m.outcomes.map((o) => ({
               id: o.id,
               name: o.name,
