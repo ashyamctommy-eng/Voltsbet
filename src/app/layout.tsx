@@ -17,6 +17,8 @@ import I18nSync from "@/components/I18nSync";
 import Header, { HeaderUser } from "@/components/Header";
 import Footer from "@/components/Footer";
 import MobileNav from "@/components/MobileNav";
+import { existsSync } from "fs";
+import { join } from "path";
 import SupportWidget from "@/components/SupportWidget";
 import ScrollToTopButton from "@/components/ScrollToTopButton";
 import BetSlip from "@/components/BetSlip";
@@ -28,12 +30,36 @@ import VoltBetSplashLoader from "@/components/VoltBetSplashLoader";
 export async function generateMetadata(): Promise<Metadata> {
   const s = await getSettings();
   const brand = s.siteName || "Sportsbook";
+  // Per-client icon set. The files live OUTSIDE the repo — nginx serves them
+  // from BRANDING_DIR — so they stay client-specific and survive a rebuild.
+  // Only advertise them when they are actually present: an install with no
+  // branding dir keeps Next's built-in favicon instead of linking 404s.
+  // Evaluated per request, so dropping the files in needs no code change.
+  const brandingDir = process.env.BRANDING_DIR || "/var/www/voltsbet-branding";
+  let hasIcons = false;
+  try {
+    hasIcons = existsSync(join(brandingDir, "favicon.ico"));
+  } catch {
+    /* non-Node runtime or unreadable path — fall back to the built-in icon */
+  }
   return {
     title: {
       default: `${brand} — Sports Betting`,
       template: `%s | ${brand}`,
     },
     description: s.tagline || "Fast odds, live betting and instant crypto deposits.",
+    ...(hasIcons
+      ? {
+          icons: {
+            icon: [
+              { url: "/favicon.ico", sizes: "48x48" },
+              { url: "/favicon-96x96.png", sizes: "96x96", type: "image/png" },
+            ],
+            apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
+          },
+          manifest: "/site.webmanifest",
+        }
+      : {}),
   };
 }
 export const viewport: Viewport = {
