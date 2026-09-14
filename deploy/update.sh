@@ -20,7 +20,10 @@ die()  { printf '\033[1;31m[update]\033[0m %s\n' "$*" >&2; exit 1; }
 id "$APP_USER" >/dev/null 2>&1 || die "App user '$APP_USER' missing."
 
 log "1/5 Pulling latest code…"
-git -C "$INSTALL_DIR" pull --ff-only
+# The tree is owned by $APP_USER (the installer chowns it), so root's git
+# refuses it as "detected dubious ownership" — which made this script die on
+# step 1 for every install. Pull as the owner instead.
+su -s /bin/bash "$APP_USER" -c "export HOME=/home/$APP_USER && cd '$INSTALL_DIR' && git pull --ff-only"
 
 log "2/5 Installing dependencies…"
 su -s /bin/bash "$APP_USER" -c "export HOME=/home/$APP_USER && cd '$INSTALL_DIR' && '$(command -v pnpm)' install --frozen-lockfile 2>/dev/null || '$(command -v pnpm)' install"
