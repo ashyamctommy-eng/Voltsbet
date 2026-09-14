@@ -45,6 +45,44 @@ try {
     await upsertSetting("branding.accentColor", accent);
     console.log(`branding: branding.accentColor = ${accent}`);
   }
+
+  // ── Rebrand the vendor's name out of the seeded content ──────────────
+  // prisma/seed.ts ships a few user-visible strings with the VENDOR's brand in
+  // them ("Welcome to Voltbets", the support WhatsApp greeting). On a
+  // white-label install those are the first thing a client's customers see, so
+  // rewrite them here — this is the only step that knows the client's name.
+  if (siteName) {
+    const VENDOR = ["Voltbets", "VoltBet"];
+    const rebrand = (s) => VENDOR.reduce((acc, v) => acc.split(v).join(siteName), s);
+    let touched = 0;
+    for (const b of await p.banner.findMany()) {
+      const title = rebrand(b.title ?? "");
+      const description = b.description == null ? b.description : rebrand(b.description);
+      if (title !== b.title || description !== b.description) {
+        await p.banner.update({ where: { id: b.id }, data: { title, description } });
+        touched++;
+      }
+    }
+    for (const s of await p.setting.findMany()) {
+      const value = rebrand(s.value ?? "");
+      if (value !== s.value) {
+        await p.setting.update({ where: { key: s.key }, data: { value } });
+        touched++;
+      }
+    }
+    console.log(`rebrand: ${touched} seeded string(s) now say "${siteName}"`);
+  }
+
+  // The seed's support address is a .test placeholder — useless on a live site.
+  // The installer knows the real domain, so use it when it was never customised.
+  const siteDomain = (process.env.SITE_DOMAIN ?? "").trim();
+  if (siteDomain) {
+    const email = await p.setting.findUnique({ where: { key: "support.email" } });
+    if (!email || /@(voltbets|voltbet)\.test$/i.test(email.value) || !email.value.trim()) {
+      await upsertSetting("support.email", `support@${siteDomain}`);
+      console.log(`branding: support.email = support@${siteDomain}`);
+    }
+  }
   if (adminEmail && newPassword) {
     const hash = await bcrypt.hash(newPassword, 12);
     const username = adminUsername || adminEmail.split("@")[0];

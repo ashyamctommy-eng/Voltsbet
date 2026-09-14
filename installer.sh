@@ -252,7 +252,7 @@ as_app "DATABASE_URL='${DB_URL}' NODE_ENV=production pnpm build"
 
 # ── 6b. Branding + Super Admin credentials + Telegram ────────────────
 log "Applying Super Admin credentials (${ADMIN_EMAIL})…"
-as_app "DATABASE_URL='${DB_URL}' TELEGRAM_BOT_TOKEN='${TELEGRAM_BOT_TOKEN}' BRAND_ACCENT='${BRAND_ACCENT}' node deploy/post-install.mjs '${SITE_NAME}' '${BRAND_COLOR}' '$ADMIN_EMAIL' '$ADMIN_PASSWORD' '$ADMIN_USERNAME'"
+as_app "DATABASE_URL='${DB_URL}' TELEGRAM_BOT_TOKEN='${TELEGRAM_BOT_TOKEN}' BRAND_ACCENT='${BRAND_ACCENT}' SITE_DOMAIN='${DOMAIN}' node deploy/post-install.mjs '${SITE_NAME}' '${BRAND_COLOR}' '$ADMIN_EMAIL' '$ADMIN_PASSWORD' '$ADMIN_USERNAME'"
 
 # ── 7. PM2 bootstrap ─────────────────────────────────────────────────
 log "Generating ecosystem.config.js and starting under PM2…"
