@@ -159,7 +159,10 @@ id "$APP_USER" >/dev/null 2>&1 || useradd --create-home --shell /bin/bash "$APP_
 
 if [ -d "$INSTALL_DIR/.git" ]; then
   log "Updating existing install…"
-  git -C "$INSTALL_DIR" pull --ff-only
+  # Pull as the tree's OWNER. Step 3 chowns $INSTALL_DIR to $APP_USER, and root's
+  # git then refuses the directory with "detected dubious ownership" — a re-run
+  # (the documented idempotent path) died here with exit 128.
+  su -s /bin/bash "$APP_USER" -c "export HOME=/home/$APP_USER && cd '$INSTALL_DIR' && git pull --ff-only"
 else
   log "Cloning $GIT_URL → $INSTALL_DIR"
   mkdir -p "$(dirname "$INSTALL_DIR")"
