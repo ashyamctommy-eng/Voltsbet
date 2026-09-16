@@ -12,13 +12,21 @@ export const GET = handle(async (req: NextRequest) => {
   // older syncs leave SCHEDULED rows with historical dates ("19 Aug") that
   // cluttered the management list. LIVE / HALF_TIME / FINISHED legitimately
   // started in the past and stay visible.
+  //
+  // MANUAL rows are exempt. An admin-created fixture has no feed to advance it,
+  // so once its kickoff passed while still SCHEDULED it matched no filter at
+  // all — "All statuses" and "SCHEDULED" both hid it and no other status
+  // applied, so the operator could not open their own match to enter the
+  // result. That stranded the real bets riding on it.
   const EXCLUDE_PAST_STATUSES = new Set(["SCHEDULED", "POSTPONED"]);
   const excludePast = !status || EXCLUDE_PAST_STATUSES.has(status);
   const games = await prisma.game.findMany({
     where: {
       ...(sportId ? { sportId } : {}),
       ...(status ? { status } : {}),
-      ...(excludePast ? { startAt: { gte: new Date() } } : {}),
+      ...(excludePast
+        ? { OR: [{ startAt: { gte: new Date() } }, { source: "MANUAL" }] }
+        : {}),
     },
     include: {
       sport: true,
