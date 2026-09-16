@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { HALF_TIME_MARKET_KEYS } from "@/lib/settlement/resolve-stats";
 import {
   IconTv,
   IconCalendar,
@@ -136,10 +137,46 @@ const TYPE_ICON: Record<Op["type"], React.ReactNode> = {
 };
 
 export default async function OpsPage() {
-  const [liveCount, upcomingCount] = await Promise.all([
+  // A bet is "waiting" once its match has been over for a few hours. This is
+  // the only number with a customer on the other end of it — a finished match
+  // with an open bet that nobody has settled is a complaint in the making.
+  // (Built from `new Date()`, not Date.now(), so the render-compiler lint rule
+  // does not treat it as an impure call during render.)
+  const stuckCutoff = new Date(new Date().getTime() - 6 * 60 * 60 * 1000);
+  const [liveCount, upcomingCount, htOpen, catchAllOpen, otherOpen, stuckBets] = await Promise.all([
     prisma.game.count({ where: { status: { in: ["LIVE", "HALF_TIME", "IN_PLAY"] } } }),
     prisma.game.count({ where: { status: "SCHEDULED", startAt: { gt: new Date() } } }),
+    // Half-time family on finished matches. The /scores feed carries no
+    // half-time score, so nothing here can ever settle itself.
+    prisma.outcome.count({
+      where: {
+        settled: false,
+        market: { key: { in: [...HALF_TIME_MARKET_KEYS] }, game: { status: "FINISHED" } },
+      },
+    }),
+    // Correct-score catch-all buckets ("Any Other Home Win").
+    prisma.outcome.count({
+      where: {
+        settled: false,
+        name: { startsWith: "Any Other" },
+        market: { game: { status: "FINISHED" } },
+      },
+    }),
+    prisma.outcome.count({
+      where: {
+        settled: false,
+        name: { not: { startsWith: "Any Other" } },
+        market: { key: { notIn: [...HALF_TIME_MARKET_KEYS] }, game: { status: "FINISHED" } },
+      },
+    }),
+    prisma.bet.count({
+      where: {
+        status: "OPEN",
+        selections: { some: { game: { status: "FINISHED", startAt: { lt: stuckCutoff } } } },
+      },
+    }),
   ]);
+  const attention = htOpen + catchAllOpen + otherOpen;
 
   return (
     <div>
@@ -195,6 +232,49 @@ export default async function OpsPage() {
         Budget watch: The Odds API free tier = 500 req/month; paid tiers raise this. Pre-match sync ~1 req/league,
         live scores ~1 req per active league per sweep (throttled).
       </p>
+
+      {/* Needs attention — what auto-settlement cannot do by itself.
+          Everything here used to be invisible until a customer complained. */}
+      <div className={`card mt-4 p-5 text-sm ${stuckBets > 0 ? "border-amber-500/40" : ""}`}>
+        <h3 className="flex items-center gap-2 font-bold">
+          <IconCoins className="h-4 w-4 text-brand-text" />
+          Settlement needs attention
+        </h3>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <span
+            className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-bold ${
+              stuckBets > 0 ? "bg-amber-500/15 text-amber-400" : "bg-hover-tint text-ink2"
+            }`}
+          >
+            {stuckBets} open bet{stuckBets === 1 ? "" : "s"} waiting on a finished match
+          </span>
+          <span className="flex items-center gap-2 rounded-lg bg-hover-tint px-3 py-1.5 text-xs font-bold text-ink2">
+            {htOpen} half-time outcome{htOpen === 1 ? "" : "s"}
+          </span>
+          <span className="flex items-center gap-2 rounded-lg bg-hover-tint px-3 py-1.5 text-xs font-bold text-ink2">
+            {catchAllOpen} correct-score catch-all{catchAllOpen === 1 ? "" : "s"}
+          </span>
+          <span className="flex items-center gap-2 rounded-lg bg-hover-tint px-3 py-1.5 text-xs font-bold text-ink2">
+            {otherOpen} other outcome{otherOpen === 1 ? "" : "s"}
+          </span>
+        </div>
+        <p className="mt-3 text-xs leading-relaxed text-ink2">
+          {attention === 0 && stuckBets === 0 ? (
+            <>Nothing outstanding — every finished match is settled.</>
+          ) : (
+            <>
+              <b className="text-ink">Fix half-time markets:</b> they need a half-time score, which the odds feed never
+              sends. Open{" "}
+              <Link href="/admin/games?status=FINISHED" className="font-bold text-brand-text underline-offset-2 hover:underline">
+                Admin → Games → FINISHED
+              </Link>
+              , enter the half-time score and save — the settlement cron clears every half-time market on the match.
+              <b className="text-ink"> Everything else</b> (corners, cards, correct-score lines) is settled per outcome
+              with Won/Lost/Void on the match page. Nothing here settles twice: the cron skips outcomes already done.
+            </>
+          )}
+        </p>
+      </div>
 
       {/* Settlement explainer — derived + API-served markets */}
       <div className="card mt-4 p-5 text-sm">

@@ -34,12 +34,34 @@ export function teamMatchScore(a: string, b: string): number {
   for (const t of xs) if (ys.has(t) && t.length >= 3) shared++;
   if (!shared) return 0;
 
-  // Coverage only. A "one long shared token is enough" rule was tempting (to
-  // forgive "Wrexham AFC" vs "Wrexham") but it scores Manchester United vs
-  // Manchester City at 0.8 — i.e. it would settle the wrong fixture. Club
-  // suffixes are already stripped by normalizeTeamName, which is what makes
-  // that case a clean 1.0 without the dangerous shortcut.
-  return shared / Math.max(xs.size, ys.size);
+  // Coverage. A "one long shared token is enough" rule was tempting (to forgive
+  // "Wrexham AFC" vs "Wrexham") but it scores Manchester United vs Manchester
+  // City at 0.8 — i.e. it would settle the wrong fixture. Club suffixes are
+  // already stripped by normalizeTeamName, which is what makes that case a
+  // clean 1.0 without the dangerous shortcut.
+  const coverage = shared / Math.max(xs.size, ys.size);
+
+  // CONTAINMENT: one name is the other plus extra words. Providers abbreviate
+  // to DIFFERENT lengths for the same club — our feed had "VPS Vaasa" while
+  // FotMob had "VPS" (coverage 0.5 → refused → that half-time score was never
+  // scraped, and every half-time market on the match became manual for ever).
+  // A full subset is safe in a way partial overlap is not: "Manchester United"
+  // vs "Manchester City" overlaps but neither contains the other (still 0.5).
+  // Reserve/youth/women markers are kept as distinct tokens, so "Juventus"
+  // does not contain "Juventus U19".
+  const xsArr = [...xs];
+  const ysArr = [...ys];
+  // A reserve/youth/women's side is a DIFFERENT team from the first team, no
+  // matter how the names nest ("Juventus" ⊂ "Juventus U19", "Real Madrid" ⊂
+  // "Real Madrid B"). If one side carries such a marker and the other does not,
+  // they are not the same fixture — full stop.
+  const markers = (tokens: string[]) => tokens.filter((t) => t.startsWith("~")).sort().join(",");
+  if (markers(xsArr) !== markers(ysArr)) return 0;
+
+  const named = (tokens: string[]) => tokens.some((t) => !t.startsWith("~"));
+  const contained = xsArr.every((t) => ys.has(t)) || ysArr.every((t) => xs.has(t));
+  if (contained && named(xsArr) && named(ysArr)) return 1;
+  return coverage;
 }
 
 /** Minimum score for both sides before we will settle against a fixture. */
@@ -58,6 +80,7 @@ export function pickGame<T extends GameCandidate>(
   want: { homeName: string; awayName: string; kickoff: Date },
 ): T | null {
   let best: { game: T; score: number } | null = null;
+  let tied = false;
 
   for (const g of candidates) {
     const kickoffDeltaMin = Math.abs(g.startAt.getTime() - want.kickoff.getTime()) / 60000;
@@ -75,10 +98,18 @@ export function pickGame<T extends GameCandidate>(
     const score = Math.max(straight, swapped);
     if (score < MIN_TEAM_SCORE) continue;
 
-    if (!best || score > best.score) best = { game: g, score };
+    if (!best || score > best.score) {
+      best = { game: g, score };
+      tied = false;
+    } else if (score === best.score) {
+      // Two fixtures in the window score identically (the containment rule
+      // makes "X" match both "X" and "X Y"). Picking either one would settle a
+      // customer against the wrong match, so refuse and let a human look.
+      tied = true;
+    }
   }
 
-  return best?.game ?? null;
+  return tied ? null : best?.game ?? null;
 }
 
 /**

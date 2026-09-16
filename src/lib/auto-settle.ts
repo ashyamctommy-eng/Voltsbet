@@ -60,7 +60,15 @@ export async function autoSettleFinishedGames(): Promise<{ settled: string[]; sk
       if (unsettled.length === 0) continue;
 
       for (const outcome of unsettled) {
-        const result = resolveOutcome(game, market.key, outcome.name, outcome.label);
+        const result = resolveOutcome(
+          game,
+          market.key,
+          outcome.name,
+          outcome.label,
+          // Sibling names let a catch-all bucket ("Any Other Home Win") know
+          // whether the real score was one of the market's exact lines.
+          market.outcomes.map((o) => o.name),
+        );
         if (!result) continue; // null = undecidable → leave for admin review
         try {
           const done = await settleOutcome(SYSTEM_ACTOR, outcome.id, result);
@@ -111,6 +119,10 @@ export function resolveOutcome(
   marketKey: string,
   outcomeName: string,
   outcomeLabel: string | null,
+  /** Every outcome name in the market. Needed by catch-all buckets that cannot
+   *  be decided from their own label alone ("Any Other Home Win" is only right
+   *  when the real score was NOT one of the market's enumerated lines). */
+  siblings?: readonly string[],
 ): Result {
   const r = gameResult(game);
   if (!r) return null;
@@ -270,10 +282,39 @@ export function resolveOutcome(
   // ── Correct score (e.g. "2-1") ──────────────────────────────
   if (marketKey === "CORRECT_SCORE") {
     const m = name.match(/^(\d+)\s*[-:]\s*(\d+)$/);
-    if (!m) return null;
-    const [h, a] = [Number(m[1]), Number(m[2])];
-    if (h === home && a === away) return "WON";
-    return "LOST";
+    if (m) {
+      const [h, a] = [Number(m[1]), Number(m[2])];
+      if (h === home && a === away) return "WON";
+      return "LOST";
+    }
+
+    // "Any Other Home Win / Draw / Away Win" — the catch-all buckets. These
+    // used to go to admin on every finished match (1,455 outcomes left open on
+    // one client's book) although they are pure arithmetic: the bucket for the
+    // real result wins when the score was NOT one of the market's exact lines.
+    // That last clause is why the sibling outcomes are required — without them
+    // we cannot tell "1-0" (a listed line, so every bucket loses) from a score
+    // nobody offered.
+    const bucket = name.match(/^any\s+other\s+(.+)$/);
+    if (!bucket) return null;
+    const lines = (siblings ?? []).map((s) => s.toLowerCase().trim());
+    if (lines.length === 0) return null; // no context → do not guess
+
+    const listed = lines
+      .map((s) => s.match(/^(\d+)\s*[-:]\s*(\d+)$/))
+      .filter((x): x is RegExpMatchArray => x !== null)
+      .map((x) => [Number(x[1]), Number(x[2])] as const);
+    if (listed.length === 0) return null; // market is not an enumerated list
+
+    // The score landed on a listed line → every catch-all loses.
+    if (listed.some(([h, a]) => h === home && a === away)) return "LOST";
+
+    // An unlisted score with no catch-all anywhere would lose for EVERY
+    // outcome. That is suspicious enough (a truncated market) to leave alone.
+    if (!lines.some((s) => /^any\s+other\s+/.test(s))) return null;
+
+    const want = r === "H" ? "home" : r === "A" ? "away" : "draw";
+    return bucket[1].includes(want) ? "WON" : "LOST";
   }
 
   // ── European Handicap — 3-way integer line (−1) ─────────────

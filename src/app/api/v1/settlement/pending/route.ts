@@ -16,7 +16,8 @@
  *   - that selection is on a stat-dependent market — corners, cards, or the
  *     half-time family (see STAT_DEPENDENT_MARKET_KEYS);
  *   - kickoff was at least `minAgeMinutes` ago (default 110) but no more than
- *     `maxAgeHours` ago (default 30, so ancient games are not chased for ever);
+ *     `maxAgeHours` ago (default 168 = 7 days, so a fixture that missed one
+ *     scrape is still reachable);
  *   - the game is not CANCELLED or POSTPONED.
  *
  * AUTH: same HMAC scheme as the POST receiver. A GET has no body, so the worker
@@ -31,14 +32,19 @@
 import { NextResponse } from "next/server";
 import { getSettings } from "@/lib/settings";
 import { prisma } from "@/lib/prisma";
-import { CARD_MARKET_KEYS, CORNER_MARKET_KEYS, HALF_TIME_MARKET_KEYS, STAT_DEPENDENT_MARKET_KEYS } from "@/lib/settlement/resolve-stats";
+import { CARD_MARKET_KEYS, CORNER_MARKET_KEYS, HALF_TIME_MARKET_KEYS, STAT_DEPENDENT_MARKET_KEYS, TEAM_ALIASES } from "@/lib/settlement/resolve-stats";
 import { SIGNATURE_HEADER, TIMESTAMP_HEADER, verifySettlementSignature } from "@/lib/settlement/signature";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const DEFAULT_MIN_AGE_MINUTES = 110;
-const DEFAULT_MAX_AGE_HOURS = 30;
+// 7 days, not 30 hours. A 30-hour window meant a fixture whose half-time score
+// failed to scrape once (name drift, a blocked request, a quiet weekend) aged
+// out of the work list for ever and every half-time market on it became a
+// manual job nobody was told about. The work list is cheap; being unreachable
+// is not.
+const DEFAULT_MAX_AGE_HOURS = 168;
 const MAX_GAMES = 200;
 
 /** What kind of scrape a game needs, so the worker can skip work it can't do. */
@@ -156,6 +162,10 @@ export async function GET(req: Request) {
       generatedAt: new Date(now).toISOString(),
       window: { minAgeMinutes, maxAgeHours },
       count: games.length,
+      // Club-name divergences the worker must apply before matching. Both sides
+      // of the pair (feed token → source name) come from here so an install can
+      // be taught a rename without redeploying the worker.
+      aliases: TEAM_ALIASES,
       games,
     },
     { headers: { "Cache-Control": "no-store" } },

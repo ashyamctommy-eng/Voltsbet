@@ -265,7 +265,49 @@ export function resolveStatOutcome(
  * club-suffix noise ("FC", "AFC", "CF" …) that differs between the fixture
  * feed and a scraper.
  */
-export function normalizeTeamName(name: string): string {
+/**
+ * Reserve / youth / women markers.
+ *
+ * These are NOT noise to be stripped. Dropping them makes "Real Madrid B" and
+ * "Real Madrid" normalize identically — and with the containment rule in
+ * teamMatchScore that means the reserve side would be settled against the
+ * senior side's result. They are folded into a canonical token instead, so a
+ * reserve/youth/women's fixture can never collapse onto the first team.
+ */
+const RESERVE_MARKER = /^(b|ii|2|reserve|reserves|am)$/;
+const YOUTH_MARKER = /^(u1[5-9]|u2[0-3]|youth|junior|juniors|academy|primavera)$/;
+const WOMEN_MARKER = /^(w|women|womens|fem|feminine|ladies)$/;
+
+/**
+ * Club-name divergences between the fixture feed and the scrape sources, keyed
+ * by the feed's own token.
+ *
+ * Deliberately tiny. The containment rule in teamMatchScore already forgives
+ * abbreviations ("VPS" vs "VPS Vaasa", "FC Inter Turku" vs "Inter Turku"), and
+ * a long hand-built map is a liability: one wrong entry settles the wrong
+ * fixture. This table is for genuine renames only.
+ *
+ * Extend per install without touching the code by setting the worker's
+ * SETTLE_TEAM_ALIASES (same JSON shape) — no redeploy of the worker needed.
+ */
+export const TEAM_ALIASES: Record<string, string> = {
+  // One club, three providers: "VPS Vaasa" (The Odds API), "VPS" (FotMob),
+  // "Vaasan Palloseura" (SofaScore, and the club's own name).
+  vps: "vaasan palloseura",
+};
+
+function markerize(token: string): string {
+  if (RESERVE_MARKER.test(token)) return "~reserve";
+  if (YOUTH_MARKER.test(token)) return "~youth";
+  if (WOMEN_MARKER.test(token)) return "~women";
+  return token;
+}
+
+/**
+ * Split a team name into comparable tokens (mirrored by tokenize_team() in
+ * worker/settle_worker.py — keep the two in step).
+ */
+export function tokenizeTeam(name: string, aliases: Record<string, string> = TEAM_ALIASES): string[] {
   return (name ?? "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -273,8 +315,11 @@ export function normalizeTeamName(name: string): string {
     .replace(/[^a-z0-9\s]/g, " ")
     .replace(/\b(fc|afc|cf|sc|ac|as|ss|ssc|cd|ud|rc|rcd|bk|fk|if|club|the|de|of)\b/g, " ")
     .split(" ")
-    .filter((t) => t.length > 1) // initials left over from "S.A.D." are noise
-    .join(" ")
-    .replace(/\s+/g, " ")
-    .trim();
+    .flatMap((t) => (aliases[t] ? aliases[t].split(" ") : [t]))
+    .map(markerize)
+    .filter((t) => t.length > 1); // initials left over from "S.A.D." are noise
+}
+
+export function normalizeTeamName(name: string, aliases: Record<string, string> = TEAM_ALIASES): string {
+  return tokenizeTeam(name, aliases).join(" ");
 }

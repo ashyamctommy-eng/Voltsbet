@@ -71,6 +71,12 @@ REQUEST_TIMEOUT = float(os.environ.get("SETTLE_TIMEOUT", "12"))  # seconds, hard
 PROXY_MAX_LATENCY = float(os.environ.get("SETTLE_PROXY_MAX_LATENCY", "5"))  # >5s = drop
 MATCH_AGE_MINUTES = int(os.environ.get("SETTLE_MATCH_AGE_MINUTES", "110"))
 MAX_MATCHES_PER_RUN = int(os.environ.get("SETTLE_MAX_MATCHES", "60"))
+# How many days back to scan when there is NO work list to guide us (the
+# --no-pending path). With a work list the days are DERIVED from it — see main().
+LOOKBACK_DAYS = max(1, min(30, int(os.environ.get("SETTLE_LOOKBACK_DAYS", "3"))))
+# Never scan more than this many days in one run, however far back the work list
+# reaches; each day costs one request per source.
+MAX_WORK_LIST_DAYS = 14
 RETRIES_PER_REQUEST = int(os.environ.get("SETTLE_RETRIES", "4"))
 DRY_RUN = os.environ.get("SETTLE_DRY_RUN", "").lower() in ("1", "true", "yes")
 
@@ -1344,6 +1350,10 @@ def fetch_pending(pool: "ProxyPool") -> Optional[list[dict]]:
         with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT + 8) as resp:
             data = json.loads(resp.read().decode("utf-8", "replace"))
         games = data.get("games", []) or []
+        learned = _parse_alias_block(data.get("aliases"))
+        if learned:
+            TEAM_ALIASES.update(learned)
+            log(f"work list: {len(learned)} team alias(es) applied from the backend")
         log(f"work list: {len(games)} game(s) with unsettled stat markets")
         return games
     except urllib.error.HTTPError as e:
@@ -1353,8 +1363,55 @@ def fetch_pending(pool: "ProxyPool") -> Optional[list[dict]]:
     return None
 
 
-def normalize_team(name: str) -> str:
-    """Mirror of normalizeTeamName() in src/lib/settlement/resolve-stats.ts."""
+def _parse_alias_block(raw: Any) -> dict:
+    """Accept {"vps": "vaasan palloseura"} — from the worker env or the work list."""
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except json.JSONDecodeError:
+            log("team aliases: not valid JSON — ignored")
+            return {}
+    if not isinstance(raw, dict):
+        return {}
+    out: dict = {}
+    for k, v in raw.items():
+        if isinstance(k, str) and isinstance(v, str) and k.strip() and v.strip():
+            out[k.strip().lower()] = v.strip().lower()
+    return out
+
+
+# Club-name divergences between the fixture feed and the scrape sources, keyed
+# by the FEED's token. Mirror of TEAM_ALIASES in src/lib/settlement/resolve-stats.ts.
+# Deliberately tiny — the containment rule in team_score already forgives
+# abbreviations, and a wrong entry settles the wrong fixture. Extend per install
+# with SETTLE_TEAM_ALIASES (the work list can also carry an `aliases` block).
+TEAM_ALIASES: dict = {"vps": "vaasan palloseura"}
+TEAM_ALIASES.update(_parse_alias_block(os.environ.get("SETTLE_TEAM_ALIASES")))
+
+_RESERVE_MARKER = {"b", "ii", "2", "reserve", "reserves", "am"}
+_YOUTH_MARKER = {"u15", "u16", "u17", "u18", "u19", "u20", "u21", "u22", "u23"}
+_YOUTH_MARKER |= {"youth", "junior", "juniors", "academy", "primavera"}
+_WOMEN_MARKER = {"w", "women", "womens", "fem", "feminine", "ladies"}
+
+
+def _markerize(token: str) -> str:
+    """Keep reserve/youth/women markers as DISTINCT tokens.
+
+    Dropping them would make "Real Madrid B" normalize to "real madrid" — and
+    with the containment rule in team_score that would settle the reserve side
+    against the first team's result.
+    """
+    if token in _RESERVE_MARKER:
+        return "~reserve"
+    if token in _YOUTH_MARKER:
+        return "~youth"
+    if token in _WOMEN_MARKER:
+        return "~women"
+    return token
+
+
+def tokenize_team(name: str) -> list:
+    """Mirror of tokenizeTeam() in src/lib/settlement/resolve-stats.ts."""
     import re
     import unicodedata
 
@@ -1362,13 +1419,27 @@ def normalize_team(name: str) -> str:
     s = "".join(c for c in s if unicodedata.category(c) != "Mn").lower()
     s = re.sub(r"[^a-z0-9\s]", " ", s)
     s = re.sub(r"\b(fc|afc|cf|sc|ac|as|ss|ssc|cd|ud|rc|rcd|bk|fk|if|club|the|de|of)\b", " ", s)
-    return " ".join(t for t in s.split() if len(t) > 1)
+    out: list = []
+    for tok in s.split():
+        for expanded in (TEAM_ALIASES.get(tok, tok).split() or [tok]):
+            tok2 = _markerize(expanded)
+            if len(tok2) > 1:
+                out.append(tok2)
+    return out
+
+
+def normalize_team(name: str) -> str:
+    """Mirror of normalizeTeamName() in src/lib/settlement/resolve-stats.ts."""
+    return " ".join(tokenize_team(name))
 
 
 def team_score(a: str, b: str) -> float:
-    """Token coverage in [0,1] — coverage only, exactly like the backend.
-    A looser rule (one long shared token is enough) would match
-    'Manchester United' with 'Manchester City' and settle the wrong fixture."""
+    """Token coverage in [0,1], plus CONTAINMENT — exactly like the backend.
+    Partial overlap stays refused: 'Manchester United' vs 'Manchester City'
+    scores 0.5 because neither name contains the other. A full subset is
+    different: providers abbreviate the SAME club to different lengths, and our
+    feed's 'VPS Vaasa' vs FotMob's 'VPS' scored 0.5, so the half-time score was
+    never scraped and every half-time market on that match stayed manual."""
     x, y = normalize_team(a), normalize_team(b)
     if not x or not y:
         return 0.0
@@ -1376,7 +1447,16 @@ def team_score(a: str, b: str) -> float:
         return 1.0
     xs, ys = set(x.split()), set(y.split())
     shared = len({t for t in xs if t in ys and len(t) >= 3})
-    return shared / max(len(xs), len(ys)) if shared else 0.0
+    if not shared:
+        return 0.0
+    # A reserve/youth/women's side is a DIFFERENT team, however the names nest.
+    if sorted(t for t in xs if t.startswith("~")) != sorted(t for t in ys if t.startswith("~")):
+        return 0.0
+    contained = xs <= ys or ys <= xs
+    named = (any(not t.startswith("~") for t in xs)) and (any(not t.startswith("~") for t in ys))
+    if contained and named:
+        return 1.0
+    return shared / max(len(xs), len(ys))
 
 
 MIN_TEAM_SCORE = 0.6
@@ -1595,7 +1675,7 @@ def main() -> int:
     days = (
         [datetime.strptime(args.date, "%Y-%m-%d").replace(tzinfo=timezone.utc)]
         if args.date
-        else [datetime.now(timezone.utc), datetime.now(timezone.utc) - timedelta(days=1)]
+        else [datetime.now(timezone.utc) - timedelta(days=n) for n in range(LOOKBACK_DAYS)]
     )
 
     # ASK THE BACKEND FIRST. The work list is usually empty (most runs have
@@ -1724,6 +1804,16 @@ def selftest() -> int:
     check("normalize initials", normalize_team("Racing Santander S.A.D."), "racing santander")
     check("score exact", team_score("Racing Santander", "Racing Santander"), 1.0)
     check("score suffix", team_score("Wrexham AFC", "Wrexham"), 1.0)
+    # Containment: the SAME club abbreviated to different lengths by different
+    # providers. Our feed said "VPS Vaasa", FotMob said "VPS" — 0.5, refused,
+    # so that match's half-time score was never scraped.
+    check("score containment", team_score("VPS", "VPS Vaasa"), 1.0)
+    check("score containment prefix", team_score("FC Inter Turku", "Inter Turku"), 1.0)
+    check("score alias", team_score("VPS Vaasa", "Vaasan Palloseura"), 1.0)
+    for youth in (("Juventus", "Juventus U19"), ("Real Madrid B", "Real Madrid"),
+                  ("Ajax", "Ajax Women")):
+        if team_score(*youth) >= MIN_TEAM_SCORE:
+            failures.append(f"team_score matched {youth[0]} with {youth[1]} — reserve/youth/women sides must stay apart")
     if team_score("Manchester United", "Manchester City") >= MIN_TEAM_SCORE:
         failures.append("team_score matched Manchester United vs Manchester City — would settle the wrong fixture")
 

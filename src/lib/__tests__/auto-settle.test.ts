@@ -55,6 +55,40 @@ describe("resolveOutcome — core markets (regression)", () => {
     expect(R(G(2, 2), "CORRECT_SCORE", "2-2")).toBe("WON");
     expect(R(G(2, 1), "CORRECT_SCORE", "1-0")).toBe("LOST");
   });
+
+  it("correct score catch-alls resolve when the market enumerates its lines", () => {
+    // A real board: the offered scores plus the three catch-all buckets.
+    const LINES = ["1-0", "2-0", "2-1", "1-1", "0-0", "0-1", "0-2",
+                   "Any Other Home Win", "Any Other Draw", "Any Other Away Win"];
+    const RS = (home: number, away: number, name: string) =>
+      resolveOutcome(
+        { homeScore: home, awayScore: away, homeName: "Arsenal", awayName: "Chelsea" },
+        "CORRECT_SCORE", name, null, LINES,
+      );
+
+    // Unlisted score → the bucket for the actual result wins, the others lose.
+    expect(RS(3, 0, "Any Other Home Win")).toBe("WON");
+    expect(RS(3, 0, "Any Other Draw")).toBe("LOST");
+    expect(RS(3, 0, "Any Other Away Win")).toBe("LOST");
+    expect(RS(0, 3, "Any Other Away Win")).toBe("WON");
+    expect(RS(2, 2, "Any Other Draw")).toBe("WON");
+
+    // Score landed ON a listed line → every bucket loses (1-0 was offered).
+    expect(RS(1, 0, "Any Other Home Win")).toBe("LOST");
+    expect(RS(1, 0, "Any Other Draw")).toBe("LOST");
+    expect(RS(1, 0, "Any Other Away Win")).toBe("LOST");
+  });
+
+  it("correct score catch-alls stay for admin when the market is not enumerable", () => {
+    const g: Game = { homeScore: 3, awayScore: 0, homeName: "Arsenal", awayName: "Chelsea" };
+    // No sibling context at all → never guess.
+    expect(resolveOutcome(g, "CORRECT_SCORE", "Any Other Home Win", null)).toBeNull();
+    expect(resolveOutcome(g, "CORRECT_SCORE", "Any Other Home Win", null, [])).toBeNull();
+    // A market with lines but NO catch-all is suspicious for an unlisted score.
+    expect(
+      resolveOutcome(g, "CORRECT_SCORE", "Any Other Home Win", null, ["1-0", "2-0", "1-1"]),
+    ).toBeNull();
+  });
 });
 
 describe("resolveOutcome — new derived families", () => {
