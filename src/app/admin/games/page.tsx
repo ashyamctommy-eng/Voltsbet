@@ -34,6 +34,7 @@ export default function AdminGames() {
   const { push } = useToast();
   const [games, setGames] = useState<Game[]>([]);
   const [status, setStatus] = useState("");
+  const [q, setQ] = useState("");
   const [syncing, setSyncing] = useState(false);
   const [settling, setSettling] = useState(false);
   const [lastSync, setLastSync] = useState<SyncResult | null>(null);
@@ -41,11 +42,14 @@ export default function AdminGames() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status]);
+  }, [status, q]);
 
   async function load() {
-    const url = `/api/admin/games${status ? `?status=${status}` : ""}`;
-    const r = await apiFetch<{ games: Game[] }>(url);
+    const params = new URLSearchParams();
+    if (status) params.set("status", status);
+    if (q.trim()) params.set("q", q.trim());
+    const qs = params.toString();
+    const r = await apiFetch<{ games: Game[] }>(`/api/admin/games${qs ? `?${qs}` : ""}`);
     if (r.ok) setGames(r.data.games);
   }
 
@@ -89,6 +93,12 @@ export default function AdminGames() {
           <button className="btn btn-ghost btn-sm" onClick={syncNow} disabled={syncing} title="Pull games/odds from the configured sports API">
             {syncing ? "Syncing…" : "⟳ Sync API"}
           </button>
+          <input
+            className="input w-52"
+            placeholder="Search team…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
           <select className="input w-44" value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="">All statuses</option>
             <option value="SCHEDULED">Scheduled</option>

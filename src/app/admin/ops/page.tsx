@@ -59,9 +59,9 @@ const OPS: Op[] = [
     type: "Cron",
   },
   {
-    name: "Settlement Review",
-    route: "/admin/games?status=FINISHED",
-    description: "Finished matches with unsettled outcomes auto-settle left behind — open a match and mark Won/Lost/Void per outcome.",
+    name: "Settlement Queue",
+    route: "/admin/settlement",
+    description: "Every waiting bet + unfinished fixture in one searchable list, money first, one click to settle. Use this instead of hunting through Games → All statuses.",
     type: "Admin",
   },
   {
@@ -259,16 +259,19 @@ export default async function OpsPage() {
           </span>
         </div>
         <p className="mt-3 text-xs leading-relaxed text-ink2">
+          <>
+            <Link href="/admin/settlement" className="font-bold text-brand-text underline-offset-2 hover:underline">
+              Open the Settlement Queue →
+            </Link>{" "}
+            — every waiting bet and unfinished fixture in one searchable list, newest money first.
+          </>
           {attention === 0 && stuckBets === 0 ? (
-            <>Nothing outstanding — every finished match is settled.</>
+            <> Nothing outstanding — every finished match is settled.</>
           ) : (
             <>
+              {" "}
               <b className="text-ink">Fix half-time markets:</b> they need a half-time score, which the odds feed never
-              sends. Open{" "}
-              <Link href="/admin/games?status=FINISHED" className="font-bold text-brand-text underline-offset-2 hover:underline">
-                Admin → Games → FINISHED
-              </Link>
-              , enter the half-time score and save — the settlement cron clears every half-time market on the match.
+              sends. Enter it on the match page — the settlement cron clears every half-time market on the match.
               <b className="text-ink"> Everything else</b> (corners, cards, correct-score lines) is settled per outcome
               with Won/Lost/Void on the match page. Nothing here settles twice: the cron skips outcomes already done.
             </>

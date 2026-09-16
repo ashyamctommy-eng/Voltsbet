@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { Prisma } from "@prisma/client";
 import { handle, ok, auditLog, ApiError, sharedAdminGuard } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
@@ -7,6 +8,7 @@ export const GET = handle(async (req: NextRequest) => {
   await sharedAdminGuard(req, "games");
   const sportId = req.nextUrl.searchParams.get("sportId") ?? undefined;
   const status = req.nextUrl.searchParams.get("status") ?? undefined;
+  const q = (req.nextUrl.searchParams.get("q") ?? "").trim();
   // Stale-fixture guard: upcoming-only statuses (and the "All statuses"
   // default view) never list fixtures whose kickoff is already in the past —
   // older syncs leave SCHEDULED rows with historical dates ("19 Aug") that
@@ -20,13 +22,26 @@ export const GET = handle(async (req: NextRequest) => {
   // result. That stranded the real bets riding on it.
   const EXCLUDE_PAST_STATUSES = new Set(["SCHEDULED", "POSTPONED"]);
   const excludePast = !status || EXCLUDE_PAST_STATUSES.has(status);
+  // AND, not two top-level ORs: the stale guard and the search each need their
+  // own OR, and a second top-level OR would silently replace the first — which
+  // is how a search would resurrect the stale rows the guard exists to hide.
+  const and: Prisma.GameWhereInput[] = [];
+  if (excludePast) {
+    and.push({ OR: [{ startAt: { gte: new Date() } }, { source: "MANUAL" }] });
+  }
+  if (q) {
+    and.push({
+      OR: [
+        { homeName: { contains: q, mode: "insensitive" } },
+        { awayName: { contains: q, mode: "insensitive" } },
+      ],
+    });
+  }
   const games = await prisma.game.findMany({
     where: {
       ...(sportId ? { sportId } : {}),
       ...(status ? { status } : {}),
-      ...(excludePast
-        ? { OR: [{ startAt: { gte: new Date() } }, { source: "MANUAL" }] }
-        : {}),
+      ...(and.length ? { AND: and } : {}),
     },
     include: {
       sport: true,

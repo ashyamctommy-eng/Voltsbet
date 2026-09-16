@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { can, Resource } from "@/lib/api";
+import { prisma } from "@/lib/prisma";
 import {
   IconDashboard,
   IconFootball,
@@ -20,6 +21,7 @@ import {
   IconController,
   IconClock,
   IconSmartphone,
+  IconLightning,
   IconTelegram,
   IconWhatsApp,
 } from "@/components/icons";
@@ -34,10 +36,27 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const user = await getCurrentUser();
   if (!user || user.role === "CUSTOMER") redirect("/login");
 
-  const NAV: { resource: Resource; href: string; label: string; Icon: (p: { className?: string }) => React.ReactNode }[] = [
+  // A badge so the operator is TOLD a bet is waiting instead of having to go
+  // looking for it. One indexed count per admin render.
+  const awaitingSettlement = can(user.role, "games")
+    ? await prisma.bet.count({
+        where: {
+          status: "OPEN",
+          selections: {
+            some: {
+              settled: false,
+              game: { startAt: { lt: new Date(new Date().getTime() - 6 * 60 * 60 * 1000) } },
+            },
+          },
+        },
+      })
+    : 0;
+
+  const NAV: { resource: Resource; href: string; label: string; Icon: (p: { className?: string }) => React.ReactNode; badge?: number }[] = [
     { resource: "dashboard", href: "/admin", label: "Dashboard", Icon: IconDashboard },
     { resource: "sports", href: "/admin/sports", label: "Sports", Icon: IconFootball },
     { resource: "games", href: "/admin/games", label: "Games", Icon: IconCalendar },
+    { resource: "games", href: "/admin/settlement", label: "Settlement Queue", Icon: IconLightning, badge: awaitingSettlement },
     { resource: "users", href: "/admin/users", label: "Users", Icon: IconUsers },
     { resource: "deposits", href: "/admin/deposits", label: "Deposits", Icon: IconDownload },
     { resource: "mpesa", href: "/admin/mpesa-transactions", label: "M-Pesa Transactions", Icon: IconSmartphone },
@@ -82,6 +101,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
                 <span className="inline-flex items-center gap-2">
                   <n.Icon className="h-4 w-4 text-ink3" />
                   {n.label}
+                  {n.badge ? (
+                    <span className="ml-1 rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold text-amber-400">
+                      {n.badge}
+                    </span>
+                  ) : null}
                 </span>
               </Link>
             ))}
