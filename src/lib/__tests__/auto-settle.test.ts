@@ -89,6 +89,32 @@ describe("resolveOutcome — core markets (regression)", () => {
       resolveOutcome(g, "CORRECT_SCORE", "Any Other Home Win", null, ["1-0", "2-0", "1-1"]),
     ).toBeNull();
   });
+
+  it("half-time result settles on the HALF-TIME score", () => {
+    // FC Inter Turku 1-0 VPS Vaasa, half-time 0-0. This exact shape sat
+    // PENDING in production: the half-time score was in the DB, the bet was on
+    // "HT Draw", and the resolver had no HT_RESULT branch at all.
+    const g = G(1, 0, [0, 0]);
+    expect(R(g, "HT_RESULT", "Draw", "X")).toBe("WON");
+    expect(R(g, "HT_RESULT", "Arsenal", "1")).toBe("LOST");
+    expect(R(g, "HT_RESULT", "Chelsea", "2")).toBe("LOST");
+    expect(R(G(2, 1, [2, 0]), "HT_RESULT", "Arsenal", "1")).toBe("WON");
+    expect(R(G(2, 1, [0, 1]), "HT_RESULT", "Chelsea", "2")).toBe("WON");
+  });
+
+  it("second-half result settles on FT − HT", () => {
+    const g = G(1, 0, [0, 0]); // 2nd half was 1-0
+    expect(R(g, "2H_RESULT", "Arsenal", "1")).toBe("WON");
+    expect(R(g, "2H_RESULT", "Draw", "X")).toBe("LOST");
+    // FT 1-1 from a 1-0 half-time → the second half was 0-1 → away wins.
+    expect(R(G(1, 1, [1, 0]), "2H_RESULT", "Chelsea", "2")).toBe("WON");
+    expect(R(G(1, 1, [1, 0]), "2H_RESULT", "Draw", "X")).toBe("LOST");
+  });
+
+  it("half-time markets stay for admin when there is no half-time score", () => {
+    expect(R(G(1, 0), "HT_RESULT", "Draw", "X")).toBeNull();
+    expect(R(G(1, 0), "2H_RESULT", "Draw", "X")).toBeNull();
+  });
 });
 
 describe("resolveOutcome — new derived families", () => {

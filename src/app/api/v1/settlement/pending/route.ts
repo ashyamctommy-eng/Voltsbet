@@ -59,6 +59,13 @@ function needsFor(marketKeys: Iterable<string>): string[] {
 }
 
 function num(raw: string | null, fallback: number, min: number, max: number): number {
+  // A MISSING parameter is null, and `Number(null)` is 0 — which is finite, so
+  // it sailed past the guard below and fell through to the clamp, landing on
+  // the MINIMUM (1 hour) instead of the default. The work list therefore ran
+  // with a one-hour window, and the documented default never applied at all:
+  // any fixture that kicked off more than an hour ago was invisible to the
+  // settlement worker, for ever. Check for "absent" before coercing.
+  if (raw === null || raw.trim() === "") return fallback;
   const n = Number(raw);
   if (!Number.isFinite(n)) return fallback;
   return Math.min(Math.max(n, min), max);

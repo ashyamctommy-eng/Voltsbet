@@ -131,9 +131,9 @@ export function resolveOutcome(
   const home = Number(game.homeScore);
   const away = Number(game.awayScore);
 
-  // ── Match result family (1 / X / 2) — FULL-TIME markets only. HT_RESULT /
-  //    2H_RESULT are intentionally NOT here: The Odds API /scores does not
-  //    expose half-time scores — they go to admin review.
+  // ── Match result family (1 / X / 2) — FULL-TIME markets only. ────
+  //    The half-time equivalents live in their own blocks below, where they can
+  //    use the half-time score; without one they return null (admin review).
   if (["MATCH_RESULT", "h2h", "MATCH_RESULT_3WAY"].includes(marketKey)) {
     const isHome = label === "1" || name === game.homeName.toLowerCase();
     const isAway = label === "2" || name === game.awayName.toLowerCase();
@@ -141,6 +141,40 @@ export function resolveOutcome(
     if (isHome) return r === "H" ? "WON" : "LOST";
     if (isAway) return r === "A" ? "WON" : "LOST";
     if (isDraw) return r === "D" ? "WON" : "LOST";
+    return null;
+  }
+
+  // ── Half-time result (1 / X / 2 on the FIRST-HALF score) ─────
+  //    This had NO resolver at all, so even with the half-time score sitting in
+  //    the DB a bet on "Half-Time Result · Draw" stayed PENDING for ever — the
+  //    operator saw an open bet, the match page showed nothing to click, and no
+  //    amount of syncing helped. The score now decides it.
+  if (["HT_RESULT", "HALF_TIME_RESULT", "1H_RESULT", "FIRST_HALF_RESULT"].includes(marketKey)) {
+    if (game.halfHomeScore == null || game.halfAwayScore == null) return null; // no HT score → admin
+    const hh = Number(game.halfHomeScore);
+    const ha = Number(game.halfAwayScore);
+    const hr = hh > ha ? "H" : ha > hh ? "A" : "D";
+    const isHome = label === "1" || name === game.homeName.toLowerCase();
+    const isAway = label === "2" || name === game.awayName.toLowerCase();
+    const isDraw = label === "x" || name === "draw";
+    if (isHome) return hr === "H" ? "WON" : "LOST";
+    if (isAway) return hr === "A" ? "WON" : "LOST";
+    if (isDraw) return hr === "D" ? "WON" : "LOST";
+    return null;
+  }
+
+  // ── Second-half result (1 / X / 2 on FT − HT) ────────────────
+  if (["2H_RESULT", "SECOND_HALF_RESULT"].includes(marketKey)) {
+    if (game.halfHomeScore == null || game.halfAwayScore == null) return null; // no HT score → admin
+    const sh = Number(game.homeScore) - Number(game.halfHomeScore);
+    const sa = Number(game.awayScore) - Number(game.halfAwayScore);
+    const sr = sh > sa ? "H" : sa > sh ? "A" : "D";
+    const isHome = label === "1" || name === game.homeName.toLowerCase();
+    const isAway = label === "2" || name === game.awayName.toLowerCase();
+    const isDraw = label === "x" || name === "draw";
+    if (isHome) return sr === "H" ? "WON" : "LOST";
+    if (isAway) return sr === "A" ? "WON" : "LOST";
+    if (isDraw) return sr === "D" ? "WON" : "LOST";
     return null;
   }
 
