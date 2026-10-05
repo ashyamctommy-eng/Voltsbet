@@ -7,6 +7,7 @@ import { resources } from "@/lib/i18n-resources";
 import { IconArrowLeft } from "@/components/icons";
 import BetActions, { type DetailSelection } from "@/components/account/BetActions";
 import BetSelections from "@/components/account/BetSelections";
+import CashOutButton from "@/components/account/CashOutButton";
 
 
 /** Minimal server-side dictionary read (locale packs live in i18n-resources).
@@ -59,6 +60,10 @@ export default async function BetDetailPage({ params }: { params: Promise<{ id: 
     label: s.label,
     odds: Number(s.oddsAtPlacement),
     result: s.result,
+    homeScore: s.game.homeScore ?? null,
+    awayScore: s.game.awayScore ?? null,
+    clock: s.game.clock ?? null,
+    period: s.game.period ?? null,
   }));
 
   const settledCount = bet.selections.filter((s) => s.settled).length;
@@ -73,7 +78,7 @@ export default async function BetDetailPage({ params }: { params: Promise<{ id: 
       <div className="flex items-center gap-2">
         <Link
           href="/account/bets"
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-card text-ink2 transition-colors hover:text-ink"
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-800 bg-[#1a232a] text-slate-300 transition-colors hover:text-white"
           aria-label={serverT(L, "bet.backToBets")}
         >
           <IconArrowLeft className="h-4 w-4" />
@@ -82,23 +87,23 @@ export default async function BetDetailPage({ params }: { params: Promise<{ id: 
       </div>
 
       {/* Summary card */}
-      <div className="card p-4">
+      <div className="rounded-2xl border border-slate-800/80 bg-[#1a232a] p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <div className="text-[11px] uppercase tracking-wider text-ink3">{serverT(L, "bet.betIdLabel")}</div>
             <div className="text-base font-extrabold">#{bet.code}</div>
           </div>
           <span
-            className={`rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-wide ${
+            className={`rounded-full px-3 py-1 text-xs font-extrabold uppercase tracking-wider ${
               bet.status === "OPEN"
-                ? "bg-brand/15 text-brand-text"
+                ? "bg-emerald-400/15 text-emerald-300"
                 : bet.status === "WON"
-                  ? "bg-green-500/15 text-green-400"
+                  ? "rounded-bl-xl rounded-tr-xl bg-emerald-400 text-slate-950"
                   : bet.status === "LOST"
-                    ? "bg-red-500/15 text-red-400"
+                    ? "bg-slate-700/80 text-slate-300"
                     : bet.status === "CASHED_OUT"
-                      ? "bg-amber-500/15 text-amber-400"
-                      : "bg-hover-tint text-ink3"
+                      ? "bg-slate-700/80 text-slate-300"
+                      : "bg-slate-700/80 text-slate-300"
             }`}
           >
             {bet.status} ({settledCount}/{total})
@@ -109,17 +114,17 @@ export default async function BetDetailPage({ params }: { params: Promise<{ id: 
 
       {/* Metrics grid: Amount · Possible Payout · W/L/T */}
       <div className="grid grid-cols-3 gap-2.5">
-        <div className="card p-3.5 text-center">
+        <div className="rounded-2xl border border-slate-800/80 bg-[#1a232a] p-3.5 text-center">
           <div className="text-[10px] font-bold uppercase tracking-wider text-ink3">{serverT(L, "bet.amount")}</div>
           <div className="mt-1 text-lg font-extrabold tabular-nums">{Number(bet.stake).toLocaleString()}</div>
         </div>
-        <div className="card p-3.5 text-center">
+        <div className="rounded-2xl border border-slate-800/80 bg-[#1a232a] p-3.5 text-center">
           <div className="text-[10px] font-bold uppercase tracking-wider text-ink3">{serverT(L, "bet.possiblePayout")}</div>
           <div className="mt-1 text-lg font-extrabold tabular-nums text-green-400">
             {Number(bet.potentialWin).toLocaleString()}
           </div>
         </div>
-        <div className="card flex items-center justify-around p-3.5">
+        <div className="flex items-center justify-around rounded-2xl border border-slate-800/80 bg-[#1a232a] p-3.5">
           <div className="text-center">
             <div className="text-lg font-extrabold tabular-nums text-green-400">{won}</div>
             <div className="text-[10px] font-bold uppercase tracking-wider text-ink3">{serverT(L, "bet.w")}</div>
@@ -138,10 +143,16 @@ export default async function BetDetailPage({ params }: { params: Promise<{ id: 
       </div>
 
       {/* Action buttons: Cancel (timer) · Share · Rebet */}
-      <BetActions bet={{ id: bet.id, code: bet.code, status: bet.status, createdAt: bet.createdAt.toISOString(), selections }} />
+      <BetActions
+        bet={{ id: bet.id, code: bet.code, status: bet.status, createdAt: bet.createdAt.toISOString(), selections }}
+        showCashOut={false}
+      />
 
       {/* Single selection cards */}
       <BetSelections selections={selections} />
+      {bet.status === "OPEN" && (
+        <CashOutButton betId={bet.id} code={bet.code} status={bet.status} variant="ticket" />
+      )}
     </div>
   );
 }

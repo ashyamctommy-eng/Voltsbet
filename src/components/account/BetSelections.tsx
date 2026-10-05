@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useTranslation } from "react-i18next";
-import { formatDateTime, fmtOdds } from "@/lib/odds";
+import { fmtOdds } from "@/lib/odds";
 import { teamContext } from "@/lib/market-labels";
 import { IconChevronDown } from "@/components/icons";
 import type { DetailSelection } from "@/components/account/BetActions";
+import BetLegRow from "@/components/account/BetLegRow";
+import { CheckCircle2, Circle, XCircle } from "lucide-react";
 
 /** Market key → friendly bet "Type" label ("h2h" → "1x2"). */
 const TYPE_LABEL: Record<string, string> = {
@@ -46,26 +47,8 @@ const TYPE_LABEL: Record<string, string> = {
   TO_QUALIFY: "To Qualify",
 };
 
-const RESULT_STYLE: Record<string, string> = {
-  WON: "bg-green-500/15 text-green-400",
-  LOST: "bg-red-500/15 text-red-400",
-  VOID: "bg-hover-tint text-ink3",
-};
-
-/** Live-ish statuses — render a LIVE indicator instead of the kickoff date. */
-const LIVE_STATUSES = new Set(["LIVE", "IN_PLAY", "HALF_TIME"]);
-
-/** Rough elapsed minute from a live match's kickoff (no clock in bet history). */
-function liveElapsed(startAtIso: string): number {
-  const start = new Date(startAtIso).getTime();
-  if (!Number.isFinite(start)) return 0;
-  const mins = Math.floor((Date.now() - start) / 60_000);
-  return Math.max(0, Math.min(mins, 240));
-}
-
-/** Single selection card — collapsible: Home vs Away header + bet details. */
+/** Single ticket leg — the selection stays visible when collapsed. */
 export default function BetSelections({ selections }: { selections: DetailSelection[] }) {
-  const { t } = useTranslation();
   const [open, setOpen] = useState<Set<string>>(() => new Set(selections.map((s) => s.id)));
 
   const toggle = (id: string) =>
@@ -80,73 +63,35 @@ export default function BetSelections({ selections }: { selections: DetailSelect
     <div className="space-y-2.5">
       {selections.map((s) => {
         const expanded = open.has(s.id);
-        const type = TYPE_LABEL[s.marketKey] ?? s.market;
-        const isLive = s.live || LIVE_STATUSES.has(s.status);
+        const market = s.market || TYPE_LABEL[s.marketKey] || "Market";
+        const selection = teamContext(s.outcome || s.label || "Selection", s.marketKey, s.home, s.away);
         return (
-          <div key={s.id} className="card overflow-hidden">
-            {/* Team header */}
+          <article key={s.id} className="overflow-hidden rounded-2xl border border-slate-800/80 bg-[#1a232a] p-2.5">
             <button
               onClick={() => toggle(s.id)}
               aria-expanded={expanded}
-              className="flex w-full items-center gap-2.5 px-4 py-3 text-left"
+              className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-slate-800/50"
             >
+              {s.result === "WON" ? (
+                <CheckCircle2 aria-label="Won" className="h-4 w-4 shrink-0 text-emerald-400" />
+              ) : s.result === "LOST" ? (
+                <XCircle aria-label="Lost" className="h-4 w-4 shrink-0 text-rose-500" />
+              ) : (
+                <Circle aria-label="Open" className="h-4 w-4 shrink-0 text-slate-500" />
+              )}
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-bold">{s.home}</div>
-                <div className="mt-0.5 flex items-center gap-1.5">
-                  <span className="shrink-0 rounded-full bg-brand px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-on-brand">
-                    VS
-                  </span>
-                  <span className="truncate text-sm font-bold text-ink2">{s.away}</span>
-                </div>
+                <div className="truncate text-sm font-extrabold text-slate-100">{selection}</div>
+                <div className="mt-0.5 truncate text-[11px] font-medium text-slate-400">{market}</div>
               </div>
+              <span className="shrink-0 font-mono text-sm font-extrabold tabular-nums text-slate-100">
+                {Number.isFinite(s.odds) && s.odds > 0 ? fmtOdds(s.odds) : "—"}
+              </span>
               <IconChevronDown
-                className={`h-4 w-4 shrink-0 text-ink3 transition-transform ${expanded ? "" : "rotate-180"}`}
+                className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${expanded ? "rotate-180" : ""}`}
               />
             </button>
-
-            {expanded && (
-              <div className="space-y-2 border-t border-line px-4 py-3 text-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-ink3">{t("bet.type")}</span>
-                  <span className="font-semibold">{type}</span>
-                </div>
-                {isLive ? (
-                  // Live leg: never show the (now historical) kickoff date —
-                  // render a LIVE indicator with the elapsed minute instead.
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-ink3">{t("bet.status")}</span>
-                    <span className="flex items-center gap-1.5 font-bold text-red-400">
-                      <span className="live-dot h-2 w-2" />
-                      {t("bet.liveElapsed", { minute: liveElapsed(s.startAt) })}
-                    </span>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-ink3">{t("bet.startsAt")}</span>
-                    <span className="font-semibold tabular-nums">{formatDateTime(new Date(s.startAt))}</span>
-                  </div>
-                )}
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-ink3">{t("bet.pick")}</span>
-                  <span className="text-right font-semibold">
-                    {teamContext(s.outcome, s.marketKey, s.home, s.away)} <span className="text-brand-text">({fmtOdds(s.odds)})</span>
-                  </span>
-                </div>
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-ink3">{t("bet.outcome")}</span>
-                  {s.result ? (
-                    <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wide ${RESULT_STYLE[s.result] ?? "bg-hover-tint text-ink3"}`}>
-                      {s.result}
-                    </span>
-                  ) : (
-                    <span className="rounded-full bg-hover-tint px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink3">
-                      {t("bet.pending")}
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
+            {expanded && <div className="mt-1 border-t border-slate-800/80 pt-2"><BetLegRow selection={s} showPick={false} /></div>}
+          </article>
         );
       })}
     </div>

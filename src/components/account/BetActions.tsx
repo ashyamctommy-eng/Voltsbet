@@ -8,6 +8,7 @@ import { useBetSlip } from "@/components/BetSlipContext";
 import { useToast } from "@/components/BetSlipContext";
 import { BET_CANCEL_WINDOW_MS } from "@/lib/bet-cancel";
 import CashOutButton from "@/components/account/CashOutButton";
+import { RotateCcw, Share2 } from "lucide-react";
 
 export type DetailSelection = {
   id: string;
@@ -26,6 +27,11 @@ export type DetailSelection = {
   label: string | null;
   odds: number;
   result: string | null;
+  /** Optional display-only match data; omitted when unavailable. */
+  homeScore?: number | null;
+  awayScore?: number | null;
+  clock?: string | null;
+  period?: string | null;
 };
 
 /**
@@ -34,6 +40,8 @@ export type DetailSelection = {
  */
 export default function BetActions({
   bet,
+  shareUrl,
+  showCashOut = true,
 }: {
   bet: {
     id: string;
@@ -42,6 +50,8 @@ export default function BetActions({
     createdAt: string;
     selections: DetailSelection[];
   };
+  shareUrl?: string;
+  showCashOut?: boolean;
 }) {
   const siteName = useSiteName();
   const router = useRouter();
@@ -84,15 +94,18 @@ export default function BetActions({
 
   function share() {
     const text = `${(siteName.trim() || "Sportsbook")} bet ${bet.code}: ${bet.selections.length} selection(s)`;
+    const url = shareUrl && typeof window !== "undefined"
+      ? new URL(shareUrl, window.location.origin).toString()
+      : window.location.href;
     const payload = {
       title: `Bet ${bet.code}`,
       text,
-      url: window.location.href,
+      url,
     };
     if (typeof navigator !== "undefined" && navigator.share) {
       navigator.share(payload).catch(() => {});
     } else if (typeof navigator !== "undefined" && navigator.clipboard) {
-      navigator.clipboard.writeText(`${text} ${window.location.href}`).then(
+      navigator.clipboard.writeText(`${text} ${url}`).then(
         () => push("success", "Bet link copied to clipboard."),
         () => push("error", "Could not copy the link."),
       );
@@ -131,7 +144,7 @@ export default function BetActions({
 
   return (
     <div className="flex flex-wrap items-center gap-2.5">
-      {bet.status === "OPEN" && <CashOutButton betId={bet.id} code={bet.code} status={bet.status} />}
+      {showCashOut && bet.status === "OPEN" && <CashOutButton betId={bet.id} code={bet.code} status={bet.status} />}
       {bet.status === "OPEN" && (
         <button
           onClick={cancel}
@@ -141,10 +154,18 @@ export default function BetActions({
           {cancelled ? "Cancelled" : cancelling ? "Cancelling…" : `Cancel (${mm}:${ss})`}
         </button>
       )}
-      <button onClick={share} className="btn btn-ghost">
+      <button
+        onClick={share}
+        className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-800/80 px-4 py-2 text-xs font-semibold text-slate-200 transition hover:bg-slate-700"
+      >
+        <Share2 aria-hidden="true" className="h-3.5 w-3.5" />
         Share
       </button>
-      <button onClick={rebet} className="btn btn-primary">
+      <button
+        onClick={rebet}
+        className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-800/80 px-4 py-2 text-xs font-semibold text-slate-200 transition hover:bg-slate-700"
+      >
+        <RotateCcw aria-hidden="true" className="h-3.5 w-3.5" />
         Rebet
       </button>
     </div>

@@ -17,10 +17,12 @@ export default function CashOutButton({
   betId,
   code,
   status,
+  variant = "default",
 }: {
   betId: string;
   code: string;
   status: string;
+  variant?: "default" | "ticket";
 }) {
   const router = useRouter();
   const { push } = useToast();
@@ -64,13 +66,17 @@ export default function CashOutButton({
   }
 
   return (
-    <span className="inline-flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+    <span className={`inline-flex items-center gap-1.5 ${variant === "ticket" ? "w-full" : ""}`} onClick={(e) => e.stopPropagation()}>
       {confirming && quote?.value != null ? (
         <>
           <button
             onClick={confirm}
             disabled={busy}
-            className="rounded-full bg-brand px-3 py-1.5 text-xs font-black text-on-brand transition-all hover:brightness-110 disabled:opacity-50"
+            className={`rounded-full px-3 py-1.5 text-xs font-black transition-all disabled:opacity-50 ${
+              variant === "ticket"
+                ? "min-h-11 flex-1 bg-emerald-500 text-slate-950 hover:bg-emerald-400"
+                : "bg-brand text-on-brand hover:brightness-110"
+            }`}
           >
             {busy ? "Cashing out…" : `Cash out ${Number(quote.value).toLocaleString()}?`}
           </button>
@@ -79,7 +85,7 @@ export default function CashOutButton({
               e.stopPropagation();
               setConfirming(false);
             }}
-            className="text-xs text-ink3 hover:text-ink"
+            className="rounded-lg px-2 py-2 text-xs text-ink3 hover:text-ink"
             aria-label="Cancel cash-out"
           >
             ✕
@@ -89,7 +95,11 @@ export default function CashOutButton({
         <button
           onClick={openQuote}
           disabled={busy}
-          className="rounded-full border border-brand/40 px-3 py-1.5 text-xs font-black text-brand-text transition-colors hover:bg-brand/10 disabled:opacity-50"
+          className={`rounded-full px-3 py-1.5 text-xs font-black transition-colors disabled:opacity-50 ${
+            variant === "ticket"
+              ? "min-h-11 w-full bg-emerald-500 text-slate-950 hover:bg-emerald-400"
+              : "border border-brand/40 text-brand-text hover:bg-brand/10"
+          }`}
         >
           {busy ? "Quoting…" : "Cash Out"}
         </button>
