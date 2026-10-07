@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
+import { CARD_MARKET_KEYS } from "@/lib/card-markets";
+import { BETTABLE_MARKET_PREDICATE } from "@/lib/live-feed";
 import MatchFeed, { type FeedGame as MatchFeedGame } from "@/components/MatchFeed";
 
 export const dynamic = "force-dynamic";
@@ -35,7 +37,19 @@ export default async function SportPage({ params }: { params: Promise<{ slug: st
         ],
         ...hideSeeded,
       },
-      include: { sport: true, markets: { include: { outcomes: true }, orderBy: { sortOrder: "asc" } } },
+      // Only the markets the CARDS render are selected (see card-markets.ts):
+      // the card shows one main market + a market-filter override, and the
+      // badge count comes from `_count`. Hydrating the full derived board here
+      // made /sports/football a 19.7 MB response and spiked RSS by ~430 MB.
+      include: {
+        sport: true,
+        markets: {
+          where: { key: { in: [...CARD_MARKET_KEYS] } },
+          include: { outcomes: true },
+          orderBy: { sortOrder: "asc" },
+        },
+        _count: { select: { markets: { where: BETTABLE_MARKET_PREDICATE } } },
+      },
       orderBy: [{ status: "asc" }, { startAt: "asc" }],
     }),
     // Upcoming fixtures — the fallback pool when Today is empty.
@@ -46,7 +60,15 @@ export default async function SportPage({ params }: { params: Promise<{ slug: st
         startAt: { gte: new Date() },
         ...hideSeeded,
       },
-      include: { sport: true, markets: { include: { outcomes: true }, orderBy: { sortOrder: "asc" } } },
+      include: {
+        sport: true,
+        markets: {
+          where: { key: { in: [...CARD_MARKET_KEYS] } },
+          include: { outcomes: true },
+          orderBy: { sortOrder: "asc" },
+        },
+        _count: { select: { markets: { where: BETTABLE_MARKET_PREDICATE } } },
+      },
       orderBy: [{ live: "desc" }, { startAt: "asc" }],
     }),
   ]);
@@ -57,7 +79,11 @@ export default async function SportPage({ params }: { params: Promise<{ slug: st
   // no pre-match games, and the header label is derived from the exact
   // array it renders.
   const byId = new Map<string, MatchFeedGame>();
-  for (const g of [...todayGames, ...upcoming]) byId.set(g.id, g as MatchFeedGame);
+  for (const g of [...todayGames, ...upcoming]) {
+    // Strip the Prisma `_count` from the payload and lift it to `marketCount`.
+    const { _count, ...rest } = g;
+    byId.set(g.id, { ...rest, marketCount: _count.markets } as unknown as MatchFeedGame);
+  }
   const games = [...byId.values()];
 
   return (

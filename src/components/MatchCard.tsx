@@ -39,6 +39,8 @@ type GameLite = {
   sport: { name: string; slug: string; icon: string | null };
   competitionName: string | null;
   markets: MarketLite[];
+  /** Betttable-market count for the "+N Markets" badge (see card-markets.ts). */
+  marketCount?: number;
 };
 
 function clockToSeconds(clock: string | null | undefined): number | null {
@@ -123,7 +125,9 @@ export default function MatchCard({
 
   const candidates = game.markets.filter((m) => m.status === "OPEN" && m.outcomes.some((o) => o.status === "ACTIVE"));
   // Badge counts BETTABLE markets only (spec: "+N Markets", hidden at 0).
-  const activeCount = activeMarketCount(game.markets);
+  // The feed ships only the trimmed card market set, so the server supplies the
+  // authoritative count; fall back to deriving it when absent (e.g. /live).
+  const activeCount = game.marketCount ?? activeMarketCount(game.markets);
   // "Market Suspended" is reserved for cards with no recorded outcomes at all.
   const hasOutcomes = hasAnyOutcomes(game.markets);
   const mainMarket =

@@ -88,6 +88,34 @@ const oddsCache = new Map<string, { at: number; data: unknown }>();
 const ODDS_CACHE_TTL_MS = (Number(process.env.ODDS_API_CACHE_TTL_SECONDS) || 30 * 60) * 1000;
 
 /**
+ * HARD CAP on cached responses. Without this the cache was an unbounded leak:
+ * the per-event key `ev:<eventId>:...` is unique per fixture EVER fetched (the
+ * bulk sync caches ~eventLimit x eventLeagues per run, and every /match/[id]
+ * view caches whatever it looked up) and entries were TTL-checked on read but
+ * NEVER evicted — so the Map only ever grew for the life of the process.
+ * Map preserves insertion order, so we evict the oldest entries first.
+ */
+const ODDS_CACHE_MAX = Number(process.env.ODDS_API_CACHE_MAX_ENTRIES) || 500;
+
+/** Insert with eviction: drop expired entries, then the oldest, to stay bounded. */
+function cacheSet(key: string, data: unknown): void {
+  if (oddsCache.size >= ODDS_CACHE_MAX) {
+    const now = Date.now();
+    for (const [k, v] of oddsCache) {
+      if (now - v.at >= ODDS_CACHE_TTL_MS) oddsCache.delete(k);
+    }
+  }
+  if (oddsCache.size >= ODDS_CACHE_MAX) {
+    let excess = oddsCache.size - ODDS_CACHE_MAX + 1;
+    for (const k of oddsCache.keys()) {
+      if (excess-- <= 0) break;
+      oddsCache.delete(k);
+    }
+  }
+  oddsCache.set(key, { at: Date.now(), data });
+}
+
+/**
  * Markets the /odds LIST endpoint can serve. Everything else in
  * ODDS_API_MARKETS is routed to the per-event endpoint
  * (/events/{id}/odds, via ODDS_API_EVENT_BOOKMAKERS) — verified 2026-08-31
@@ -638,7 +666,7 @@ export class TheOddsApi implements OddsProvider {
           );
           continue;
         }
-        if (useCache) oddsCache.set(cacheKey, { at: Date.now(), data });
+        if (useCache) cacheSet(cacheKey, data);
       }
       const now = Date.now();
       for (const ev of data) {
@@ -758,7 +786,7 @@ export class TheOddsApi implements OddsProvider {
                 // Every configured market is invalid for this event — the
                 // event is unpriceable, not a fatal error.
                 console.warn(`[odds-api] ${ev.sportKey} ${ev.eventId}: all markets invalid for event — skipping`);
-                oddsCache.set(cacheKey, { at: Date.now(), data: [] });
+                cacheSet(cacheKey, []);
                 skipped++;
                 continue;
               }
@@ -768,7 +796,7 @@ export class TheOddsApi implements OddsProvider {
               throw e; // caught by the per-event isolation below
             }
           }
-          oddsCache.set(cacheKey, { at: Date.now(), data });
+          cacheSet(cacheKey, data);
         }
         if (!data?.length) continue; // no bookmaker served these markets → skip
 

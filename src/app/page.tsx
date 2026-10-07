@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { getPrematchFeed, apiMatchToFeedGame } from "@/lib/feed";
 import { isLiveStatus } from "@/lib/game-status";
+import { CARD_MARKET_KEYS } from "@/lib/card-markets";
+import { BETTABLE_MARKET_PREDICATE } from "@/lib/live-feed";
 import { sanitizeBannerCtas } from "@/lib/banner-cta";
 import BannerCarousel from "@/components/BannerCarousel";
 import MatchSlideshow from "@/components/MatchSlideshow";
@@ -40,9 +42,17 @@ export default async function HomePage() {
         markets: { some: {} },
         ...visibleSource,
       },
+      // Cards render ONE main market (+ the header's market filter); the badge
+      // count comes from `_count`. Selecting the full derived board here was a
+      // multi-MB RSC payload and a ~400 MB heap spike per request.
       include: {
         sport: true,
-        markets: { include: { outcomes: true }, orderBy: { sortOrder: "asc" } },
+        markets: {
+          where: { key: { in: [...CARD_MARKET_KEYS] } },
+          include: { outcomes: true },
+          orderBy: { sortOrder: "asc" },
+        },
+        _count: { select: { markets: { where: BETTABLE_MARKET_PREDICATE } } },
       },
       orderBy: [{ live: "desc" }, { startAt: "asc" }],
       take: 200,
@@ -59,7 +69,12 @@ export default async function HomePage() {
       },
       include: {
         sport: true,
-        markets: { include: { outcomes: true }, orderBy: { sortOrder: "asc" } },
+        markets: {
+          where: { key: { in: [...CARD_MARKET_KEYS] } },
+          include: { outcomes: true },
+          orderBy: { sortOrder: "asc" },
+        },
+        _count: { select: { markets: { where: BETTABLE_MARKET_PREDICATE } } },
       },
       orderBy: [{ startAt: "asc" }],
       take: 150,
@@ -91,9 +106,14 @@ export default async function HomePage() {
   // a fixture can never render twice. Unpriced rows are intentionally kept
   // now (the 7-day calendar) — they render as "odds not yet available" cards.
   const seen = new Set<string>();
-  const dbGames = [...pricedGames, ...calendarGames].filter((g) =>
-    seen.has(g.id) ? false : (seen.add(g.id), true)
-  );
+  const dbGames = [...pricedGames, ...calendarGames]
+    .filter((g) => (seen.has(g.id) ? false : (seen.add(g.id), true)))
+    // Strip the Prisma `_count` from the payload and lift it to `marketCount`
+    // (the badge count the trimmed market set can no longer derive locally).
+    .map((g) => {
+      const { _count, ...rest } = g;
+      return { ...rest, marketCount: _count.markets } as unknown as MatchFeedGame;
+    });
 
   const games: MatchFeedGame[] = (
     apiFeed?.matches.length ? apiFeed.matches.map(apiMatchToFeedGame) : (dbGames as unknown as MatchFeedGame[])

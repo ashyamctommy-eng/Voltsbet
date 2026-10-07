@@ -60,6 +60,11 @@ export type ApiFeedGame = {
   featured: boolean;
   sport: { name: string; slug: string; icon: string | null };
   competitionName: string | null;
+  /** Count of ALL bettable markets for the card's "+N Markets" badge.
+   *  Cards only RECEIVE the trimmed CARD_MARKET_KEYS set (see
+   *  src/lib/card-markets.ts), so the badge count is supplied separately
+   *  rather than derived from the trimmed array. */
+  marketCount?: number;
   markets: {
     id: string;
     name: string;

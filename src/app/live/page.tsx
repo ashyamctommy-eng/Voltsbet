@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { refreshLiveScores } from "@/lib/live-scores";
+import { after } from "next/server";
 import LiveFeed from "@/components/LiveFeed";
 import { LIVE_STATUSES } from "@/lib/game-status";
 import { BETTABLE_MARKET_PREDICATE, LIVE_FEED_INCLUDE, LIVE_FEED_TAKE, liveFeedWhere } from "@/lib/live-feed";
@@ -9,10 +10,14 @@ export const dynamic = "force-dynamic";
 
 export default async function LivePage() {
   const s = await getSettings();
-  // Pull fresh scores/status from The Odds API /scores (throttled:
-  // at most one sweep per active league per LIVE_SCORES_THROTTLE_SECONDS
-  // window) before reading the DB.
-  await refreshLiveScores();
+  // Refresh scores/status from The Odds API /scores AFTER the response is
+  // flushed. Awaiting this on the render path cost ~2.6s TTFB whenever the
+  // throttle window had elapsed (the per-league fetch loop is serialized at
+  // >=1.1s request spacing). The page now renders immediately from the DB and
+  // the sweep runs in the background; LiveFeed's own 60s router.refresh()
+  // picks up the new data. The sweep is internally throttled
+  // (LIVE_SCORES_THROTTLE_SECONDS), so this is cheap when not due.
+  after(() => refreshLiveScores());
   // Badge, header count and cards ALL use liveFeedWhere() (status-driven,
   // API rows only, bettable market required, API-touched within 30 min) — the
   // previous mismatch came from the page also counting stale `live: true` rows.
