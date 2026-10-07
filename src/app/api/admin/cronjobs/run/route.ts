@@ -18,7 +18,15 @@ export const POST = handle(async (req: NextRequest) => {
   const at = new Date().toISOString();
   switch (job as CronJobId) {
     case "sync":
-      return ok({ job, at, ...(await syncGames()) });
+      try {
+        return ok({ job, at, ...(await syncGames()) });
+      } catch (e) {
+        // Admin-only surface: expose the specific upstream reason (e.g. a 401
+        // invalid/expired key) rather than the generic 500 handler's message.
+        const reason = e instanceof Error ? e.message : String(e);
+        console.error(`[admin/cronjobs/run] sync failed: ${reason}`);
+        throw new ApiError(502, `Odds sync failed: ${reason}`, "SYNC_FAILED");
+      }
     case "schedule":
       return ok({ job, at, ...(await syncWeeklyFixtures()) });
     case "settle":

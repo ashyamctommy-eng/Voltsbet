@@ -287,7 +287,18 @@ export async function syncGames(providerId?: string) {
     };
   }
 
-  const games = await provider.fetchUpcomingGames(sportKeys);
+  let games: ApiGame[];
+  try {
+    games = await provider.fetchUpcomingGames(sportKeys);
+  } catch (e) {
+    // Record WHY the paid pass died (auth / quota / network) so the admin panel
+    // and the logs show the upstream reason, then rethrow for the caller to
+    // surface as a specific error instead of a generic 500.
+    const reason = e instanceof Error ? e.message : String(e);
+    console.error(`[sync] pre-match pass failed: ${reason}`);
+    await setSetting("odds.lastSyncError", reason).catch(() => {});
+    throw e;
+  }
 
   // ── Batch prefetch (kills the N+1 loop) ────────────────────────────
   // Before: each of ~150 fixtures did findUnique(sport) + findUnique(game)
@@ -436,6 +447,7 @@ export async function syncGames(providerId?: string) {
   // see when odds last actually refreshed (and with what selection).
   try {
     await setSetting("odds.lastSyncAt", new Date().toISOString());
+    await setSetting("odds.lastSyncError", "");
     await setSetting(
       "odds.lastSyncStats",
       JSON.stringify({

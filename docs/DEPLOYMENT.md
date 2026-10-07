@@ -88,17 +88,44 @@ pnpm build
 PM2 (single process — fine for one VPS):
 
 ```bash
-pm2 start "pnpm start" --name voltbets --cwd /opt/voltbets
+pm2 start "pnpm start" --name voltsbet --cwd /opt/voltbets
 pm2 save && pm2 startup
 ```
 
-For a cron-driven odds sync, add:
+### Size the PM2 memory limit above the app's real baseline
 
-```cron
-*/15 * * * * cd /opt/voltbets && ODDS_API_KEY=$ODDS_API_KEY node -e "import('./src/lib/sync.ts')" ...
+`ecosystem.config.js` sets `max_memory_restart`. It **must sit comfortably
+above the app's steady-state RSS, not below it.** The production Next.js
+process idles around 500-650 MB, so a `600M` cap kills it roughly every 1-2
+hours — and, worse, kills it *mid-sync*, which reaches operators as a generic
+`"Something went wrong."` plus a stale "Odds last synced …h ago" banner (see
+§4 Troubleshooting below). Size it at roughly 2.5x the baseline:
+
+```jsonc
+"max_memory_restart": "1536M"
 ```
 
-(Or run sync inside the app — see `docs/API-INTEGRATION.md`.)
+Editing the file is not enough — a bare `pm2 restart <name>` keeps the old
+value. Re-read the config:
+
+```bash
+pm2 reload ecosystem.config.js --update-env
+pm2 describe voltsbet | grep -i 'max memory restart'
+```
+
+### Odds sync cron
+
+Drive the sync over HTTP so the scheduler and the Admin "Run now" button share
+one code path (do **not** invoke the TS module directly). Install into the app
+user's crontab:
+
+```cron
+0 6 */3 * * curl -fsS -m 300 "http://127.0.0.1:3000/api/cron/sync?secret=<CRON_SECRET>" >> /var/log/voltsbet/cron-sync.log 2>&1
+```
+
+Keep nginx's `proxy_read_timeout` above the sync's worst-case runtime: a full
+~48-league pass takes ~2 minutes, so the 300s default is fine today — but if the
+league/market set grows, raise it or move the paid pass off the request path.
 
 NGINX reverse proxy:
 
@@ -128,7 +155,50 @@ For horizontal scaling, replace `src/lib/rate-limit.ts` with a Redis-backed limi
 and invalidate caches via pub/sub. SQLite is single-writer — switch to Postgres
 before scaling out.
 
-## 4. Going live checklist
+## 4. Troubleshooting: odds sync
+
+**Symptom:** the Admin Panel reports a generic
+`{"error":{"code":"ERROR","message":"Something went wrong."}}` and the Cron
+Settings banner reads "Odds last synced 80h ago".
+
+Work outward-in. A generic client-side error almost always means the API
+returned something that was **not JSON** — an empty reply, or an nginx 502/504
+while the app was killed/restarting. The API credential is the *last* thing to
+suspect.
+
+1. **Validate the key directly from the host** (quota-free):
+   ```bash
+   curl -i "https://api.the-odds-api.com/v4/sports/?apiKey=$ODDS_API_KEY"
+   ```
+   Expect `200` plus `x-requests-remaining` / `x-requests-used` headers.
+
+2. **Check whether the process is being killed:**
+   ```bash
+   pm2 describe voltsbet | grep -iE 'restarts|uptime'
+   grep -i 'max-memory-restart' ~/.pm2/pm2.log | tail
+   tail -5 /var/log/voltsbet/cron-sync.log   # look for: curl: (52) Empty reply from server
+   ```
+   A `curl: (52)` whose timestamp matches a "restarted because it exceeds
+   --max-memory-restart" line **is** the root cause — fix the memory cap above.
+
+3. **Read the upstream reason.** Sync failures surface the specific cause at the
+   top level of `GET/POST /api/cron/sync` (`ok:false`, `error:"The Odds API …"`)
+   and persist it for later inspection:
+   ```bash
+   psql "$DATABASE_URL" -c "SELECT key,value FROM \"Setting\" WHERE key IN ('odds.lastSyncAt','odds.lastSyncError');"
+   ```
+   `401` → bad/renewed key; `402`/`403` → lapsed subscription;
+   `OUT_OF_USAGE_CREDITS` → quota exhausted; `429` → rate limited (raise
+   `ODDS_API_RATE_LIMIT_MS`).
+
+4. **Re-run and confirm freshness:**
+   ```bash
+   curl -s "http://127.0.0.1:3000/api/cron/sync?secret=$CRON_SECRET&force=1" | jq
+   ```
+   A healthy run returns `ok:true` with `created`/`updated` counts; the Admin
+   banner clears because `odds.lastSyncAt` is now recent.
+
+## 5. Going live checklist
 
 - [ ] Change demo passwords, delete demo accounts
 - [ ] Set `NODE_ENV=production`, HTTPS everywhere
@@ -136,3 +206,6 @@ before scaling out.
 - [ ] Add licensing/KYC/compliance tooling for your jurisdiction
 - [ ] Backups: `pg_dump` daily (Railway has automatic backups on paid plans)
 - [ ] Monitoring: uptime + error alerting (Sentry etc.)
+- [ ] Size `max_memory_restart` above steady-state RSS (≥1.5 GB for the current
+      app) and alert on PM2 restart count — a rising count means the process is
+      being OOM-restarted

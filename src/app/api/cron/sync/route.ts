@@ -55,6 +55,8 @@ type SyncOutcome = {
   throttled?: boolean;
   retryInSeconds?: number;
   coalesced?: boolean;
+  /** Upstream failure surfaced at the top level (e.g. "The Odds API 401: ..."). */
+  error?: string;
 };
 
 /** Paid pre-match pass is due only if BOTH the process and the DB agree the
@@ -82,9 +84,18 @@ async function runSync(force: boolean): Promise<SyncOutcome> {
 
   // 1) Pre-match odds/fixtures (paid) — only when the window has elapsed.
   let synced: unknown;
+  let prematchError: string | null = null;
   if (due) {
     const r = await Promise.allSettled([syncGames()]);
-    synced = r[0].status === "fulfilled" ? r[0].value : { error: r[0].reason instanceof Error ? r[0].reason.message : String(r[0].reason) };
+    if (r[0].status === "fulfilled") {
+      synced = r[0].value;
+    } else {
+      // Keep the sweep alive (steps 2-4 still run) but expose the REAL upstream
+      // reason at the top level of the JSON instead of swallowing it.
+      prematchError = r[0].reason instanceof Error ? r[0].reason.message : String(r[0].reason);
+      console.error(`[cron/sync] pre-match pass failed: ${prematchError}`);
+      synced = { error: prematchError, failed: true };
+    }
   } else {
     const last = Math.max(lastSyncAt, dbLastSyncAt ?? 0);
     synced = {
@@ -109,7 +120,14 @@ async function runSync(force: boolean): Promise<SyncOutcome> {
   // 4) In-process homepage feed cache.
   clearPrematchFeedCache();
 
-  return { ok: true, synced, live, staleSweep, at: new Date().toISOString() };
+  return {
+    ok: !prematchError,
+    ...(prematchError ? { error: prematchError } : {}),
+    synced,
+    live,
+    staleSweep,
+    at: new Date().toISOString(),
+  };
 }
 
 export const GET = handle(async (req: NextRequest) => {

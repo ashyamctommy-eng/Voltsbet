@@ -470,6 +470,57 @@ export function parseScoreEvent(ev: ScoreEvent, now: number = Date.now()): ApiSc
   };
 }
 
+/**
+ * Upstream failure from The Odds API, carrying the HTTP status and the
+ * provider's own error payload so callers (cron route, admin panel, logs) can
+ * surface the REAL reason instead of a generic 500 "Something went wrong.".
+ */
+export class OddsApiError extends Error {
+  readonly status: number;
+  readonly providerBody: string;
+  readonly providerCode: string | null;
+  constructor(status: number, body: string) {
+    let providerCode: string | null = null;
+    let providerMessage = body.trim();
+    try {
+      const parsed = JSON.parse(body) as { error_code?: string; message?: string };
+      providerCode = parsed.error_code ?? null;
+      if (parsed.message) providerMessage = parsed.message;
+    } catch {
+      /* non-JSON body (HTML / plain text) — keep the raw text */
+    }
+    super(`The Odds API ${status}: ${providerMessage || "(empty body)"}`);
+    this.name = "OddsApiError";
+    this.status = status;
+    this.providerBody = body;
+    this.providerCode = providerCode;
+  }
+  /** Short, admin-safe explanation of an auth/quota failure. */
+  get reason(): string {
+    return describeOddsApiStatus(this.status, this.providerCode) ?? this.message;
+  }
+}
+
+/** Map an upstream HTTP status (+ provider error_code) to a human reason. */
+export function describeOddsApiStatus(status: number, providerCode?: string | null): string | null {
+  switch (status) {
+    case 401:
+      return providerCode === "OUT_OF_USAGE_CREDITS"
+        ? "The Odds API quota exhausted - top up or upgrade the plan."
+        : "Invalid API key - ODDS_API_KEY was rejected by The Odds API.";
+    case 402:
+      return "The Odds API payment required - the subscription/key has lapsed.";
+    case 403:
+      return "The Odds API forbade this request (key scope/region not permitted).";
+    case 422:
+      return "The Odds API rejected the request parameters (league/markets).";
+    case 429:
+      return "The Odds API rate limit hit (too many requests) - slow the sync.";
+    default:
+      return null;
+  }
+}
+
 export class TheOddsApi implements OddsProvider {
   id = "the-odds-api";
   private base = "https://api.the-odds-api.com/v4";
@@ -481,7 +532,14 @@ export class TheOddsApi implements OddsProvider {
     // Throttled + 429-retry: the free tier allows 1 request/second and the
     // sync fires many requests back-to-back.
     const res = await fetchOddsRetry(url);
-    if (!res.ok) throw new Error(`The Odds API ${res.status}: ${await res.text().catch(() => "")}`);
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      // Log the RAW upstream status + payload on every failure: this is the
+      // only place that shows what the provider actually said (401 invalid key,
+      // 402/403 lapsed subscription, 422 bad params, 429 rate limit).
+      console.error(`[odds-api] HTTP ${res.status} ${path} -> ${body.slice(0, 500) || "(empty body)"}`);
+      throw new OddsApiError(res.status, body);
+    }
     // Quota headers (docs: returned on every endpoint).
     const remaining = res.headers.get("x-requests-remaining");
     const used = res.headers.get("x-requests-used");
